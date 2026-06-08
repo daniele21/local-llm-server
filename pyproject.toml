@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-llm-server"
+version = "0.1.0"
+description = "Self-contained local LLM server with OpenAI-compatible API"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [{ name = "local-llm-server contributors" }]
+
+dependencies = [
+    "llama-cpp-python>=0.3.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx", "ruff"]
+
+[project.scripts]
+local-llm = "local_llm_server.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+local_llm_server = ["models_registry.yaml"]

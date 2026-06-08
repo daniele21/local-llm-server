@@ -1,0 +1,49 @@
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+wheels/
+.eggs/
+*.whl
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# Ruff cache
+.ruff_cache/
+
+# mypy
+.mypy_cache/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Local model files (large binaries — never commit)
+*.gguf
+*.bin
+*.safetensors
+~/.local-llm/
+
+# Secrets / env files
+.env
+.env.*
+!.env.example
