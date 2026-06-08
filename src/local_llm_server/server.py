@@ -139,6 +139,7 @@ def _build_response(
     raw: dict[str, Any],
     *,
     model_id: str,
+    backend: str,
     started_at: float,
     finished_at: float,
     show_thinking: bool,
@@ -155,7 +156,7 @@ def _build_response(
     payload["raw_output"] = content
     payload["thinking"] = thinking
     payload["final_answer"] = final_answer
-    payload["backend"] = "llama-cpp-python"
+    payload["backend"] = backend
     payload["stats"] = _usage_stats(raw, started_at, finished_at)
     return payload
 
@@ -229,7 +230,7 @@ class LLMHandler(BaseHTTPRequestHandler):
             _json_response(self, 200, {
                 "ok": True,
                 "server": "local-llm-server",
-                "backend": "llama-cpp-python",
+                "backend": getattr(self.app.llm, "backend", cfg.get("backend", "unknown")),
                 "model": cfg["model_id"],
                 "model_path": cfg["model_path"],
                 "endpoints": [
@@ -393,12 +394,13 @@ class LLMHandler(BaseHTTPRequestHandler):
             self.app.current_status["active"] = False
 
         if not isinstance(raw_response, dict):
-            _json_response(self, 500, {"error": "llama-cpp-python returned a non-dict response."})
+            _json_response(self, 500, {"error": "Inference engine returned a non-dict response."})
             return
 
         response = _build_response(
             raw_response,
             model_id=cfg["model_id"],
+            backend=getattr(self.app.llm, "backend", cfg.get("backend", "unknown")),
             started_at=started_at,
             finished_at=finished_at,
             show_thinking=cfg["show_thinking"],

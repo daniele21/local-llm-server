@@ -1,11 +1,11 @@
 """
-example_server.py — esempio di utilizzo di local-llm-server come libreria.
+example_mlx_server.py — esempio di utilizzo di local-llm-server con backend MLX.
 
-Avvia il server con un modello locale (path diretto), esegue una chiamata
+Avvia il server con un modello MLX locale, esegue una chiamata
 di test via OpenAI SDK e poi spegne il server.
 
 Eseguire con:
-    python example_server.py
+    .venv/bin/python example_mlx_server.py
 """
 
 import time
@@ -15,17 +15,13 @@ import local_llm_server as llm
 
 # ── Configurazione ─────────────────────────────────────────────────────────────
 
-MODEL_PATH = "~/.redactguard/models/NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf"
-
-
+MODEL_PATH = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 1235
 
 INFERENCE_PARAMS = {
-    "ctx_size": 36466,
-    "n_gpu_layers": 42,   # imposta 0 per usare solo CPU
-    "n_threads": 8,
-    "enable_thinking": True,
+    "backend": "mlx",
+    "force_json": False,
     "show_thinking": False,
     "verbose": False,
 }
@@ -33,7 +29,7 @@ INFERENCE_PARAMS = {
 # ── Avvio server ───────────────────────────────────────────────────────────────
 
 print(f"[*] Avvio server su {SERVER_HOST}:{SERVER_PORT} ...")
-print(f"[*] Modello: {MODEL_PATH}")
+print(f"[*] Modello MLX: {MODEL_PATH}")
 
 handle = llm.serve(
     model_path=MODEL_PATH,
@@ -53,13 +49,13 @@ print(" pronto.")
 try:
     from openai import OpenAI
 except ImportError:
-    print("\n[!] openai non installato. Installa con: pip install openai")
+    print("\n[!] openai non installato. Installa con: .venv/bin/pip install openai")
     handle.shutdown()
     sys.exit(1)
 
 client = OpenAI(
     base_url=f"http://{SERVER_HOST}:{SERVER_PORT}/v1",
-    api_key="local",        # qualsiasi stringa non vuota è accettata
+    api_key="local",
 )
 
 MESSAGES = [
@@ -72,9 +68,9 @@ print(f"    User: {MESSAGES[-1]['content']}\n")
 
 t0 = time.perf_counter()
 response = client.chat.completions.create(
-    model="local-model",    # il valore è ignorato dal server, può essere qualsiasi stringa
+    model="local-mlx-model",
     messages=MESSAGES,
-    temperature=0.6,
+    temperature=0.0,
     max_tokens=256,
 )
 elapsed = time.perf_counter() - t0

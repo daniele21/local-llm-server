@@ -28,8 +28,23 @@ def main() -> None:
 
     # ── serve ─────────────────────────────────────────────────────────────────
     p_serve = sub.add_parser("serve", help="Start the LLM server.")
-    p_serve.add_argument("--model", default=None, help="Registry key (e.g. qwen3-8b). Default: registry default_model.")
-    p_serve.add_argument("--model-path", default=None, dest="model_path", help="Direct path to a .gguf file (bypasses registry).")
+    p_serve.add_argument(
+        "--backend",
+        choices=["llama_cpp", "mlx"],
+        default=None,
+        help="Inference backend: llama_cpp for GGUF, mlx for MLX models.",
+    )
+    p_serve.add_argument(
+        "--model",
+        default=None,
+        help="Registry key (e.g. qwen3-8b). Default: registry default_model.",
+    )
+    p_serve.add_argument(
+        "--model-path",
+        default=None,
+        dest="model_path",
+        help="Direct model path/ref. For llama_cpp: .gguf file. For mlx: local MLX dir or HF repo.",
+    )
     p_serve.add_argument("--host", default=None)
     p_serve.add_argument("--port", type=int, default=None)
     p_serve.add_argument("--ctx-size", type=int, default=None, dest="ctx_size")
@@ -67,7 +82,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
 
     # Collect only explicitly set flags (skip None so config resolution works)
     explicit: dict = {}
-    for key in ("host", "port", "ctx_size", "n_gpu_layers", "n_threads",
+    for key in ("backend", "host", "port", "ctx_size", "n_gpu_layers", "n_threads",
                 "chat_format", "force_json", "show_thinking", "enable_thinking",
                 "no_download", "verbose"):
         val = getattr(args, key, None)

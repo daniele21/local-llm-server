@@ -36,6 +36,7 @@ _FALLBACKS: dict[str, Any] = {
     "verbose": False,
     "no_download": False,
     "default_temperature": 0.0,
+    "backend": "llama_cpp",
 }
 
 # ── Env-var names ──────────────────────────────────────────────────────────────
@@ -53,6 +54,7 @@ _ENV_MAP: dict[str, str] = {
     "enable_thinking": "LOCAL_LLM_ENABLE_THINKING",
     "show_thinking": "LOCAL_LLM_SHOW_THINKING",
     "verbose": "LOCAL_LLM_VERBOSE",
+    "backend": "LOCAL_LLM_BACKEND",
 }
 
 _BOOL_ENV = {"force_json", "enable_thinking", "show_thinking", "verbose", "offload_kqv", "flash_attn", "use_mmap"}
@@ -86,10 +88,16 @@ def build_config(
         **entry.get("params", {}),
     }
 
+    # Resolve backend
+    backend = explicit.get("backend") or entry.get("backend") or os.getenv("LOCAL_LLM_BACKEND") or reg_params.get("backend") or "llama_cpp"
+
     # Resolve model_path
     if model_path is None:
-        filename = entry.get("filename", f"{model}.gguf")
-        model_path = str(models_dir / filename)
+        if backend == "mlx":
+            model_path = entry.get("path") or entry.get("model_id") or model
+        else:
+            filename = entry.get("filename", f"{model}.gguf")
+            model_path = str(models_dir / filename)
 
     model_id: str = entry.get("model_id", model)
     download_url: str = entry.get("url", "")
@@ -127,5 +135,6 @@ def build_config(
     cfg["model_path"] = model_path
     cfg["download_url"] = download_url
     cfg["models_dir"] = models_dir
+    cfg["backend"] = backend
 
     return cfg

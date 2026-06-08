@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest", "httpx", "ruff"]
+mlx = ["mlx-lm>=0.31.0"]
 
 [project.scripts]
 local-llm = "local_llm_server.cli:main"
