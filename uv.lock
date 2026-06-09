@@ -258,7 +258,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/83/c1/ac90e90d28f405009
 
 [[package]]
 name = "local-llm-server"
-version = "0.1.0"
+version = "0.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

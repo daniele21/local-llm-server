@@ -25,6 +25,47 @@ For development (adds `pytest`, `httpx`, `ruff`):
 pip install ".[dev]"
 ```
 
+### Standalone Installation (Using built `.whl` package)
+
+If you have been distributed the compiled `.whl` file, you do not need the repository. Simply install it via `pip` or `uv`:
+
+```bash
+# Using standard pip
+pip install local_llm_server-*.whl
+
+# Or using uv
+uv pip install local_llm_server-*.whl
+```
+
+Once installed, the CLI tool `local-llm` will be available globally in your environment. You can start the server immediately:
+```bash
+local-llm serve --model-path /path/to/your/model.gguf
+```
+
+All resources (including the interactive Web UI, Swagger specifications, and usage examples) are embedded directly within the package. Once the server is running, open your browser and navigate to:
+* **Interactive Code Examples**: `http://127.0.0.1:1235/example`
+* **Swagger API Specifications**: `http://127.0.0.1:1235/docs`
+* **Web UI Dashboard**: `http://127.0.0.1:1235/`
+
+#### Running in a Virtual Machine (VM) or Remote Server
+If the server is running inside a VM or a remote instance and you need to access it from the host machine or local network, you must bind the server to `0.0.0.0` (all interfaces) instead of the default `127.0.0.1`:
+```bash
+local-llm serve --host 0.0.0.0 --port 1235 --model-path /path/to/your/model.gguf
+```
+
+You can then access the resources from outside the VM by replacing `127.0.0.1` with the IP address of your VM (e.g. `http://192.168.56.101:1235/example`). 
+
+*(Note: Depending on your VM software, make sure your network settings are set to **Bridged Adapter** or that you have configured **Port Forwarding** from Host Port `1235` to VM Port `1235`).*
+
+---
+
+### Building the Package (For Developers)
+
+To generate the `.whl` and `.tar.gz` distribution packages in the `dist/` directory:
+```bash
+./deploy.sh
+```
+
 ---
 
 ## Quick start
