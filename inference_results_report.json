@@ -1,0 +1,292 @@
+[
+  {
+    "index": 1,
+    "keywords": "cake_shop,wholesaler,bakery,food_store,food,point_of_interest,manufacturer,store,establishment",
+    "raw_response": "{\"classification\": \"bakery\"}",
+    "classification": "bakery",
+    "latency_seconds": 1.355398583022179,
+    "prompt_tokens": 0,
+    "completion_tokens": 8,
+    "status": "success"
+  },
+  {
+    "index": 2,
+    "keywords": "ice_cream_shop,dessert_shop,confectionery,food_store,food,store,point_of_interest,establishment",
+    "raw_response": "{\"classification\": \"dessert shop\"}",
+    "classification": "dessert shop",
+    "latency_seconds": 1.2570194169820752,
+    "prompt_tokens": 0,
+    "completion_tokens": 9,
+    "status": "success"
+  },
+  {
+    "index": 3,
+    "keywords": "establishment,lodging,point_of_interest",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.2538598329992965,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 4,
+    "keywords": "establishment,food,meal_takeaway,point_of_interest,restaurant",
+    "raw_response": "{\"classification\": \"takeaway restaurant\"}",
+    "classification": "takeaway restaurant",
+    "latency_seconds": 1.1857095419836696,
+    "prompt_tokens": 0,
+    "completion_tokens": 9,
+    "status": "success"
+  },
+  {
+    "index": 5,
+    "keywords": "establishment,food,point_of_interest,restaurant,store",
+    "raw_response": "{\"classification\": \"restaurant\"}",
+    "classification": "restaurant",
+    "latency_seconds": 1.0902885409886949,
+    "prompt_tokens": 0,
+    "completion_tokens": 8,
+    "status": "success"
+  },
+  {
+    "index": 6,
+    "keywords": "bar,establishment,food,point_of_interest,restaurant",
+    "raw_response": "{\"classification\": \"restaurant\"}",
+    "classification": "restaurant",
+    "latency_seconds": 1.0825718329870142,
+    "prompt_tokens": 0,
+    "completion_tokens": 8,
+    "status": "success"
+  },
+  {
+    "index": 7,
+    "keywords": "bar,establishment,point_of_interest",
+    "raw_response": "{\"classification\": \"bar\"}",
+    "classification": "bar",
+    "latency_seconds": 1.1288805000076536,
+    "prompt_tokens": 0,
+    "completion_tokens": 7,
+    "status": "success"
+  },
+  {
+    "index": 8,
+    "keywords": "establishment,food,point_of_interest,store",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.152621207991615,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 9,
+    "keywords": "bar,cafe,establishment,food,point_of_interest,store",
+    "raw_response": "{\"classification\": \"bar\"}",
+    "classification": "bar",
+    "latency_seconds": 1.051734334003413,
+    "prompt_tokens": 0,
+    "completion_tokens": 7,
+    "status": "success"
+  },
+  {
+    "index": 10,
+    "keywords": "bar,cafe,establishment,food,point_of_interest,restaurant",
+    "raw_response": "{\"classification\": \"restaurant\"}",
+    "classification": "restaurant",
+    "latency_seconds": 1.0880618340161163,
+    "prompt_tokens": 0,
+    "completion_tokens": 8,
+    "status": "success"
+  },
+  {
+    "index": 11,
+    "keywords": "bakery,bar,cafe,establishment,food,point_of_interest,store",
+    "raw_response": "{\n  \"classification\": \"bakery\"\n}",
+    "classification": "bakery",
+    "latency_seconds": 1.2422912909823935,
+    "prompt_tokens": 0,
+    "completion_tokens": 11,
+    "status": "success"
+  },
+  {
+    "index": 12,
+    "keywords": "cell_phone_store,electronics_store,home_goods_store,store,service,point_of_interest,establishment",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.2636954589979723,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 13,
+    "keywords": "establishment,food,point_of_interest,restaurant",
+    "raw_response": "{\"classification\": \"restaurant\"}",
+    "classification": "restaurant",
+    "latency_seconds": 1.1368394999881275,
+    "prompt_tokens": 0,
+    "completion_tokens": 8,
+    "status": "success"
+  },
+  {
+    "index": 14,
+    "keywords": "bar,campground,establishment,lodging,point_of_interest",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.3332558749825694,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 15,
+    "keywords": "bar,point_of_interest,establishment",
+    "raw_response": "{\"classification\": \"bar\"}",
+    "classification": "bar",
+    "latency_seconds": 1.1065143329906277,
+    "prompt_tokens": 0,
+    "completion_tokens": 7,
+    "status": "success"
+  },
+  {
+    "index": 16,
+    "keywords": "pub,bar,point_of_interest,establishment",
+    "raw_response": "{\"classification\": \"bar\"}",
+    "classification": "bar",
+    "latency_seconds": 1.081745499977842,
+    "prompt_tokens": 0,
+    "completion_tokens": 7,
+    "status": "success"
+  },
+  {
+    "index": 17,
+    "keywords": "bar,establishment,lodging,point_of_interest",
+    "raw_response": "{\n  \"classification\": \"bar\"\n}",
+    "classification": "bar",
+    "latency_seconds": 1.176192208979046,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 18,
+    "keywords": "bakery,establishment,food,point_of_interest,store",
+    "raw_response": "{\"classification\": \"bakery\"}",
+    "classification": "bakery",
+    "latency_seconds": 1.145425124996109,
+    "prompt_tokens": 0,
+    "completion_tokens": 8,
+    "status": "success"
+  },
+  {
+    "index": 19,
+    "keywords": "cafe,establishment,food,point_of_interest,store",
+    "raw_response": "{\"classification\": \"cafe\"}",
+    "classification": "cafe",
+    "latency_seconds": 1.1789589999825694,
+    "prompt_tokens": 0,
+    "completion_tokens": 8,
+    "status": "success"
+  },
+  {
+    "index": 20,
+    "keywords": "bakery,bar,establishment,food,point_of_interest,store",
+    "raw_response": "{\n  \"classification\": \"bakery\"\n}",
+    "classification": "bakery",
+    "latency_seconds": 1.2211317080073059,
+    "prompt_tokens": 0,
+    "completion_tokens": 11,
+    "status": "success"
+  },
+  {
+    "index": 21,
+    "keywords": "campground,establishment,food,lodging,point_of_interest,restaurant",
+    "raw_response": "{\n  \"classification\": \"restaurant\"\n}",
+    "classification": "restaurant",
+    "latency_seconds": 1.1663148340012413,
+    "prompt_tokens": 0,
+    "completion_tokens": 11,
+    "status": "success"
+  },
+  {
+    "index": 22,
+    "keywords": "hotel,lodging,point_of_interest,establishment",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.1116235840017907,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 23,
+    "keywords": "establishment,food,lodging,point_of_interest,restaurant",
+    "raw_response": "{\"classification\": \"restaurant\"}",
+    "classification": "restaurant",
+    "latency_seconds": 1.0806796670076437,
+    "prompt_tokens": 0,
+    "completion_tokens": 8,
+    "status": "success"
+  },
+  {
+    "index": 24,
+    "keywords": "establishment,point_of_interest",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.164788583992049,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 25,
+    "keywords": "hotel,lodging,bar,restaurant,food,point_of_interest,establishment",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.1612995840259828,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 26,
+    "keywords": "farmstay,lodging,point_of_interest,establishment",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.1255892920016777,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 27,
+    "keywords": "lodging,point_of_interest,establishment",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.1225343749974854,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 28,
+    "keywords": "general_contractor,service,point_of_interest,establishment",
+    "raw_response": "{\n  \"classification\": \"other\"\n}",
+    "classification": "other",
+    "latency_seconds": 1.1878621659998316,
+    "prompt_tokens": 0,
+    "completion_tokens": 10,
+    "status": "success"
+  },
+  {
+    "index": 29,
+    "keywords": "bar,establishment,food,meal_takeaway,point_of_interest,restaurant",
+    "raw_response": "{\"classification\": \"takeaway restaurant\"}",
+    "classification": "takeaway restaurant",
+    "latency_seconds": 1.116570792015409,
+    "prompt_tokens": 0,
+    "completion_tokens": 9,
+    "status": "success"
+  }
+]

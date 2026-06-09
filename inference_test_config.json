@@ -1,0 +1,41 @@
+{
+  "server_url": "http://127.0.0.1:8000/v1",
+  "model": "local-model",
+  "temperature": 0.0,
+  "max_tokens": 128,
+  "response_format": {
+    "type": "json_object"
+  },
+  "system_prompt": "You are an expert business analyst specialized in classifying companies (not segment hotel or guesthouse) by their activity based on their Google search keywords. The companies are not in the hotel or guesthouse segment. You will receive a list of keywords associated with a single company. Your task is to analyze the keywords and produce a classification of the activity (e.g. restaurant, pizzeria, bakery, bar).\n\nGuidelines:\n-Focus on the most discriminating keywords that reveal the exact type of activity to get the classification(e.g. prefer 'bar' or 'restaurant').\n- If keywords suggest a niche or specialization, mention it explicitly (e.g. 'sushi restaurant', 'bakery', 'takeaway restaurant', 'fastfood restaurant', 'italian restaurant').\nIf you are not sure about the classification, return 'other'.\n\nOutput strictly as a JSON object with this exact format:\n{\"classification\": \"<specific classification of the activity>\"}",
+  "keywords": [
+    "cake_shop,wholesaler,bakery,food_store,food,point_of_interest,manufacturer,store,establishment",
+    "ice_cream_shop,dessert_shop,confectionery,food_store,food,store,point_of_interest,establishment",
+    "establishment,lodging,point_of_interest",
+    "establishment,food,meal_takeaway,point_of_interest,restaurant",
+    "establishment,food,point_of_interest,restaurant,store",
+    "bar,establishment,food,point_of_interest,restaurant",
+    "bar,establishment,point_of_interest",
+    "establishment,food,point_of_interest,store",
+    "bar,cafe,establishment,food,point_of_interest,store",
+    "bar,cafe,establishment,food,point_of_interest,restaurant",
+    "bakery,bar,cafe,establishment,food,point_of_interest,store",
+    "cell_phone_store,electronics_store,home_goods_store,store,service,point_of_interest,establishment",
+    "establishment,food,point_of_interest,restaurant",
+    "bar,campground,establishment,lodging,point_of_interest",
+    "bar,point_of_interest,establishment",
+    "pub,bar,point_of_interest,establishment",
+    "bar,establishment,lodging,point_of_interest",
+    "bakery,establishment,food,point_of_interest,store",
+    "cafe,establishment,food,point_of_interest,store",
+    "bakery,bar,establishment,food,point_of_interest,store",
+    "campground,establishment,food,lodging,point_of_interest,restaurant",
+    "hotel,lodging,point_of_interest,establishment",
+    "establishment,food,lodging,point_of_interest,restaurant",
+    "establishment,point_of_interest",
+    "hotel,lodging,bar,restaurant,food,point_of_interest,establishment",
+    "farmstay,lodging,point_of_interest,establishment",
+    "lodging,point_of_interest,establishment",
+    "general_contractor,service,point_of_interest,establishment",
+    "bar,establishment,food,meal_takeaway,point_of_interest,restaurant"
+  ]
+}

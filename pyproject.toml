@@ -14,6 +14,8 @@ authors = [{ name = "local-llm-server contributors" }]
 dependencies = [
     "llama-cpp-python>=0.3.0",
     "pyyaml>=6.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
 ]
 
 [project.optional-dependencies]
@@ -27,4 +29,4 @@ local-llm = "local_llm_server.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-local_llm_server = ["models_registry.yaml"]
+local_llm_server = ["models_registry.yaml", "static/*"]

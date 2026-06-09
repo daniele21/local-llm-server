@@ -68,6 +68,15 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
+### 4 — Batch Inference & Testing
+
+For a complete, modular example of how to perform batch inference tests (e.g. classification of items using structured JSON output and performance reporting), refer to [test_inference.py](file:///Users/moltisantid/Personal/local-llm-server/test_inference.py).
+
+You can run this test suite using:
+```bash
+uv run python test_inference.py --server-url http://127.0.0.1:1235/v1
+```
+
 ---
 
 ## CLI reference
@@ -251,15 +260,29 @@ handle.shutdown()
 
 ---
 
-## API endpoints
+## API endpoints & Interactive Documentation
 
-The server exposes a subset of the OpenAI API:
+The server automatically generates interactive OpenAPI documentation. When the server is running, you can access the specifications at:
+* 📖 **Swagger UI (Interactive)**: `http://127.0.0.1:1235/docs`
+* 📘 **ReDoc**: `http://127.0.0.1:1235/redoc`
+
+The following endpoints are exposed:
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/v1/chat/completions` | Chat completion |
-| `GET` | `/v1/models` | List loaded model |
-| `GET` | `/health` | Health check |
+| `POST` | `/v1/chat/completions` | Chat completion (OpenAI compatible, supports streaming) |
+| `POST` | `/api/v1/chat` | Chat completion (alias) |
+| `GET` | `/v1/models` | List loaded models |
+| `GET` | `/api/v1/models` | List loaded models (alias) |
+| `GET` | `/health` | Health check and server metadata |
+| `GET` | `/status` | Real-time performance & status monitoring |
+| `GET` | `/api/v1/status` | Real-time performance & status monitoring (alias) |
+| `GET` | `/api/v1/models/registry` | List all models available in registry |
+| `GET` | `/api/v1/logs/stream` | Server console log stream (SSE format) |
+| `POST` | `/api/v1/models/load` | LM Studio compatibility endpoint |
+| `GET` | `/example` | Dynamic code examples (cURL, Python SDK, batch tests) |
+| `GET` | `/docs` | Interactive Swagger UI API documentation |
+| `GET` | `/redoc` | ReDoc API documentation |
 
 ---
 
