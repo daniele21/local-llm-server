@@ -30,7 +30,7 @@ _FALLBACKS: dict[str, Any] = {
     "use_mmap": True,
     "chat_format": None,
     "timeout": 1200,
-    "force_json": True,
+    "force_json": False,
     "enable_thinking": False,
     "show_thinking": False,
     "verbose": False,

@@ -540,6 +540,41 @@ body {
     font-size: 0.875rem;
 }
 
+/* Collapsible thinking accordion */
+.think-details {
+    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.think-summary {
+    padding: 8px 12px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+    transition: background-color var(--transition-fast);
+}
+
+.think-summary:hover {
+    background-color: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.think-content {
+    padding: 12px;
+    font-style: italic;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    border-top: 1px solid var(--border-card);
+    background-color: rgba(0, 0, 0, 0.15);
+    line-height: 1.5;
+}
+
 /* Metadata inside chat */
 .message-meta {
     font-family: var(--font-mono);

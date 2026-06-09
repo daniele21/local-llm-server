@@ -117,7 +117,7 @@ class ChatCompletionRequest(BaseModel):
     repeat_penalty: Optional[float] = Field(None, description="Penalty for repeating tokens.")
     presence_penalty: Optional[float] = Field(None, description="OpenAI-compatible presence penalty.")
     frequency_penalty: Optional[float] = Field(None, description="OpenAI-compatible frequency penalty.")
-    stream: Optional[bool] = Field(True, description="Enable streaming response.")
+    stream: Optional[bool] = Field(False, description="Enable streaming response.")
     max_tokens: Optional[int] = Field(None, description="Maximum tokens to generate.")
     max_output_tokens: Optional[int] = Field(None, description="Maximum tokens to generate (alias).")
     seed: Optional[int] = Field(None, description="Random seed for deterministic output.")
@@ -197,6 +197,12 @@ def _strip_thinking(content: str) -> tuple[str, str]:
         before, rest = content.split("<think>", 1)
         thinking, after = rest.split("</think>", 1)
         return thinking.strip(), (before + after).strip()
+    elif "</think>" in content:
+        thinking, after = content.split("</think>", 1)
+        return thinking.strip(), after.strip()
+    elif "<think>" in content:
+        before, thinking = content.split("<think>", 1)
+        return thinking.strip(), before.strip()
     return "", content.strip()
 
 
@@ -896,7 +902,7 @@ def chat_completions(req: ChatCompletionRequest):
         kwargs["response_format"] = {"type": "json_object"}
 
     # Handle stream vs non-stream request
-    wants_stream = request_payload.get("stream", True)
+    wants_stream = request_payload.get("stream", False)
 
     def generate_chat_completions_stream():
         with app.state.generation_lock:

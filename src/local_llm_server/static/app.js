@@ -28,6 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
         defaultModelOpt: document.getElementById('default-model-opt'),
         typingStatus: document.getElementById('typing-status'),
         typingText: document.getElementById('typing-text'),
+        forceJsonCheckbox: document.getElementById('param-force-json'),
+        showThinkingCheckbox: document.getElementById('param-show-thinking'),
 
         // Logs
         logSearch: document.getElementById('log-search-input'),
@@ -93,6 +95,18 @@ document.addEventListener('DOMContentLoaded', () => {
         // Connect to Logs Stream
         connectLogsStream();
         loadRegistryModels();
+
+        // Load Force JSON state
+        if (dom.forceJsonCheckbox) {
+            const savedForceJson = localStorage.getItem('force_json') === 'true';
+            dom.forceJsonCheckbox.checked = savedForceJson;
+        }
+
+        // Load Show Thinking state
+        if (dom.showThinkingCheckbox) {
+            const savedShowThinking = localStorage.getItem('show_thinking') !== 'false';
+            dom.showThinkingCheckbox.checked = savedShowThinking;
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -132,6 +146,18 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         dom.downloadLogsBtn.addEventListener('click', downloadLogs);
+
+        if (dom.forceJsonCheckbox) {
+            dom.forceJsonCheckbox.addEventListener('change', (e) => {
+                localStorage.setItem('force_json', e.target.checked);
+            });
+        }
+
+        if (dom.showThinkingCheckbox) {
+            dom.showThinkingCheckbox.addEventListener('change', (e) => {
+                localStorage.setItem('show_thinking', e.target.checked);
+            });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -421,9 +447,13 @@ document.addEventListener('DOMContentLoaded', () => {
             top_p,
             top_k,
             repeat_penalty,
+            stream: false,
         };
         if (model) payload.model = model;
         if (max_tokens) payload.max_tokens = max_tokens;
+        if (dom.forceJsonCheckbox && dom.forceJsonCheckbox.checked) {
+            payload.response_format = { type: "json_object" };
+        }
 
         try {
             const response = await fetch('/v1/chat/completions', {
@@ -440,7 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             
             // Extract assistant reply and thinking block
-            const reply = data.choices[0].message.content;
+            const reply = data.final_answer || data.choices[0].message.content;
             const thinking = data.thinking || '';
             const stats = data.stats || {};
 
@@ -496,10 +526,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let contentHtml = '';
         if (role === 'assistant') {
-            if (thinking && thinking.trim()) {
-                contentHtml += `<div class="think-block"><strong>Ragionamento:</strong><br>${formatTextMarkdown(thinking)}</div>`;
+            if (dom.showThinkingCheckbox && dom.showThinkingCheckbox.checked && thinking && thinking.trim()) {
+                contentHtml += `
+                    <details class="think-details">
+                        <summary class="think-summary">Mostra ragionamento</summary>
+                        <div class="think-content">${formatTextMarkdown(thinking)}</div>
+                    </details>
+                `;
             }
-            contentHtml += `<div class="assistant-response">${formatTextMarkdown(text)}</div>`;
+            const cleanText = cleanJsonResponse(text);
+            contentHtml += `<div class="assistant-response">${formatTextMarkdown(cleanText)}</div>`;
             
             // Add Stats metadata
             if (stats.tokens_per_second || stats.time_total_seconds) {
@@ -549,11 +585,37 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Inline code: `code`
         esc = esc.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+        // Bold formatting: **text**
+        esc = esc.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
         
         // Convert double newlines to paragraphs
         esc = esc.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
         
         return esc;
+    }
+
+    // Automatically parse and clean JSON responses if the model outputs JSON
+    function cleanJsonResponse(rawText) {
+        const trimmed = rawText.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+            try {
+                const parsed = JSON.parse(trimmed);
+                if (parsed && typeof parsed === 'object') {
+                    const keys = Object.keys(parsed);
+                    if (keys.length === 1) {
+                        return String(parsed[keys[0]]);
+                    } else if (keys.length > 1) {
+                        return Object.entries(parsed)
+                            .map(([k, v]) => `**${k}**: ${v}`)
+                            .join('\n');
+                    }
+                }
+            } catch (e) {
+                // Ignore parsing errors
+            }
+        }
+        return rawText;
     }
 
     function escapeHTML(str) {
