@@ -4,6 +4,7 @@ Provides automatically generated interactive OpenAPI documentation at /docs.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import sys
@@ -266,6 +267,12 @@ app.add_middleware(
 )
 
 
+@app.on_event("shutdown")
+def on_shutdown():
+    """Handle server shutdown events."""
+    app.state.shutdown = True
+
+
 @app.get("/health", tags=["System"])
 def get_health():
     """Check the health status of the LLM server."""
@@ -332,19 +339,26 @@ def get_models_registry():
 
 
 @app.get("/api/v1/logs/stream", tags=["System"])
-def stream_logs():
+def stream_logs(request: Request):
     """SSE endpoint streaming live console logs of the server process."""
-    def log_generator():
+    async def log_generator():
         q = log_buffer.add_listener()
+        ping_counter = 0
         try:
-            while True:
+            while not getattr(app.state, "shutdown", False):
+                if await request.is_disconnected():
+                    break
                 try:
-                    msg = q.get(timeout=1.0)
+                    msg = q.get_nowait()
                     lines = msg.splitlines()
                     for line in lines:
                         yield f"data: {line}\n\n"
                 except queue.Empty:
-                    yield ": ping\n\n"
+                    ping_counter += 1
+                    if ping_counter >= 25:  # Every 5 seconds (25 * 0.2s)
+                        yield ": ping\n\n"
+                        ping_counter = 0
+                    await asyncio.sleep(0.2)
         except Exception as exc:
             logger.debug("SSE log stream client disconnected: %s", exc)
         finally:
@@ -920,6 +934,8 @@ def chat_completions(req: ChatCompletionRequest):
 
                 is_thinking = False
                 for chunk in stream:
+                    if getattr(app.state, "shutdown", False):
+                        break
                     if app.state.current_status["phase"] == "prompt_eval":
                         app.state.current_status["phase"] = "generating"
                         app.state.current_status["started_at"] = time.perf_counter()
@@ -977,6 +993,8 @@ def chat_completions(req: ChatCompletionRequest):
             is_thinking = False
 
             for chunk in stream:
+                if getattr(app.state, "shutdown", False):
+                    break
                 if app.state.current_status["phase"] == "prompt_eval":
                     app.state.current_status["phase"] = "generating"
                     app.state.current_status["started_at"] = time.perf_counter()
@@ -1043,6 +1061,7 @@ def run_server(cfg: dict[str, Any], llm: Any) -> None:
     app.state.cfg = cfg
     app.state.llm = llm
     app.state.generation_lock = threading.Lock()
+    app.state.shutdown = False
     app.state.current_status = {
         "active": False,
         "phase": "idle",
