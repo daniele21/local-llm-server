@@ -176,6 +176,11 @@ local-llm serve --model my-model
 local-llm serve --model-path /path/to/model.gguf --ctx-size 8192 --n-gpu-layers 35
 ```
 
+Example with a local GGUF model (such as Nemotron):
+```bash
+local-llm serve --model-path ~/.lmstudio/models/lmstudio-community/NVIDIA-Nemotron-3-Nano-4B-GGUF/NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf
+```
+
 ---
 
 ## Use as a library
