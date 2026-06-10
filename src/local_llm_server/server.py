@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, List, Dict, Optional, Union
 
 from fastapi import FastAPI, Request, HTTPException, status
-from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse, JSONResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -35,7 +35,7 @@ class LogStreamBuffer:
             return
         with self.lock:
             self.buffer.append(text)
-            self.listeners = [l for l in self.listeners if not getattr(l, "closed", False)]
+            self.listeners = [listener for listener in self.listeners if not getattr(listener, "closed", False)]
             for listener in self.listeners:
                 try:
                     listener.put_nowait(text)
@@ -1064,9 +1064,8 @@ def chat_completions(req: ChatCompletionRequest):
 
 def run_server(cfg: dict[str, Any], llm: Any) -> None:
     """Start the FastAPI uvicorn server."""
+    import os
     import uvicorn
-    import signal
-    import sys
     
     # Attach config & engine state to app.state
     app.state.cfg = cfg
@@ -1084,13 +1083,10 @@ def run_server(cfg: dict[str, Any], llm: Any) -> None:
         "model": cfg["model_id"],
         "last_content": "",
     }
-    import os
-    import uvicorn
 
     class CustomUvicornServer(uvicorn.Server):
         def handle_exit(self, sig: int, frame) -> None:
             import time
-            import os
             print("\n[*] Stopping local-llm-server...", flush=True)
             time.sleep(0.1)
             os._exit(0)

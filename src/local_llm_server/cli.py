@@ -59,7 +59,7 @@ def main() -> None:
     p_serve.add_argument("--verbose", action="store_true", default=False)
 
     # ── models ────────────────────────────────────────────────────────────────
-    p_models = sub.add_parser("models", help="List available models from the registry.")
+    sub.add_parser("models", help="List available models from the registry.")
 
     # ── download ──────────────────────────────────────────────────────────────
     p_download = sub.add_parser("download", help="Download a model without starting the server.")

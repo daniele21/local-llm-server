@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from .server import run_server
 
-__all__ = ["run_server"]
+__all__ = ["run_server", "serve", "download_model", "list_models", "ServerHandle"]
 
 
 def serve(
@@ -54,7 +54,7 @@ def serve(
     if background:
         t = threading.Thread(target=server.serve_forever, daemon=True)
         t.start()
-        return _ServerHandle(server)
+        return ServerHandle(server)
 
     import signal as _signal
 
@@ -108,7 +108,7 @@ def list_models() -> list[dict]:
     return result
 
 
-class _ServerHandle:
+class ServerHandle:
     def __init__(self, server):
         self._server = server
 
