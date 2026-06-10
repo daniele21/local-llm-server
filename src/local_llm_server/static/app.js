@@ -5,20 +5,22 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // DOM Elements
+    // DOM Elements Mapping
     // ═══════════════════════════════════════════════════════════════════════════
     const dom = {
-        // Tabs
-        tabLinks: document.querySelectorAll('.tab-link'),
+        // Navigation Layout Tab Links
+        navItems: document.querySelectorAll('.nav-item'),
         tabPanels: document.querySelectorAll('.tab-panel'),
 
-        // Theme & Status
+        // Theme Toggle & Status Summary Sidebar
         themeToggle: document.getElementById('theme-toggle'),
-        serverStatus: document.getElementById('server-status'),
         serverStatusDot: document.querySelector('#server-status .status-badge__dot'),
         serverStatusText: document.querySelector('#server-status .status-badge__text'),
+        sidebarActiveModel: document.getElementById('sidebar-active-model'),
+        sidebarBackend: document.getElementById('sidebar-backend'),
+        sidebarAddress: document.getElementById('sidebar-address'),
 
-        // Chat
+        // Chat View components
         chatForm: document.getElementById('chat-params-form'),
         chatMessages: document.getElementById('chat-messages-container'),
         chatTextarea: document.getElementById('chat-textarea'),
@@ -31,16 +33,20 @@ document.addEventListener('DOMContentLoaded', () => {
         forceJsonCheckbox: document.getElementById('param-force-json'),
         showThinkingCheckbox: document.getElementById('param-show-thinking'),
 
-        // Logs
+        // Server Logs body
         logSearch: document.getElementById('log-search-input'),
+        logTimestampCheck: document.getElementById('log-timestamp-check'),
+        logLevelCheck: document.getElementById('log-level-check'),
+        logCompactCheck: document.getElementById('log-compact-check'),
         logAutoscroll: document.getElementById('log-autoscroll-check'),
         clearLogsBtn: document.getElementById('clear-logs-btn'),
         downloadLogsBtn: document.getElementById('download-logs-btn'),
         serverLogsBody: document.getElementById('server-logs-body'),
         logLineCount: document.getElementById('log-line-count'),
         sseIndicator: document.getElementById('sse-indicator'),
+        sseIndicatorDot: document.querySelector('#sse-indicator .active-sse-badge__dot'),
 
-        // Registry & Config
+        // Hardware Config Metrics
         cfgHost: document.getElementById('cfg-host'),
         cfgPort: document.getElementById('cfg-port'),
         cfgBackend: document.getElementById('cfg-backend'),
@@ -49,82 +55,84 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // State
+    // Global Application State
     // ═══════════════════════════════════════════════════════════════════════════
     let isServerOnline = false;
     let sseSource = null;
-    let rawLogLines = []; // Store raw text lines for search/download
-    let chatHistory = []; // {role, content}
+    let chatHistory = [];
     let isGenerating = false;
     let statusInterval = null;
 
-    // Toast Duration (ms)
-    const TOAST_DURATION_MS = 4000;
-
     // ═══════════════════════════════════════════════════════════════════════════
-    // Toast Notification System
-    // ═══════════════════════════════════════════════════════════════════════════
-    const Toast = {
-        show(message, type = 'success') {
-            const container = document.getElementById('toast-container');
-            if (!container) return;
-            const toast = document.createElement('div');
-            toast.className = `toast toast--${type}`;
-            toast.textContent = message;
-            container.appendChild(toast);
-            setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateY(12px)';
-                setTimeout(() => toast.remove(), 300);
-            }, TOAST_DURATION_MS);
-        }
-    };
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // Init & Health polling
+    // Core Initialisation
     // ═══════════════════════════════════════════════════════════════════════════
     function init() {
-        // Theme init
-        const savedTheme = localStorage.getItem('theme') || 'dark';
+        // Theme recovery
+        const savedTheme = localStorage.getItem(APP_CONFIG.theme.storageKey) || APP_CONFIG.theme.default;
         document.documentElement.setAttribute('data-theme', savedTheme);
 
-        bindEvents();
-        checkServerHealth();
-        setInterval(checkServerHealth, 10000); // Poll health every 10 seconds
+        // Bind modular components
+        LogConsole.bind({
+            body: dom.serverLogsBody,
+            count: dom.logLineCount,
+            autoscroll: dom.logAutoscroll,
+            search: dom.logSearch,
+            sseIndicator: dom.sseIndicator,
+            sseIndicatorDot: dom.sseIndicatorDot
+        });
 
-        // Connect to Logs Stream
+        ChatWindow.bind(
+            dom.chatMessages,
+            dom.showThinkingCheckbox ? dom.showThinkingCheckbox.checked : true
+        );
+
+        ModelCatalog.init(dom.modelsContainer, handleModelActivation);
+
+        // Clear and prepare chat welcome text
+        ChatWindow.clearChat(APP_CONFIG.labels.emptyChatPlaceholder);
+
+        // Initialize animations and collateral accordions
+        CollapsiblePanel.init();
+
+        // Attach global events
+        bindEvents();
+
+        // Run primary requests
+        checkServerHealth();
+        setInterval(checkServerHealth, APP_CONFIG.polling.serverHealth);
+
         connectLogsStream();
         loadRegistryModels();
 
-        // Load Force JSON state
+        // Recover checkboxes settings from localstorage
         if (dom.forceJsonCheckbox) {
             const savedForceJson = localStorage.getItem('force_json') === 'true';
             dom.forceJsonCheckbox.checked = savedForceJson;
         }
 
-        // Load Show Thinking state
         if (dom.showThinkingCheckbox) {
             const savedShowThinking = localStorage.getItem('show_thinking') !== 'false';
             dom.showThinkingCheckbox.checked = savedShowThinking;
+            ChatWindow.setShowThinking(savedShowThinking);
         }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Event Bindings
+    // Event Listeners Mapping
     // ═══════════════════════════════════════════════════════════════════════════
     function bindEvents() {
         // Tab switching
-        dom.tabLinks.forEach(link => {
-            link.addEventListener('click', () => {
-                const targetTab = link.dataset.tab;
+        dom.navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const targetTab = item.dataset.tab;
                 switchTab(targetTab);
             });
         });
 
-        // Theme switcher
+        // Theme switch
         dom.themeToggle.addEventListener('click', toggleTheme);
 
-        // Chat controls
+        // Chat inference triggering
         dom.sendChatBtn.addEventListener('click', handleUserSendMessage);
         dom.chatTextarea.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -134,19 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         dom.clearChatBtn.addEventListener('click', clearChat);
 
-        // Logs toolbar
-        dom.clearLogsBtn.addEventListener('click', () => {
-            dom.serverLogsBody.innerHTML = '';
-            rawLogLines = [];
-            updateLogCount();
-        });
-
-        dom.logSearch.addEventListener('input', () => {
-            filterLogs(dom.logSearch.value);
-        });
-
-        dom.downloadLogsBtn.addEventListener('click', downloadLogs);
-
+        // Chat Settings check updates
         if (dom.forceJsonCheckbox) {
             dom.forceJsonCheckbox.addEventListener('change', (e) => {
                 localStorage.setItem('force_json', e.target.checked);
@@ -156,40 +152,65 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dom.showThinkingCheckbox) {
             dom.showThinkingCheckbox.addEventListener('change', (e) => {
                 localStorage.setItem('show_thinking', e.target.checked);
+                ChatWindow.setShowThinking(e.target.checked);
             });
         }
+
+        // Log Console controls
+        dom.clearLogsBtn.addEventListener('click', () => LogConsole.clear());
+        dom.downloadLogsBtn.addEventListener('click', downloadLogs);
+
+        // Log Console view filters (Timestamps, Levels, Compact)
+        if (dom.logTimestampCheck) {
+            dom.logTimestampCheck.addEventListener('change', (e) => {
+                LogConsole.toggleTimestamps(e.target.checked);
+            });
+        }
+        if (dom.logLevelCheck) {
+            dom.logLevelCheck.addEventListener('change', (e) => {
+                LogConsole.toggleLevels(e.target.checked);
+            });
+        }
+        if (dom.logCompactCheck) {
+            dom.logCompactCheck.addEventListener('change', (e) => {
+                LogConsole.toggleCompact(e.target.checked);
+            });
+        }
+
+        // Auto-growing textbox
+        dom.chatTextarea.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Tab & Theme Control
+    // Application state controls
     // ═══════════════════════════════════════════════════════════════════════════
     function switchTab(tabId) {
-        dom.tabLinks.forEach(btn => {
-            if (btn.dataset.tab === tabId) {
-                btn.classList.add('tab-link--active');
-            } else {
-                btn.classList.remove('tab-link--active');
-            }
+        dom.navItems.forEach(btn => {
+            btn.classList.toggle('nav-item--active', btn.dataset.tab === tabId);
         });
 
         dom.tabPanels.forEach(panel => {
-            if (panel.id === tabId) {
-                panel.classList.add('tab-panel--active');
-            } else {
-                panel.classList.remove('tab-panel--active');
-            }
+            panel.classList.toggle('tab-panel--active', panel.id === tabId);
         });
+
+        // Trigger LogConsole re-rendering if switching to Logs Tab
+        if (tabId === 'logs-tab') {
+            LogConsole.renderAll();
+        }
     }
 
     function toggleTheme() {
         const current = document.documentElement.getAttribute('data-theme');
         const next = current === 'dark' ? 'light' : 'dark';
         document.documentElement.setAttribute('data-theme', next);
-        localStorage.setItem('theme', next);
+        localStorage.setItem(APP_CONFIG.theme.storageKey, next);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Server status & Registry
+    // Server state polling
     // ═══════════════════════════════════════════════════════════════════════════
     async function checkServerHealth() {
         try {
@@ -198,9 +219,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await res.json();
                 isServerOnline = true;
                 const modelShort = data.model ? data.model.split('/').pop() : 'Model';
-                setServerStatus(true, `Online (${modelShort})`);
                 
-                // Update System Info
+                // Update Sidebar
+                setServerStatus(true, `${APP_CONFIG.labels.online} (${modelShort})`);
+                dom.sidebarActiveModel.textContent = modelShort;
+                dom.sidebarActiveModel.title = data.model;
+                dom.sidebarBackend.textContent = data.backend || 'llama_cpp';
+                dom.sidebarAddress.textContent = `${data.host || '127.0.0.1'}:${data.port || '1235'}`;
+
+                // Update tab 3 configuration metrics
                 dom.cfgHost.textContent = data.host || '127.0.0.1';
                 dom.cfgPort.textContent = data.port || '1235';
                 dom.cfgBackend.textContent = data.backend || 'llama_cpp';
@@ -210,10 +237,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     dom.defaultModelOpt.textContent = `Predefinito (${modelShort})`;
                 }
             } else {
-                setServerStatus(false, 'Errore Server');
+                setServerStatus(false, APP_CONFIG.labels.serverError);
+                resetSidebarInfo();
             }
         } catch (err) {
-            setServerStatus(false, 'Disconnesso');
+            setServerStatus(false, APP_CONFIG.labels.offline);
+            resetSidebarInfo();
         }
     }
 
@@ -222,6 +251,15 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.serverStatusText.textContent = text;
     }
 
+    function resetSidebarInfo() {
+        dom.sidebarActiveModel.textContent = '-';
+        dom.sidebarBackend.textContent = '-';
+        dom.sidebarAddress.textContent = '-';
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Models Registry management
+    // ═══════════════════════════════════════════════════════════════════════════
     async function loadRegistryModels() {
         try {
             const res = await fetch('/api/v1/models/registry');
@@ -231,161 +269,76 @@ document.addEventListener('DOMContentLoaded', () => {
             // Popolate select dropdown
             dom.modelSelect.innerHTML = `<option value="">Predefinito del server</option>`;
             
-            // Populate grid list
-            dom.modelsContainer.innerHTML = '';
+            const models = data.models || [];
             
-            if (data.models && data.models.length > 0) {
-                data.models.forEach(model => {
-                    // Populate select options
-                    const opt = document.createElement('option');
-                    opt.value = model.key;
-                    opt.textContent = `${model.key} (${model.size_gb ? model.size_gb + ' GB' : 'Dimensione sconosciuta'})`;
-                    dom.modelSelect.appendChild(opt);
+            // Populate select options
+            models.forEach(model => {
+                const opt = document.createElement('option');
+                opt.value = model.key;
+                opt.textContent = `${model.key} (${model.size_gb ? model.size_gb + ' GB' : 'Dimensione N/A'})`;
+                dom.modelSelect.appendChild(opt);
+            });
 
-                    // Populate catalog cards
-                    const card = document.createElement('div');
-                    card.className = 'model-card';
+            // Get active model to highlight in Catalog
+            const activeModel = dom.sidebarActiveModel.textContent !== '-' ? dom.sidebarActiveModel.textContent : '';
+            ModelCatalog.render(models, activeModel);
 
-                    const tagsHtml = model.tags.map(t => `<span class="tag-badge">${t}</span>`).join('');
-                    const statusBadge = model.downloaded 
-                        ? `<span class="tag-badge tag-badge--downloaded">Scaricato</span>`
-                        : `<span class="tag-badge">Non scaricato</span>`;
-
-                    card.innerHTML = `
-                        <div class="model-card__header">
-                            <span class="model-card__title">${model.key}</span>
-                            <div class="model-card__tags">
-                                ${statusBadge}
-                                ${tagsHtml}
-                            </div>
-                        </div>
-                        <div class="model-card__body">
-                            <span>ID Modello: <strong>${model.model_id}</strong></span>
-                            <span>Dimensione stimata: <strong>${model.size_gb ? model.size_gb + ' GB' : 'N/A'}</strong></span>
-                            <span>Percorso locale: <strong>${model.path}</strong></span>
-                        </div>
-                    `;
-                    dom.modelsContainer.appendChild(card);
-                });
-            } else {
-                dom.modelsContainer.innerHTML = `<div class="models-grid__placeholder">Nessun modello registrato.</div>`;
-            }
         } catch (err) {
             console.error('Error loading model registry:', err);
-            dom.modelsContainer.innerHTML = `<div class="models-grid__placeholder">Impossibile connettersi al catalogo modelli.</div>`;
+            dom.modelsContainer.innerHTML = `<div class="models-grid__placeholder">Impossibile caricare il catalogo modelli.</div>`;
+        }
+    }
+
+    // Connect selected Catalog model to Chat select & switch tab
+    function handleModelActivation(modelKey) {
+        if (dom.modelSelect) {
+            dom.modelSelect.value = modelKey;
+            switchTab('chat-tab');
+            Toast.show(`Selezionato modello: ${modelKey} per la prossima richiesta.`, 'info');
         }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Logs Terminal Stream (SSE)
+    // Logs stream connector (SSE)
     // ═══════════════════════════════════════════════════════════════════════════
     function connectLogsStream() {
         if (sseSource) {
             sseSource.close();
         }
 
-        dom.sseIndicator.style.color = 'var(--text-muted)';
-        dom.sseIndicator.querySelector('.active-sse-badge__dot').style.backgroundColor = 'var(--text-muted)';
+        LogConsole.setStreamStatus('connecting');
 
         sseSource = new EventSource('/api/v1/logs/stream');
 
         sseSource.onopen = () => {
-            dom.sseIndicator.style.color = 'var(--color-accent)';
-            dom.sseIndicator.querySelector('.active-sse-badge__dot').style.backgroundColor = 'var(--color-accent)';
+            LogConsole.setStreamStatus('connected');
             
-            // Remove placeholders if present
+            // Remove console placeholder
             const placeholder = dom.serverLogsBody.querySelector('.console-placeholder');
-            if (placeholder) {
-                placeholder.remove();
-            }
+            if (placeholder) placeholder.remove();
         };
 
         sseSource.onmessage = (event) => {
             if (event.data === 'ping') return;
-            appendLogLine(event.data);
+            LogConsole.addLine(event.data);
         };
 
         sseSource.onerror = (err) => {
             console.error('Logs SSE error, retrying in 5s...', err);
-            dom.sseIndicator.style.color = 'var(--color-danger)';
-            dom.sseIndicator.querySelector('.active-sse-badge__dot').style.backgroundColor = 'var(--color-danger)';
+            LogConsole.setStreamStatus('error');
             sseSource.close();
-            setTimeout(connectLogsStream, 5000);
+            setTimeout(connectLogsStream, APP_CONFIG.logs.sseRetryMs);
         };
     }
 
-    function appendLogLine(lineText) {
-        rawLogLines.push(lineText);
-        updateLogCount();
-
-        // Create log line div
-        const div = document.createElement('div');
-        div.className = 'log-line';
-        
-        // Parse line format to apply pretty colors
-        // Example standard formats:
-        // [17:34:25] INFO [local-llm.server]: ...
-        // [17:34:25] ERROR ...
-        // [17:34:25] WARNING ...
-        // 127.0.0.1 - - [09/Jun/2026 09:22:15] "GET /health HTTP/1.1" 200 -
-        
-        let formatted = lineText;
-        
-        // Highlight dates/timestamps
-        formatted = formatted.replace(/^(\[\d{2}:\d{2}:\d{2}\])/, '<span class="log-line--timestamp">$1</span>');
-        formatted = formatted.replace(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} - - \[[^\]]+\])/, '<span class="log-line--timestamp">$1</span>');
-        
-        // Color logs level
-        if (lineText.includes('INFO')) {
-            div.classList.add('log-line--info');
-        } else if (lineText.includes('ERROR') || lineText.includes('failed')) {
-            div.classList.add('log-line--error');
-        } else if (lineText.includes('WARNING') || lineText.includes('warn')) {
-            div.classList.add('log-line--warning');
-        } else if (lineText.includes('DEBUG')) {
-            div.classList.add('log-line--debug');
-        } else if (lineText.includes('inference') || lineText.includes('generating') || lineText.includes('evaluated')) {
-            div.classList.add('log-line--inference');
-        }
-
-        div.innerHTML = formatted;
-
-        // Apply filters
-        const searchVal = dom.logSearch.value.toLowerCase();
-        if (searchVal && !lineText.toLowerCase().includes(searchVal)) {
-            div.style.display = 'none';
-        }
-
-        dom.serverLogsBody.appendChild(div);
-
-        // Auto-scroll
-        if (dom.logAutoscroll.checked) {
-            dom.serverLogsBody.scrollTop = dom.serverLogsBody.scrollHeight;
-        }
-    }
-
-    function updateLogCount() {
-        const count = rawLogLines.length;
-        dom.logLineCount.textContent = `${count} righe caricate`;
-    }
-
-    function filterLogs(query) {
-        const queryLower = query.toLowerCase();
-        const lines = dom.serverLogsBody.querySelectorAll('.log-line');
-        lines.forEach((line, index) => {
-            const rawText = rawLogLines[index] || line.innerText;
-            if (rawText.toLowerCase().includes(queryLower)) {
-                line.style.display = 'block';
-            } else {
-                line.style.display = 'none';
-            }
-        });
-    }
-
     function downloadLogs() {
-        const textContent = rawLogLines.join('\n');
+        const rawLines = LogConsole.getRawLogs();
+        if (rawLines.length === 0) return;
+
+        const textContent = rawLines.join('\n');
         const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
+        
         const a = document.createElement('a');
         a.href = url;
         a.download = `local-llm-server-${new Date().toISOString().split('T')[0]}.txt`;
@@ -393,35 +346,36 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        Toast.show('Log scaricati con successo!', 'success');
+        
+        Toast.show(APP_CONFIG.labels.toastLogsDownloaded, 'success');
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // Chat Studio Generation Logic
+    // Chat Completions Handler
     // ═══════════════════════════════════════════════════════════════════════════
     async function handleUserSendMessage() {
         const userText = dom.chatTextarea.value.trim();
         if (!userText || isGenerating) return;
 
-        // Reset inputs
+        // Reset text inputs
         dom.chatTextarea.value = '';
         dom.chatTextarea.style.height = 'auto';
 
-        // Add user message to UI
-        appendChatMessage('user', userText);
+        // Add user message to UI state & memory
+        ChatWindow.appendMessage('user', userText);
         chatHistory.push({ role: 'user', content: userText });
 
         isGenerating = true;
         dom.sendChatBtn.disabled = true;
         
-        // Show typing indicator
-        dom.typingText.textContent = "L'LLM sta valutando il prompt...";
+        // Setup typing status loaders
+        dom.typingText.textContent = APP_CONFIG.labels.typingStart;
         dom.typingStatus.style.display = 'flex';
         
-        // Setup status polling
+        // Start polling status
         startStatusPolling();
 
-        // Prepare request
+        // Get params fields
         const formData = new FormData(dom.chatForm);
         const model = formData.get('model');
         const temperature = parseFloat(formData.get('temperature') || '0.7');
@@ -431,14 +385,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const repeat_penalty = parseFloat(formData.get('repeat_penalty') || '1.0');
         const system_prompt = formData.get('system_prompt') || '';
 
-        // Build messages payload
+        // Build prompt payload
         const messages = [];
         if (system_prompt.trim()) {
             messages.push({ role: 'system', content: system_prompt.trim() });
         }
         
-        // Include context history (limit to last 10 messages for context safety)
-        const recentHistory = chatHistory.slice(-10);
+        // Limit context size
+        const recentHistory = chatHistory.slice(-APP_CONFIG.chat.maxContextHistory);
         messages.push(...recentHistory);
 
         const payload = {
@@ -469,18 +423,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             
-            // Extract assistant reply and thinking block
+            // Extract content and stats
             const reply = data.final_answer || data.choices[0].message.content;
             const thinking = data.thinking || '';
             const stats = data.stats || {};
 
-            // Add response to conversation
-            appendChatMessage('assistant', reply, thinking, stats);
+            // Render assistant response
+            ChatWindow.appendMessage('assistant', reply, thinking, stats);
             chatHistory.push({ role: 'assistant', content: reply });
 
         } catch (err) {
-            console.error('Chat completions error:', err);
-            appendChatMessage('assistant', `Errore durante l'elaborazione dell'inferenza: ${err.message}`, '', {});
+            console.error('Chat completion error:', err);
+            ChatWindow.appendMessage('assistant', `${APP_CONFIG.labels.inferenceError} ${err.message}`, '', {});
             Toast.show(`Inference failed: ${err.message}`, 'error');
         } finally {
             isGenerating = false;
@@ -499,15 +453,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     const status = await res.json();
                     if (status.active) {
                         if (status.phase === 'prompt_eval') {
-                            dom.typingText.textContent = "Valutazione prompt...";
+                            dom.typingText.textContent = APP_CONFIG.labels.typingEval;
                         } else if (status.phase === 'generating') {
                             const speed = status.tokens_per_second ? status.tokens_per_second.toFixed(1) : '0';
-                            dom.typingText.textContent = `Generazione in corso: ${status.tokens_generated} tokens (${speed} t/s)`;
+                            dom.typingText.textContent = APP_CONFIG.labels.typingGenerating(status.tokens_generated, speed);
                         }
                     }
                 }
             } catch (_) {}
-        }, 300);
+        }, APP_CONFIG.polling.statusUpdate);
     }
 
     function stopStatusPolling() {
@@ -517,122 +471,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function appendChatMessage(role, text, thinking = '', stats = {}) {
-        const container = dom.chatMessages;
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message message--${role}`;
-
-        const avatar = role === 'user' ? 'ME' : 'AI';
-        
-        let contentHtml = '';
-        if (role === 'assistant') {
-            if (dom.showThinkingCheckbox && dom.showThinkingCheckbox.checked && thinking && thinking.trim()) {
-                contentHtml += `
-                    <details class="think-details">
-                        <summary class="think-summary">Mostra ragionamento</summary>
-                        <div class="think-content">${formatTextMarkdown(thinking)}</div>
-                    </details>
-                `;
-            }
-            const cleanText = cleanJsonResponse(text);
-            contentHtml += `<div class="assistant-response">${formatTextMarkdown(cleanText)}</div>`;
-            
-            // Add Stats metadata
-            if (stats.tokens_per_second || stats.time_total_seconds) {
-                const speed = stats.tokens_per_second ? stats.tokens_per_second.toFixed(1) : '-';
-                const time = stats.time_total_seconds ? stats.time_total_seconds.toFixed(2) : '-';
-                const tokens = stats.output_tokens || stats.total_tokens || '-';
-                contentHtml += `
-                    <div class="message-meta">
-                        <span>${tokens} tokens</span>
-                        <span>${time}s impiegati</span>
-                        <span>${speed} tokens/s</span>
-                    </div>
-                `;
-            }
-        } else {
-            contentHtml = `<p>${escapeHTML(text)}</p>`;
-        }
-
-        msgDiv.innerHTML = `
-            <div class="message__avatar">${avatar}</div>
-            <div class="message__content">${contentHtml}</div>
-        `;
-
-        container.appendChild(msgDiv);
-        container.scrollTop = container.scrollHeight;
-    }
-
     function clearChat() {
         chatHistory = [];
-        dom.chatMessages.innerHTML = `
-            <div class="message message--assistant">
-                <div class="message__avatar">AI</div>
-                <div class="message__content">
-                    <p>Ciao! Come posso aiutarti oggi? Puoi chiedermi spiegazioni di codice, compiti creativi o semplici traduzioni. L'inferenza verrà eseguita localmente e potrai monitorare i log del server nell'altro pannello.</p>
-                </div>
-            </div>
-        `;
-        Toast.show('Conversazione svuotata!', 'success');
+        ChatWindow.clearChat(APP_CONFIG.labels.emptyChatPlaceholder);
+        Toast.show(APP_CONFIG.labels.toastChatCleared, 'success');
     }
 
-    // Simple markdown formatting helper
-    function formatTextMarkdown(text) {
-        let esc = escapeHTML(text);
-        
-        // Code blocks: ```code```
-        esc = esc.replace(/```([\s\S]+?)```/g, '<pre><code>$1</code></pre>');
-        
-        // Inline code: `code`
-        esc = esc.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-        // Bold formatting: **text**
-        esc = esc.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
-        
-        // Convert double newlines to paragraphs
-        esc = esc.split('\n\n').map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
-        
-        return esc;
-    }
-
-    // Automatically parse and clean JSON responses if the model outputs JSON
-    function cleanJsonResponse(rawText) {
-        const trimmed = rawText.trim();
-        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-            try {
-                const parsed = JSON.parse(trimmed);
-                if (parsed && typeof parsed === 'object') {
-                    const keys = Object.keys(parsed);
-                    if (keys.length === 1) {
-                        return String(parsed[keys[0]]);
-                    } else if (keys.length > 1) {
-                        return Object.entries(parsed)
-                            .map(([k, v]) => `**${k}**: ${v}`)
-                            .join('\n');
-                    }
-                }
-            } catch (e) {
-                // Ignore parsing errors
-            }
-        }
-        return rawText;
-    }
-
-    function escapeHTML(str) {
-        return str
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    // Auto-grow textarea height
-    dom.chatTextarea.addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = (this.scrollHeight) + 'px';
-    });
-
-    // Boot the UI
+    // Boot the UI Orchestrator
     init();
 });

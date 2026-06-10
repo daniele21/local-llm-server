@@ -59,15 +59,24 @@ class DualWriter:
     def __init__(self, original: Any, buffer: LogStreamBuffer) -> None:
         self.original = original
         self.buffer = buffer
+        self._accumulator = ""
 
     def write(self, text: str) -> None:
         self.original.write(text)
         self.original.flush()
-        if text.strip():
-            self.buffer.append(text.rstrip("\r\n"))
+        
+        self._accumulator += text
+        while "\n" in self._accumulator:
+            line, self._accumulator = self._accumulator.split("\n", 1)
+            line = line.rstrip("\r")
+            if line.strip():
+                self.buffer.append(line)
 
     def flush(self) -> None:
         self.original.flush()
+        if self._accumulator.strip():
+            self.buffer.append(self._accumulator.rstrip("\r\n"))
+            self._accumulator = ""
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.original, name)
@@ -1056,6 +1065,8 @@ def chat_completions(req: ChatCompletionRequest):
 def run_server(cfg: dict[str, Any], llm: Any) -> None:
     """Start the FastAPI uvicorn server."""
     import uvicorn
+    import signal
+    import sys
     
     # Attach config & engine state to app.state
     app.state.cfg = cfg
@@ -1073,6 +1084,16 @@ def run_server(cfg: dict[str, Any], llm: Any) -> None:
         "model": cfg["model_id"],
         "last_content": "",
     }
+    import os
+    import uvicorn
+
+    class CustomUvicornServer(uvicorn.Server):
+        def handle_exit(self, sig: int, frame) -> None:
+            import time
+            import os
+            print("\n[*] Stopping local-llm-server...", flush=True)
+            time.sleep(0.1)
+            os._exit(0)
 
     logger.info(
         "local-llm-server starting on http://%s:%d (model: %s)",
@@ -1086,9 +1107,15 @@ def run_server(cfg: dict[str, Any], llm: Any) -> None:
     print(f"[*] 👉 API specifications at:  http://{cfg['host']}:{cfg['port']}/docs", flush=True)
     print(f"[*] 👉 API usage examples at:  http://{cfg['host']}:{cfg['port']}/example\n", flush=True)
 
-    uvicorn.run(
-        app,
-        host=cfg["host"],
-        port=cfg["port"],
-        log_level="warning" if not cfg.get("verbose", False) else "info",
-    )
+    try:
+        config = uvicorn.Config(
+            app,
+            host=cfg["host"],
+            port=cfg["port"],
+            log_level="warning" if not cfg.get("verbose", False) else "info",
+        )
+        server = CustomUvicornServer(config)
+        server.run()
+    except KeyboardInterrupt:
+        logger.info("Server uvicorn process interrupted by keyboard event.")
+        sys.exit(0)

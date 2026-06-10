@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Local LLM Studio</title>
     <meta name="description" content="Local LLM Chat Studio & Real-time Server Log Console">
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
@@ -15,143 +16,174 @@
     <div class="glow-bg glow-bg--1"></div>
     <div class="glow-bg glow-bg--2"></div>
 
-    <div class="app-shell">
-        <!-- ─── Header ──────────────────────────────────────────────────── -->
-        <header class="header">
-            <div class="header__brand">
-                <div class="header__logo">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                        <path d="M12 6v12"/>
-                        <path d="M8 10h8"/>
-                    </svg>
+    <div class="app-layout">
+        <!-- ─── Sidebar Navigation (Continuity Shell) ───────────────────────── -->
+        <aside class="app-sidebar">
+            <div class="sidebar-brand">
+                <div class="sidebar-logo">
+                    <img src="/static/logo.svg" alt="Local LLM Studio">
                 </div>
-                <div class="header__text">
+                <div class="sidebar-brand-text">
                     <h1>Local LLM Studio</h1>
-                    <p>Inference engine & monitoraggio real-time</p>
+                    <span class="subtext">Inference Console</span>
                 </div>
             </div>
-            <div class="header__actions">
-                <a href="/example" class="btn btn--secondary btn--sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+
+            <!-- Persistent Server Status Overview -->
+            <div class="status-summary-card">
+                <div class="status-header">
+                    <span class="status-badge" id="server-status">
+                        <span class="status-badge__dot status-badge__dot--offline"></span>
+                        <span class="status-badge__text">Connessione...</span>
+                    </span>
+                    <button id="theme-toggle" class="theme-btn" aria-label="Cambia tema">
+                        <svg class="icon--sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                        <svg class="icon--moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                    </button>
+                </div>
+
+                <div class="status-info-list">
+                    <div class="status-info-item">
+                        <span class="label">Modello Attivo</span>
+                        <span class="value" id="sidebar-active-model">-</span>
+                    </div>
+                    <div class="status-info-item">
+                        <span class="label">Inference Backend</span>
+                        <span class="value text-uppercase" id="sidebar-backend">-</span>
+                    </div>
+                    <div class="status-info-item">
+                        <span class="label">Indirizzo Server</span>
+                        <span class="value" id="sidebar-address">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar Navigation Links -->
+            <nav class="sidebar-nav" aria-label="Navigazione principale">
+                <button class="nav-item nav-item--active" data-tab="chat-tab">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Chat Studio
+                </button>
+                <button class="nav-item" data-tab="logs-tab">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="4 17 10 11 12 13 18 7"/><polyline points="14 7 18 7 18 11"/></svg>
+                    Log del Server
+                </button>
+                <button class="nav-item" data-tab="registry-tab">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                    Modelli e Config
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="/example" target="_blank" class="sidebar-footer-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><polygon points="6 3 20 12 6 21 6 3"/></svg>
                     Esempi API
                 </a>
-                <a href="/docs" class="btn btn--secondary btn--sm" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
+                <a href="/docs" target="_blank" class="sidebar-footer-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="12" height="12"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M6 6h10"/><path d="M6 10h10"/></svg>
                     Swagger API
                 </a>
-                <div class="status-badge" id="server-status">
-                    <span class="status-badge__dot status-badge__dot--offline"></span>
-                    <span class="status-badge__text">Connessione...</span>
-                </div>
-                <button id="theme-toggle" class="icon-btn" aria-label="Cambia tema">
-                    <svg class="icon--sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-                    <svg class="icon--moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-                </button>
             </div>
-        </header>
+        </aside>
 
-        <!-- ─── Tabs Navigation ─────────────────────────────────────────── -->
-        <nav class="tabs-nav" aria-label="Navigazione principale">
-            <button class="tab-link tab-link--active" data-tab="chat-tab">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                Chat Studio
-            </button>
-            <button class="tab-link" data-tab="logs-tab">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="4 17 10 11 12 13 18 7"/><polyline points="14 7 18 7 18 11"/></svg>
-                Log del Server
-            </button>
-            <button class="tab-link" data-tab="registry-tab">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-                Configurazione & Modelli
-            </button>
-        </nav>
-
-        <!-- ─── Main Content ────────────────────────────────────────────── -->
-        <main class="main-content">
+        <!-- ─── Main Workspace ─────────────────────────────────────────────── -->
+        <main class="app-main">
 
             <!-- ═══ TAB 1: Chat Studio ══════════════════════════════════ -->
             <section class="tab-panel tab-panel--active" id="chat-tab">
                 <div class="chat-layout">
-                    <!-- Parameters Panel -->
+                    <!-- Inference Parameters Column -->
                     <aside class="card params-panel">
-                        <h3>Parametri Inferenza</h3>
+                        <div class="params-header">
+                            <h3>Parametri Chat</h3>
+                        </div>
                         <form id="chat-params-form" class="params-form">
+                            <!-- Basic Parameter: Active Model -->
                             <div class="form-group">
-                                <label for="model-select">Modello attivo</label>
+                                <label for="model-select">Modello Attivo</label>
                                 <select id="model-select" name="model">
                                     <option value="" id="default-model-opt">Predefinito del server</option>
                                 </select>
                             </div>
+
+                            <!-- Basic Parameter: System Prompt -->
                             <div class="form-group">
                                 <label for="system-prompt">Prompt di Sistema</label>
                                 <textarea id="system-prompt" name="system_prompt" rows="3" placeholder="Sei un assistente utile e sintetico..."></textarea>
                             </div>
-                            <div class="form-group-grid">
-                                <div class="form-group">
-                                    <label for="param-temp">Temperatura</label>
-                                    <input type="number" id="param-temp" name="temperature" min="0" max="2" step="0.1" value="0.7">
+
+                            <!-- Progressive Disclosure Trigger -->
+                            <button type="button" class="btn btn--link btn--block collapsible-trigger-btn" id="advanced-params-trigger" data-collapsible-trigger="advanced-params-panel">
+                                <span>Parametri Avanzati</span>
+                                <svg class="chevron-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                            </button>
+
+                            <!-- Advanced Settings Panel (Initially collapsed) -->
+                            <div id="advanced-params-panel" class="collapsible-settings-panel collapsible--collapsed">
+                                <div class="advanced-settings-grid">
+                                    <div class="form-group-grid">
+                                        <div class="form-group">
+                                            <label for="param-temp">Temperatura</label>
+                                            <input type="number" id="param-temp" name="temperature" min="0" max="2" step="0.1" value="0.7">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="param-tokens">Max Output Tokens</label>
+                                            <input type="number" id="param-tokens" name="max_tokens" min="1" max="8192" step="128" value="2048" placeholder="Default">
+                                        </div>
+                                    </div>
+                                    <div class="form-group-grid">
+                                        <div class="form-group">
+                                            <label for="param-topp">Top P</label>
+                                            <input type="number" id="param-topp" name="top_p" min="0" max="1" step="0.05" value="0.95">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="param-topk">Top K</label>
+                                            <input type="number" id="param-topk" name="top_k" min="1" max="100" step="1" value="40">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="param-penalty">Repeat Penalty</label>
+                                        <input type="number" id="param-penalty" name="repeat_penalty" min="0.5" max="2.0" step="0.05" value="1.0">
+                                    </div>
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-label" for="param-force-json">
+                                            <input type="checkbox" id="param-force-json" name="force_json">
+                                            <span class="custom-checkbox"></span>
+                                            <span>Forza output JSON</span>
+                                        </label>
+                                    </div>
+                                    <div class="checkbox-group">
+                                        <label class="checkbox-label" for="param-show-thinking">
+                                            <input type="checkbox" id="param-show-thinking" name="show_thinking" checked>
+                                            <span class="custom-checkbox"></span>
+                                            <span>Mostra ragionamento (Thinking)</span>
+                                        </label>
+                                    </div>
                                 </div>
-                                <div class="form-group">
-                                    <label for="param-tokens">Max Output Tokens</label>
-                                    <input type="number" id="param-tokens" name="max_tokens" min="1" max="8192" step="128" value="2048" placeholder="Default">
-                                </div>
                             </div>
-                            <div class="form-group-grid">
-                                <div class="form-group">
-                                    <label for="param-topp">Top P</label>
-                                    <input type="number" id="param-topp" name="top_p" min="0" max="1" step="0.05" value="0.95">
-                                </div>
-                                <div class="form-group">
-                                    <label for="param-topk">Top K</label>
-                                    <input type="number" id="param-topk" name="top_k" min="1" max="100" step="1" value="40">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label for="param-penalty">Repeat Penalty</label>
-                                <input type="number" id="param-penalty" name="repeat_penalty" min="0.5" max="2.0" step="0.05" value="1.0">
-                            </div>
-                            <div style="margin-top: 4px; margin-bottom: 8px;">
-                                <label class="checkbox-label" for="param-force-json">
-                                    <input type="checkbox" id="param-force-json" name="force_json">
-                                    <span>Forza output JSON</span>
-                                </label>
-                            </div>
-                            <div style="margin-top: 4px; margin-bottom: 8px;">
-                                <label class="checkbox-label" for="param-show-thinking">
-                                    <input type="checkbox" id="param-show-thinking" name="show_thinking" checked>
-                                    <span>Mostra ragionamento (Thinking)</span>
-                                </label>
-                            </div>
+
                             <button type="button" class="btn btn--secondary btn--block" id="clear-chat-btn">
                                 Svuota Conversazione
                             </button>
                         </form>
                     </aside>
 
-                    <!-- Chat Window -->
+                    <!-- Chat Window Panel -->
                     <div class="card chat-window">
-                        <!-- Chat Messages Container -->
-                        <div class="chat-messages" id="chat-messages-container">
-                            <div class="message message--assistant">
-                                <div class="message__avatar">AI</div>
-                                <div class="message__content">
-                                    <p>Ciao! Come posso aiutarti oggi? Puoi chiedermi spiegazioni di codice, compiti creativi o semplici traduzioni. L'inferenza verrà eseguita localmente e potrai monitorare i log del server nell'altro pannello.</p>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- Messages Wrapper -->
+                        <div class="chat-messages" id="chat-messages-container"></div>
 
-                        <!-- Typing Indicator -->
+                        <!-- Typing / Thinking progress loader -->
                         <div class="chat-typing-status" id="typing-status" style="display: none;">
                             <div class="pulse-dots"><div></div><div></div><div></div></div>
-                            <span id="typing-text">L'LLM sta pensando...</span>
+                            <span id="typing-text">In attesa...</span>
                         </div>
 
-                        <!-- Chat Input Bar -->
+                        <!-- Input field controls -->
                         <div class="chat-input-bar">
-                            <textarea id="chat-textarea" placeholder="Scrivi un messaggio... (Invia con Invio, riga nuova con Shift+Invio)" rows="1"></textarea>
-                            <button type="button" class="btn btn--primary" id="send-chat-btn">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+                            <textarea id="chat-textarea" placeholder="Scrivi un messaggio... (Invio invia, Shift+Invio per riga nuova)" rows="1"></textarea>
+                            <button type="button" class="btn btn--primary" id="send-chat-btn" aria-label="Invia messaggio">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
                                     <line x1="22" y1="2" x2="11" y2="13"/>
                                     <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                                 </svg>
@@ -164,49 +196,77 @@
             <!-- ═══ TAB 2: Server Logs ══════════════════════════════════ -->
             <section class="tab-panel" id="logs-tab">
                 <div class="logs-layout">
-                    <!-- Logs Console Box -->
                     <div class="card logs-console">
+                        <!-- Modernized Toolbar with filters (Progressive Disclosure) -->
                         <div class="logs-console__toolbar">
                             <div class="search-box">
-                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                                <input type="text" id="log-search-input" placeholder="Filtra i log per parola chiave...">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input type="text" id="log-search-input" placeholder="Filtra per parola chiave...">
                             </div>
-                            <div class="toolbar-actions">
-                                <label class="checkbox-label">
+
+                            <div class="toolbar-options">
+                                <!-- Option checkboxes -->
+                                <label class="checkbox-label" for="log-timestamp-check">
+                                    <input type="checkbox" id="log-timestamp-check" checked>
+                                    <span class="custom-checkbox"></span>
+                                    <span>Timestamp</span>
+                                </label>
+                                <label class="checkbox-label" for="log-level-check">
+                                    <input type="checkbox" id="log-level-check" checked>
+                                    <span class="custom-checkbox"></span>
+                                    <span>Livello</span>
+                                </label>
+                                <label class="checkbox-label" for="log-compact-check">
+                                    <input type="checkbox" id="log-compact-check">
+                                    <span class="custom-checkbox"></span>
+                                    <span>Compatto</span>
+                                </label>
+                                <label class="checkbox-label" for="log-autoscroll-check">
                                     <input type="checkbox" id="log-autoscroll-check" checked>
+                                    <span class="custom-checkbox"></span>
                                     <span>Auto-scroll</span>
                                 </label>
-                                <button type="button" class="btn btn--ghost btn--sm" id="clear-logs-btn">
+                            </div>
+
+                            <div class="toolbar-actions">
+                                <button type="button" class="btn btn--secondary btn--sm" id="clear-logs-btn">
                                     Cancella
                                 </button>
-                                <button type="button" class="btn btn--ghost btn--sm" id="download-logs-btn">
-                                    Scarica .txt
+                                <button type="button" class="btn btn--secondary btn--sm" id="download-logs-btn">
+                                    Scarica (.txt)
                                 </button>
                             </div>
                         </div>
+
+                        <!-- Console Box -->
                         <div class="logs-console__body" id="server-logs-body">
                             <div class="console-placeholder">In attesa dei log del server...</div>
                         </div>
+
+                        <!-- Console Footer -->
                         <div class="logs-console__footer">
                             <span id="log-line-count">0 righe caricate</span>
                             <span class="active-sse-badge" id="sse-indicator">
                                 <span class="active-sse-badge__dot"></span>
-                                Streaming attivo
+                                Streaming Attivo
                             </span>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- ═══ TAB 3: Configuration & Registry ════════════════════ -->
+            <!-- ═══ TAB 3: Models & Config ══════════════════════════════ -->
             <section class="tab-panel" id="registry-tab">
                 <div class="registry-layout">
                     <!-- Config Options Card -->
                     <div class="card config-card">
-                        <h2>Stato Corrente del Server</h2>
+                        <div class="card-header">
+                            <h2>Stato Configurazione Hardware</h2>
+                            <p class="section-desc">Parametri correnti in uso dall'istanza attiva del server.</p>
+                        </div>
                         <div class="config-grid" id="server-metrics-grid">
                             <div class="config-metric">
-                                <span class="config-metric__label">Host di binding</span>
+                                <span class="config-metric__label">Host Binding</span>
                                 <span class="config-metric__value" id="cfg-host">-</span>
                             </div>
                             <div class="config-metric">
@@ -214,37 +274,42 @@
                                 <span class="config-metric__value" id="cfg-port">-</span>
                             </div>
                             <div class="config-metric">
-                                <span class="config-metric__label">Inference Backend</span>
+                                <span class="config-metric__label">Motore Backend</span>
                                 <span class="config-metric__value" id="cfg-backend">-</span>
                             </div>
                             <div class="config-metric">
-                                <span class="config-metric__label">Model Path locale</span>
+                                <span class="config-metric__label">Percorso File Modello</span>
                                 <span class="config-metric__value" id="cfg-model-path">-</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Models Registry Card -->
+                    <!-- Models Catalog Registry Grid -->
                     <div class="card registry-card">
-                        <h2>Catalogo Modelli Disponibili</h2>
-                        <p class="section-desc">Questi sono i modelli registrati localmente nel file di configurazione `models.yaml` o predefiniti.</p>
+                        <div class="card-header">
+                            <h2>Catalogo Modelli Disponibili</h2>
+                            <p class="section-desc">Visualizza i modelli locali configurati nel file <code>models.yaml</code> o pronti al download.</p>
+                        </div>
                         <div class="models-grid" id="models-list-container">
                             <div class="models-grid__placeholder">Caricamento modelli in corso...</div>
                         </div>
                     </div>
                 </div>
             </section>
-        </main>
 
-        <!-- ─── Footer ──────────────────────────────────────────────────── -->
-        <footer class="footer">
-            <p>Powered by <strong>llama-cpp-python</strong> & <strong>ThreadingHTTPServer</strong>. Eseguito localmente con accelerazione hardware.</p>
-        </footer>
+            <!-- ─── Shared Footer ───────────────────────────────────────────── -->
+            <footer class="app-footer">
+                <p>Powered by <strong>llama-cpp-python</strong> &amp; <strong>ThreadingHTTPServer</strong>. Accelerazione hardware Apple Silicon/NVIDIA se disponibile.</p>
+            </footer>
+        </main>
     </div>
 
     <!-- Toast notification container -->
     <div class="toast-container" id="toast-container"></div>
 
+    <!-- Script loading chain -->
+    <script src="/static/config.js"></script>
+    <script src="/static/components.js"></script>
     <script src="/static/app.js"></script>
 </body>
 </html>
