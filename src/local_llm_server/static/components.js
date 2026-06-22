@@ -225,34 +225,43 @@ const LogConsole = (() => {
         const div = document.createElement('div');
         div.className = 'log-line';
 
-        let processed = lineText;
+        // Strip ANSI codes just for regex matching
+        const strippedForRegex = lineText.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
 
         // Parse structures
         // [17:34:25] INFO [local-llm.server]: log message
         const logRegex = /^\[(\d{2}:\d{2}:\d{2})\]\s+([A-Z]+)\s+\[([^\]]+)\]:\s+(.*)$/;
-        const match = processed.match(logRegex);
+        const match = strippedForRegex.match(logRegex);
 
         if (match) {
-            const [_, time, level, loggerName, msg] = match;
+            const [_, time, level, loggerName, strippedMsg] = match;
+            
+            // Extract the original message (retaining ANSI colors)
+            const prefixMarker = `[${loggerName}]: `;
+            const markerIndex = lineText.indexOf(prefixMarker);
+            let rawMsg = strippedMsg;
+            if (markerIndex !== -1) {
+                rawMsg = lineText.substring(markerIndex + prefixMarker.length);
+            }
             
             // Format options
             const timeSpan = showTimestamps ? `<span class="log-line--timestamp">[${time}]</span> ` : '';
             const levelSpan = showLevels ? `<span class="log-level-tag log-level-tag--${level.toLowerCase()}">${level}</span> ` : '';
             const scopeSpan = visualCompact ? '' : `<span class="log-line--logger">[${loggerName}]:</span> `;
             
-            div.innerHTML = `${timeSpan}${levelSpan}${scopeSpan}<span class="log-line--message">${_escapeHTML(msg)}</span>`;
+            div.innerHTML = `${timeSpan}${levelSpan}${scopeSpan}<span class="log-line--message">${_ansiToHTML(rawMsg)}</span>`;
             div.classList.add(`log-row--${level.toLowerCase()}`);
         } else {
             // General format or access log fallback
-            let formatted = _escapeHTML(processed);
+            let formatted = _ansiToHTML(lineText);
             formatted = formatted.replace(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} - - \[[^\]]+\])/, '<span class="log-line--timestamp">$1</span>');
             div.innerHTML = formatted;
 
-            if (processed.includes('INFO')) div.classList.add('log-row--info');
-            else if (processed.includes('ERROR') || processed.includes('failed')) div.classList.add('log-row--error');
-            else if (processed.includes('WARNING') || processed.includes('warn')) div.classList.add('log-row--warning');
-            else if (processed.includes('DEBUG')) div.classList.add('log-row--debug');
-            else if (processed.includes('inference') || processed.includes('generating')) div.classList.add('log-row--inference');
+            if (strippedForRegex.includes('INFO')) div.classList.add('log-row--info');
+            else if (strippedForRegex.includes('ERROR') || strippedForRegex.includes('failed')) div.classList.add('log-row--error');
+            else if (strippedForRegex.includes('WARNING') || strippedForRegex.includes('warn')) div.classList.add('log-row--warning');
+            else if (strippedForRegex.includes('DEBUG')) div.classList.add('log-row--debug');
+            else if (strippedForRegex.includes('inference') || strippedForRegex.includes('generating')) div.classList.add('log-row--inference');
         }
 
         return div;
@@ -293,6 +302,75 @@ const LogConsole = (() => {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+    }
+
+    function _ansiToHTML(text) {
+        const ansiRegex = /[\u001b\u009b]\[([0-9;]*)m/g;
+        let html = "";
+        let lastIndex = 0;
+        let spanOpen = false;
+        
+        // Map ANSI codes to classes
+        const codeMap = {
+            '0': 'reset',
+            '90': 'ansi-gray',
+            '91': 'ansi-red',
+            '92': 'ansi-green',
+            '93': 'ansi-yellow',
+            '94': 'ansi-blue',
+            '95': 'ansi-magenta',
+            '96': 'ansi-cyan',
+            '97': 'ansi-white',
+            '30': 'ansi-black',
+            '31': 'ansi-red',
+            '32': 'ansi-green',
+            '33': 'ansi-yellow',
+            '34': 'ansi-blue',
+            '35': 'ansi-magenta',
+            '36': 'ansi-cyan',
+            '37': 'ansi-white'
+        };
+
+        let match;
+        while ((match = ansiRegex.exec(text)) !== null) {
+            // Append raw text before the match
+            const rawText = text.substring(lastIndex, match.index);
+            html += _escapeHTML(rawText);
+            
+            const codes = match[1].split(';');
+            
+            let isReset = codes.includes('0') || codes.includes('');
+            let colorClass = "";
+            
+            for (const code of codes) {
+                if (codeMap[code] && codeMap[code] !== 'reset') {
+                    colorClass = codeMap[code];
+                }
+            }
+            
+            if (isReset || colorClass) {
+                if (spanOpen) {
+                    html += "</span>";
+                    spanOpen = false;
+                }
+                if (colorClass) {
+                    html += `<span class="${colorClass}">`;
+                    spanOpen = true;
+                }
+            }
+            
+            lastIndex = ansiRegex.lastIndex;
+        }
+        
+        // Append remaining text
+        html += _escapeHTML(text.substring(lastIndex));
+        
+        // Close any unclosed span
+        if (spanOpen) {
+            html += "</span>";
+        }
+        
+        return html;
     }
 
     return { bind, clear, addLine, toggleTimestamps, toggleLevels, toggleCompact, renderAll, getRawLogs, setStreamStatus };
@@ -596,4 +674,262 @@ const ChatWindow = (() => {
     }
 
     return { bind, clearChat, appendMessage, setShowThinking };
+})();
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   TERMINAL COMMAND RUNNER COMPONENT
+   ═══════════════════════════════════════════════════════════════════════════════ */
+const TerminalComponent = (() => {
+    let commandHistory = [];
+    let historyIndex = -1;
+    let tempInput = "";
+    
+    const dom = {
+        body: null,
+        input: null,
+        runBtn: null,
+        clearBtn: null,
+        cwdPath: null,
+        suggestionsContainer: null
+    };
+
+    function bind(elements) {
+        Object.assign(dom, elements);
+        
+        // Recover history from local storage
+        try {
+            const saved = localStorage.getItem('terminal_history');
+            if (saved) {
+                commandHistory = JSON.parse(saved);
+            }
+        } catch (e) {
+            commandHistory = [];
+        }
+        
+        _setupEventListeners();
+        clear(true); // silent clear, just print welcome
+        refreshCwd();
+    }
+
+    function _setupEventListeners() {
+        if (dom.input) {
+            dom.input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    executeCurrent();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    navigateHistory(1);
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    navigateHistory(-1);
+                }
+            });
+        }
+
+        if (dom.runBtn) {
+            dom.runBtn.addEventListener('click', () => {
+                executeCurrent();
+            });
+        }
+
+        if (dom.clearBtn) {
+            dom.clearBtn.addEventListener('click', () => {
+                clear();
+            });
+        }
+
+        if (dom.suggestionsContainer) {
+            const pills = dom.suggestionsContainer.querySelectorAll('.suggestion-pill');
+            pills.forEach(pill => {
+                pill.addEventListener('click', () => {
+                    const type = pill.dataset.cmd;
+                    const origin = window.location.origin;
+                    let cmd = "";
+                    if (type === 'health') {
+                        cmd = `curl ${origin}/health`;
+                    } else if (type === 'models') {
+                        cmd = `curl ${origin}/v1/models`;
+                    } else if (type === 'chat') {
+                        cmd = `curl ${origin}/v1/chat/completions -H "Content-Type: application/json" -d '{"messages": [{"role": "user", "content": "Ciao!"}]}'`;
+                    }
+                    
+                    if (cmd && dom.input) {
+                        dom.input.value = cmd;
+                        dom.input.focus();
+                    }
+                });
+            });
+        }
+    }
+
+    async function refreshCwd() {
+        if (!dom.cwdPath) return;
+        try {
+            // First run pwd command silently to sync CWD
+            const res = await fetch('/api/v1/terminal/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: 'pwd' })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.cwd) {
+                    dom.cwdPath.textContent = data.cwd;
+                    dom.cwdPath.title = data.cwd;
+                }
+            }
+        } catch (e) {
+            dom.cwdPath.textContent = 'unknown';
+        }
+    }
+
+    function clear(silent = false) {
+        if (dom.body) {
+            dom.body.innerHTML = `
+                <div class="terminal-welcome">${APP_CONFIG.terminal.welcomeMessage}</div>
+            `;
+        }
+        if (!silent) {
+            Toast.show(APP_CONFIG.labels.toastTerminalCleared, 'success');
+        }
+    }
+
+    function addLine(text, type = 'output') {
+        if (!dom.body) return;
+        
+        // Limit lines
+        if (dom.body.children.length >= APP_CONFIG.terminal.maxLines) {
+            dom.body.firstElementChild.remove();
+        }
+
+        const div = document.createElement('div');
+        div.className = `terminal-row-${type}`;
+        
+        if (type === 'input') {
+            div.innerHTML = `<span class="terminal-prompt-symbol">${APP_CONFIG.terminal.defaultPrompt}</span> <span>${_escapeHTML(text)}</span>`;
+        } else {
+            // Remove ANSI escape codes
+            const cleanText = text.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+            div.textContent = cleanText;
+        }
+
+        dom.body.appendChild(div);
+        dom.body.scrollTop = dom.body.scrollHeight;
+    }
+
+    async function executeCurrent() {
+        const cmd = dom.input.value.trim();
+        if (!cmd) return;
+
+        // Clear input field
+        dom.input.value = '';
+
+        // Add to history
+        if (commandHistory.length === 0 || commandHistory[commandHistory.length - 1] !== cmd) {
+            commandHistory.push(cmd);
+            if (commandHistory.length > 100) commandHistory.shift();
+            localStorage.setItem('terminal_history', JSON.stringify(commandHistory));
+        }
+        historyIndex = -1;
+        tempInput = "";
+
+        // Print command input line
+        addLine(cmd, 'input');
+
+        // Check for client-side help command
+        if (cmd.toLowerCase() === 'help') {
+            addLine("Comandi del Terminale:\n  help        mostra questo menu di aiuto\n  clear       pulisce lo schermo del terminale\n  cd [dir]    cambia la directory di lavoro corrente\n  [qualunque comando shell standard] esegue il comando sul server", 'output');
+            return;
+        }
+        if (cmd.toLowerCase() === 'clear') {
+            clear(true);
+            return;
+        }
+
+        // Disable input during execution
+        dom.input.disabled = true;
+        if (dom.runBtn) dom.runBtn.disabled = true;
+        
+        addLine(APP_CONFIG.labels.terminalRunning, 'output');
+        const runningRow = dom.body.lastElementChild;
+
+        try {
+            const res = await fetch('/api/v1/terminal/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command: cmd })
+            });
+
+            // Remove the "Running..." indicator
+            if (runningRow) runningRow.remove();
+
+            if (!res.ok) {
+                throw new Error(`Errore Server: ${res.status}`);
+            }
+
+            const data = await res.json();
+            
+            // Print stdout
+            if (data.stdout && data.stdout.trim()) {
+                addLine(data.stdout, 'output');
+            }
+            
+            // Print stderr
+            if (data.stderr && data.stderr.trim()) {
+                addLine(data.stderr, 'error');
+            }
+
+            if (!data.stdout && !data.stderr) {
+                addLine(`[Esecuzione completata con codice di uscita: ${data.exit_code}]`, 'output');
+            }
+
+            // Sync CWD if returned
+            if (data.cwd && dom.cwdPath) {
+                dom.cwdPath.textContent = data.cwd;
+                dom.cwdPath.title = data.cwd;
+            }
+
+        } catch (err) {
+            if (runningRow) runningRow.remove();
+            addLine(`Errore di connessione o esecuzione: ${err.message}`, 'error');
+        } finally {
+            dom.input.disabled = false;
+            if (dom.runBtn) dom.runBtn.disabled = false;
+            dom.input.focus();
+        }
+    }
+
+    function navigateHistory(direction) {
+        if (commandHistory.length === 0) return;
+
+        if (historyIndex === -1) {
+            // Save the current input as draft
+            tempInput = dom.input.value;
+            historyIndex = commandHistory.length;
+        }
+
+        historyIndex -= direction;
+
+        if (historyIndex < 0) {
+            historyIndex = 0;
+        } else if (historyIndex >= commandHistory.length) {
+            historyIndex = -1;
+            dom.input.value = tempInput;
+            return;
+        }
+
+        dom.input.value = commandHistory[historyIndex];
+    }
+
+    function _escapeHTML(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    return { bind, clear, addLine, refreshCwd };
 })();

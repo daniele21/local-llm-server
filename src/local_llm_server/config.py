@@ -37,6 +37,12 @@ _FALLBACKS: dict[str, Any] = {
     "no_download": False,
     "default_temperature": 0.0,
     "backend": "llama_cpp",
+    "mmproj_path": None,
+    "llama_server_port": 8091,
+    "llama_server_bin": None,
+    "multimodal": False,
+    "modalities": [],
+    "startup_timeout": 60,
 }
 
 # ── Env-var names ──────────────────────────────────────────────────────────────
@@ -55,10 +61,21 @@ _ENV_MAP: dict[str, str] = {
     "show_thinking": "LOCAL_LLM_SHOW_THINKING",
     "verbose": "LOCAL_LLM_VERBOSE",
     "backend": "LOCAL_LLM_BACKEND",
+    "llama_server_port": "LOCAL_LLM_SERVER_PORT",
+    "llama_server_bin": "LOCAL_LLM_SERVER_BIN",
+    "startup_timeout": "LOCAL_LLM_STARTUP_TIMEOUT",
 }
 
-_BOOL_ENV = {"force_json", "enable_thinking", "show_thinking", "verbose", "offload_kqv", "flash_attn", "use_mmap"}
-_INT_ENV = {"port", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch", "timeout"}
+_BOOL_ENV = {"force_json", "enable_thinking", "show_thinking", "verbose", "offload_kqv", "flash_attn", "use_mmap", "multimodal"}
+_INT_ENV = {"port", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch", "timeout", "llama_server_port", "startup_timeout"}
+
+
+def _lmstudio_model_path(entry: dict[str, Any], filename_key: str = "filename") -> Path | None:
+    lmstudio_path = entry.get("lmstudio_path")
+    filename = entry.get(filename_key)
+    if not lmstudio_path or not filename:
+        return None
+    return Path.home() / ".lmstudio" / "models" / str(lmstudio_path) / str(filename)
 
 
 def build_config(
@@ -97,7 +114,11 @@ def build_config(
             model_path = entry.get("path") or entry.get("model_id") or model
         else:
             filename = entry.get("filename", f"{model}.gguf")
-            model_path = str(models_dir / filename)
+            lmstudio_path = _lmstudio_model_path(entry, "filename")
+            if lmstudio_path and lmstudio_path.exists():
+                model_path = str(lmstudio_path)
+            else:
+                model_path = str(models_dir / filename)
 
     model_id: str = entry.get("model_id", model)
     download_url: str = entry.get("url", "")
@@ -136,5 +157,19 @@ def build_config(
     cfg["download_url"] = download_url
     cfg["models_dir"] = models_dir
     cfg["backend"] = backend
+    cfg["mmproj_filename"] = entry.get("mmproj_filename")
+    cfg["lmstudio_path"] = entry.get("lmstudio_path")
+
+    if not cfg.get("mmproj_path") and entry.get("mmproj_filename"):
+        lmstudio_mmproj = _lmstudio_model_path(entry, "mmproj_filename")
+        if lmstudio_mmproj and lmstudio_mmproj.exists():
+            cfg["mmproj_path"] = str(lmstudio_mmproj)
+        else:
+            cfg["mmproj_path"] = str(models_dir / str(entry["mmproj_filename"]))
+
+    if "multimodal" in entry and "multimodal" not in explicit:
+        cfg["multimodal"] = bool(entry["multimodal"])
+    if "modalities" in entry and "modalities" not in explicit:
+        cfg["modalities"] = list(entry.get("modalities") or [])
 
     return cfg

@@ -124,26 +124,26 @@
                                     <div class="form-group-grid">
                                         <div class="form-group">
                                             <label for="param-temp">Temperatura</label>
-                                            <input type="number" id="param-temp" name="temperature" min="0" max="2" step="0.1" value="0.7">
+                                            <input type="number" inputmode="numeric" id="param-temp" name="temperature" min="0" max="2" step="0.1" value="0.7">
                                         </div>
                                         <div class="form-group">
                                             <label for="param-tokens">Max Output Tokens</label>
-                                            <input type="number" id="param-tokens" name="max_tokens" min="1" max="8192" step="128" value="2048" placeholder="Default">
+                                            <input type="number" inputmode="numeric" id="param-tokens" name="max_tokens" min="1" max="8192" step="128" value="2048" placeholder="Default">
                                         </div>
                                     </div>
                                     <div class="form-group-grid">
                                         <div class="form-group">
                                             <label for="param-topp">Top P</label>
-                                            <input type="number" id="param-topp" name="top_p" min="0" max="1" step="0.05" value="0.95">
+                                            <input type="number" inputmode="numeric" id="param-topp" name="top_p" min="0" max="1" step="0.05" value="0.95">
                                         </div>
                                         <div class="form-group">
                                             <label for="param-topk">Top K</label>
-                                            <input type="number" id="param-topk" name="top_k" min="1" max="100" step="1" value="40">
+                                            <input type="number" inputmode="numeric" id="param-topk" name="top_k" min="1" max="100" step="1" value="40">
                                         </div>
                                     </div>
                                     <div class="form-group">
                                         <label for="param-penalty">Repeat Penalty</label>
-                                        <input type="number" id="param-penalty" name="repeat_penalty" min="0.5" max="2.0" step="0.05" value="1.0">
+                                        <input type="number" inputmode="numeric" id="param-penalty" name="repeat_penalty" min="0.5" max="2.0" step="0.05" value="1.0">
                                     </div>
                                     <div class="checkbox-group">
                                         <label class="checkbox-label" for="param-force-json">
@@ -243,6 +243,37 @@
                             <div class="console-placeholder">In attesa dei log del server...</div>
                         </div>
 
+                        <!-- Terminal Commands Section -->
+                        <div class="logs-console__terminal">
+                            <div class="terminal-header">
+                                <div class="terminal-header-title">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="4 17 10 11 12 13 18 7"/><polyline points="14 7 18 7 18 11"/></svg>
+                                    <span>Terminale Esecuzione Comandi</span>
+                                </div>
+                                <div class="terminal-header-cwd" id="terminal-cwd-container">
+                                    <span>CWD:</span>
+                                    <code id="terminal-cwd-path">Caricamento...</code>
+                                </div>
+                                <button type="button" class="btn btn--secondary btn--sm" id="clear-terminal-btn" style="padding: 2px 8px; font-size: 0.7rem;">
+                                    Pulisci
+                                </button>
+                            </div>
+                            <div class="terminal-body" id="terminal-screen-body"></div>
+                            <div class="terminal-suggestions" id="terminal-suggestions-container">
+                                <span class="terminal-suggestions-label">Esegui:</span>
+                                <button type="button" class="suggestion-pill" data-cmd="health">curl /health</button>
+                                <button type="button" class="suggestion-pill" data-cmd="models">curl /models</button>
+                                <button type="button" class="suggestion-pill" data-cmd="chat">curl chat-test</button>
+                            </div>
+                            <div class="terminal-input-bar">
+                                <span class="terminal-prompt-symbol">$</span>
+                                <input type="text" id="terminal-command-input" placeholder="Scrivi un comando (es: ls -la, uname -a, cd ..) e premi Invio..." autocomplete="off">
+                                <button type="button" class="btn btn--primary" id="run-terminal-btn">
+                                    Invia
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Console Footer -->
                         <div class="logs-console__footer">
                             <span id="log-line-count">0 righe caricate</span>
@@ -262,26 +293,108 @@
                     <div class="card config-card">
                         <div class="card-header">
                             <h2>Stato Configurazione Hardware</h2>
-                            <p class="section-desc">Parametri correnti in uso dall'istanza attiva del server.</p>
+                            <p class="section-desc">Modifica i parametri del motore inference ed esegui un hot-reload del modello in-memory.</p>
                         </div>
-                        <div class="config-grid" id="server-metrics-grid">
-                            <div class="config-metric">
-                                <span class="config-metric__label">Host Binding</span>
-                                <span class="config-metric__value" id="cfg-host">-</span>
+                        <form id="hardware-config-form" class="hardware-config-form">
+                            <div class="config-form-grid">
+                                <div class="config-metric">
+                                    <span class="config-metric__label">Host Binding</span>
+                                    <span class="config-metric__value" id="cfg-host">-</span>
+                                </div>
+                                <div class="config-metric">
+                                    <span class="config-metric__label">Porta server</span>
+                                    <span class="config-metric__value" id="cfg-port">-</span>
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-backend">Motore Backend</label>
+                                    <select id="cfg-backend" name="backend">
+                                        <option value="llama_cpp">llama-cpp-python (GGUF)</option>
+                                        <option value="mlx">mlx-lm (Apple Silicon MLX)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-ctx-size">Dimensione Contesto (ctx_size)</label>
+                                    <input type="number" inputmode="numeric" id="cfg-ctx-size" name="ctx_size" min="512" max="1000000" step="512" placeholder="es. 4096">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-gpu-layers">GPU Layers (n_gpu_layers)</label>
+                                    <input type="number" inputmode="numeric" id="cfg-gpu-layers" name="n_gpu_layers" min="0" max="200" step="1" placeholder="es. 35">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-threads">CPU Threads (n_threads)</label>
+                                    <input type="number" inputmode="numeric" id="cfg-threads" name="n_threads" min="1" max="64" step="1" placeholder="es. 8">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-n-batch">Batch Size (n_batch)</label>
+                                    <input type="number" inputmode="numeric" id="cfg-n-batch" name="n_batch" min="1" max="8192" step="1" placeholder="es. 512">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-n-ubatch">Micro-batch (n_ubatch)</label>
+                                    <input type="number" inputmode="numeric" id="cfg-n-ubatch" name="n_ubatch" min="1" max="8192" step="1" placeholder="es. 512">
+                                </div>
+                                <div class="form-group">
+                                    <label for="cfg-timeout">Timeout (secondi)</label>
+                                    <input type="number" inputmode="numeric" id="cfg-timeout" name="timeout" min="1" step="1" placeholder="es. 1200">
+                                </div>
                             </div>
-                            <div class="config-metric">
-                                <span class="config-metric__label">Porta server</span>
-                                <span class="config-metric__value" id="cfg-port">-</span>
+                            
+                            <div class="config-form-grid" style="margin-top: 1rem;">
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label" for="cfg-offload-kqv">
+                                        <input type="checkbox" id="cfg-offload-kqv" name="offload_kqv">
+                                        <span class="custom-checkbox"></span>
+                                        <span>Offload KQV</span>
+                                    </label>
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label" for="cfg-flash-attn">
+                                        <input type="checkbox" id="cfg-flash-attn" name="flash_attn">
+                                        <span class="custom-checkbox"></span>
+                                        <span>Flash Attention</span>
+                                    </label>
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label" for="cfg-use-mmap">
+                                        <input type="checkbox" id="cfg-use-mmap" name="use_mmap">
+                                        <span class="custom-checkbox"></span>
+                                        <span>Usa mmap</span>
+                                    </label>
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label" for="cfg-enable-thinking">
+                                        <input type="checkbox" id="cfg-enable-thinking" name="enable_thinking">
+                                        <span class="custom-checkbox"></span>
+                                        <span>Abilita Thinking (Globale)</span>
+                                    </label>
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label" for="cfg-show-thinking">
+                                        <input type="checkbox" id="cfg-show-thinking" name="show_thinking">
+                                        <span class="custom-checkbox"></span>
+                                        <span>Mostra Thinking (Globale)</span>
+                                    </label>
+                                </div>
+                                <div class="checkbox-group">
+                                    <label class="checkbox-label" for="cfg-verbose">
+                                        <input type="checkbox" id="cfg-verbose" name="verbose">
+                                        <span class="custom-checkbox"></span>
+                                        <span>Log Verbosi</span>
+                                    </label>
+                                </div>
                             </div>
-                            <div class="config-metric">
-                                <span class="config-metric__label">Motore Backend</span>
-                                <span class="config-metric__value" id="cfg-backend">-</span>
-                            </div>
-                            <div class="config-metric">
+                            
+                            <div class="config-metric path-metric">
                                 <span class="config-metric__label">Percorso File Modello</span>
-                                <span class="config-metric__value" id="cfg-model-path">-</span>
+                                <code class="config-metric__value" id="cfg-model-path" style="font-size: 0.82rem; word-break: break-all; font-family: var(--font-mono);">-</code>
                             </div>
-                        </div>
+                            
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn--primary" id="btn-reload-model">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="margin-right: 6px; vertical-align: middle;"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                                    <span>Salva e Riavvia Modello</span>
+                                </button>
+                            </div>
+                        </form>
                     </div>
 
                     <!-- Models Catalog Registry Grid -->

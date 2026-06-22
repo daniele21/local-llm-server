@@ -5,6 +5,13 @@ from __future__ import annotations
 
 import json
 import logging
+import atexit
+import os
+import shutil
+import subprocess
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -140,6 +147,153 @@ class MLXEngine:
             }
 
 
+class LlamaServerEngine:
+    """
+    Engine backed by an external llama-server subprocess.
+
+    This is intended for llama.cpp features not exposed reliably through
+    llama-cpp-python, such as multimodal projectors passed with --mmproj.
+    """
+
+    backend = "llama_server"
+
+    def __init__(self, cfg: dict[str, Any]) -> None:
+        self.cfg = cfg
+        self.model_path = Path(cfg["model_path"]).expanduser()
+        self.mmproj_path = Path(cfg["mmproj_path"]).expanduser() if cfg.get("mmproj_path") else None
+        self.port = int(cfg.get("llama_server_port") or 8091)
+        self.host = "127.0.0.1"
+        self.base_url = f"http://{self.host}:{self.port}"
+        self.process: subprocess.Popen[str] | None = None
+
+        ensure_model(
+            url=cfg.get("download_url", ""),
+            dest=self.model_path,
+            no_download=cfg.get("no_download", False),
+        )
+        if self.mmproj_path and not self.mmproj_path.exists():
+            raise FileNotFoundError(f"Multimodal projector not found: {self.mmproj_path}")
+
+        self.binary = self._resolve_binary(cfg)
+        self._start()
+        atexit.register(self.shutdown)
+
+    @staticmethod
+    def _resolve_binary(cfg: dict[str, Any]) -> Path:
+        candidates: list[Path] = []
+        explicit = cfg.get("llama_server_bin") or os.getenv("LOCAL_LLM_SERVER_BIN")
+        if explicit:
+            candidates.append(Path(str(explicit)).expanduser())
+
+        lmstudio_backends = Path.home() / ".lmstudio" / "extensions" / "backends"
+        candidates.extend(
+            sorted(
+                lmstudio_backends.glob("llama.cpp-*/llama-server"),
+                key=lambda p: p.parent.name,
+                reverse=True,
+            )
+        )
+
+        which = shutil.which("llama-server")
+        if which:
+            candidates.append(Path(which))
+
+        for candidate in candidates:
+            if candidate.exists() and os.access(candidate, os.X_OK):
+                return candidate
+
+        searched = ", ".join(str(p) for p in candidates) or "no candidates"
+        raise FileNotFoundError(
+            "llama-server binary not found. Set LOCAL_LLM_SERVER_BIN or "
+            f"llama_server_bin to an executable path. Searched: {searched}"
+        )
+
+    def _start(self) -> None:
+        cmd = [
+            str(self.binary),
+            "-m",
+            str(self.model_path),
+            "--port",
+            str(self.port),
+            "--host",
+            self.host,
+            "-c",
+            str(self.cfg.get("ctx_size", 4096)),
+        ]
+        if self.mmproj_path:
+            cmd.extend(["--mmproj", str(self.mmproj_path)])
+
+        logger.info("Starting llama-server: %s", " ".join(cmd))
+        self.process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        self._wait_until_ready(timeout=float(self.cfg.get("startup_timeout") or 60))
+
+    def _wait_until_ready(self, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        last_error = ""
+        while time.monotonic() < deadline:
+            if self.process and self.process.poll() is not None:
+                output = ""
+                if self.process.stdout:
+                    output = self.process.stdout.read()[-4000:]
+                raise RuntimeError(f"llama-server exited during startup. {output}")
+            try:
+                with urllib.request.urlopen(f"{self.base_url}/health", timeout=2) as response:
+                    body = response.read().decode("utf-8", errors="replace")
+                    if response.status == 200 and (not body or '"ok"' in body or '"status"' in body):
+                        logger.info("llama-server ready on %s", self.base_url)
+                        return
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last_error = str(exc)
+            time.sleep(1)
+        self.shutdown()
+        raise TimeoutError(f"llama-server did not become ready within {timeout:.0f}s. Last error: {last_error}")
+
+    def create_chat_completion(self, **kwargs: Any) -> Any:
+        stream = bool(kwargs.get("stream"))
+        payload = json.dumps(kwargs).encode("utf-8")
+        request = urllib.request.Request(
+            f"{self.base_url}/v1/chat/completions",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        if not stream:
+            with urllib.request.urlopen(request, timeout=float(self.cfg.get("timeout") or 1200)) as response:
+                return json.loads(response.read().decode("utf-8"))
+
+        def iter_chunks() -> Iterator[dict[str, Any]]:
+            with urllib.request.urlopen(request, timeout=float(self.cfg.get("timeout") or 1200)) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line.removeprefix("data:").strip()
+                    if data == "[DONE]":
+                        break
+                    yield json.loads(data)
+
+        return iter_chunks()
+
+    def shutdown(self) -> None:
+        process = self.process
+        if process is None or process.poll() is not None:
+            return
+        logger.info("Stopping llama-server on port %s", self.port)
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+
 def load_llm(cfg: dict[str, Any]) -> Any:
     backend = cfg.get("backend", "llama_cpp")
 
@@ -148,5 +302,8 @@ def load_llm(cfg: dict[str, Any]) -> Any:
 
     if backend == "mlx":
         return MLXEngine(cfg)
+
+    if backend == "llama_server":
+        return LlamaServerEngine(cfg)
 
     raise ValueError(f"Unsupported backend: {backend}")

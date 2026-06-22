@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-llm-server"
-version = "0.1.2"
+version = "0.2.0"
 description = "Self-contained local LLM server with OpenAI-compatible API"
 readme = "README.md"
 license = { text = "MIT" }
@@ -21,6 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest", "httpx", "ruff"]
 mlx = ["mlx-lm>=0.31.0"]
+audio = ["soundfile>=0.12.0", "numpy>=1.24.0"]
 
 [project.scripts]
 local-llm = "local_llm_server.cli:main"

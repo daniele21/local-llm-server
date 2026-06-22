@@ -4,6 +4,9 @@ Provides automatically generated interactive OpenAPI documentation at /docs.
 """
 from __future__ import annotations
 
+import os
+import subprocess
+import shlex
 import asyncio
 import json
 import logging
@@ -74,9 +77,6 @@ class DualWriter:
 
     def flush(self) -> None:
         self.original.flush()
-        if self._accumulator.strip():
-            self.buffer.append(self._accumulator.rstrip("\r\n"))
-            self._accumulator = ""
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self.original, name)
@@ -135,27 +135,58 @@ class ChatCompletionRequest(BaseModel):
     response_format: Optional[Dict[str, Any]] = Field(None, description="Format specifications (e.g. {'type': 'json_object'}).")
 
 
+class TerminalCommandRequest(BaseModel):
+    command: str = Field(..., description="The terminal command to execute.")
+
+
+class ModelActivateRequest(BaseModel):
+    model: str = Field(..., description="Registry key of the model to activate.")
+    backend: Optional[str] = Field(None, description="Inference backend override (llama_cpp, mlx, or llama_server).")
+    ctx_size: Optional[int] = Field(None, description="Context size override.")
+    n_gpu_layers: Optional[int] = Field(None, description="Number of GPU layers override.")
+    n_threads: Optional[int] = Field(None, description="Number of CPU threads override.")
+    n_batch: Optional[int] = Field(None, description="Batch size override.")
+    n_ubatch: Optional[int] = Field(None, description="Micro-batch size override.")
+    offload_kqv: Optional[bool] = Field(None, description="Offload KQV to GPU.")
+    flash_attn: Optional[bool] = Field(None, description="Enable Flash Attention.")
+    use_mmap: Optional[bool] = Field(None, description="Use mmap for model loading.")
+    timeout: Optional[int] = Field(None, description="Inference timeout in seconds.")
+    llama_server_port: Optional[int] = Field(None, description="Internal llama-server subprocess port.")
+    llama_server_bin: Optional[str] = Field(None, description="Path to llama-server executable.")
+    mmproj_path: Optional[str] = Field(None, description="Path to multimodal projector GGUF.")
+    startup_timeout: Optional[int] = Field(None, description="llama-server startup timeout in seconds.")
+    enable_thinking: Optional[bool] = Field(None, description="Enable thinking mode globally.")
+    show_thinking: Optional[bool] = Field(None, description="Show thinking globally.")
+    verbose: Optional[bool] = Field(None, description="Verbose logging.")
+
+
 # ── Message normalisation ───────────────────────────────────────────────────────
 
-def _normalize_messages(payload: dict[str, Any]) -> list[dict[str, str]]:
+def _normalize_messages(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Accept both OpenAI-style {messages:[…]} and LM-Studio-style {input:…}."""
     raw_messages = payload.get("messages")
 
     if isinstance(raw_messages, list):
-        messages: list[dict[str, str]] = []
+        messages: list[dict[str, Any]] = []
         for item in raw_messages:
             if not isinstance(item, dict):
                 continue
             role = str(item.get("role") or "").strip()
             content = item.get("content")
             if isinstance(content, list):
-                parts = [
-                    p if isinstance(p, str) else p.get("text", "")
-                    for p in content
-                    if isinstance(p, (str, dict))
-                ]
-                content = "\n".join(p for p in parts if p)
-            content = str(content or "").strip()
+                has_non_text_part = any(
+                    isinstance(part, dict) and part.get("type") not in {None, "text"}
+                    for part in content
+                )
+                if not has_non_text_part:
+                    parts = [
+                        p if isinstance(p, str) else p.get("text", "")
+                        for p in content
+                        if isinstance(p, (str, dict))
+                    ]
+                    content = "\n".join(p for p in parts if p)
+            if isinstance(content, str):
+                content = content.strip()
             if role and content:
                 messages.append({"role": role, "content": content})
         if messages:
@@ -245,6 +276,13 @@ def _build_response(
     exposed = content if show_thinking else final_answer
 
     payload = dict(raw)
+    if "choices" in payload and isinstance(payload["choices"], list) and len(payload["choices"]) > 0:
+        import copy
+        payload["choices"] = copy.deepcopy(payload["choices"])
+        choice = payload["choices"][0]
+        if "message" in choice and isinstance(choice["message"], dict):
+            choice["message"]["content"] = exposed
+
     payload["model"] = model_id
     payload["output"] = exposed
     payload["response"] = exposed
@@ -261,8 +299,8 @@ def _build_response(
 
 app = FastAPI(
     title="Local LLM Server API",
-    description="OpenAI-compatible API serving local LLMs (Llama-cpp, MLX).",
-    version="0.1.0",
+    description="OpenAI-compatible API serving local LLMs (Llama-cpp, MLX, llama-server multimodal).",
+    version="0.2.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -280,6 +318,9 @@ app.add_middleware(
 def on_shutdown():
     """Handle server shutdown events."""
     app.state.shutdown = True
+    llm = getattr(app.state, "llm", None)
+    if llm is not None and hasattr(llm, "shutdown"):
+        llm.shutdown()
 
 
 @app.get("/health", tags=["System"])
@@ -293,6 +334,25 @@ def get_health():
         "backend": getattr(llm, "backend", cfg.get("backend", "unknown")),
         "model": cfg["model_id"],
         "model_path": cfg["model_path"],
+        "host": cfg.get("host"),
+        "port": cfg.get("port"),
+        "ctx_size": cfg.get("ctx_size"),
+        "n_gpu_layers": cfg.get("n_gpu_layers"),
+        "n_threads": cfg.get("n_threads"),
+        "n_batch": cfg.get("n_batch"),
+        "n_ubatch": cfg.get("n_ubatch"),
+        "offload_kqv": cfg.get("offload_kqv"),
+        "flash_attn": cfg.get("flash_attn"),
+        "use_mmap": cfg.get("use_mmap"),
+        "timeout": cfg.get("timeout"),
+        "enable_thinking": cfg.get("enable_thinking"),
+        "show_thinking": cfg.get("show_thinking"),
+        "verbose": cfg.get("verbose"),
+        "multimodal": cfg.get("multimodal"),
+        "modalities": cfg.get("modalities"),
+        "mmproj_path": cfg.get("mmproj_path"),
+        "llama_server_port": cfg.get("llama_server_port"),
+        "model_key": cfg.get("model"),
         "endpoints": [
             "GET /health",
             "GET /v1/models",
@@ -862,6 +922,163 @@ def load_model_compat():
     }
 
 
+@app.post("/api/v1/models/activate", tags=["Models"])
+def activate_model(req: ModelActivateRequest):
+    """Load and activate a model with optional custom parameters."""
+    with app.state.generation_lock:
+        try:
+            from local_llm_server.config import build_config
+            from local_llm_server.engine import load_llm
+            
+            explicit = {}
+            for field_name in [
+                "backend", "ctx_size", "n_gpu_layers", "n_threads",
+                "n_batch", "n_ubatch", "timeout", "offload_kqv",
+                "flash_attn", "use_mmap", "enable_thinking",
+                "show_thinking", "verbose", "llama_server_port",
+                "llama_server_bin", "mmproj_path", "startup_timeout",
+            ]:
+                val = getattr(req, field_name)
+                if val is not None:
+                    explicit[field_name] = val
+
+            current_model_key = app.state.cfg.get("model") if hasattr(app.state, "cfg") and app.state.cfg else None
+            model_path_to_use = app.state.cfg.get("model_path") if req.model == current_model_key else None
+
+            new_cfg = build_config(
+                model=req.model,
+                model_path=model_path_to_use,
+                **explicit
+            )
+            
+            # Load the new LLM engine
+            new_llm = load_llm(new_cfg)
+            old_llm = getattr(app.state, "llm", None)
+            
+            # If load succeeds, update app.state
+            app.state.cfg = new_cfg
+            app.state.llm = new_llm
+            if old_llm is not None and old_llm is not new_llm and hasattr(old_llm, "shutdown"):
+                old_llm.shutdown()
+            app.state.current_status.update({
+                "model": new_cfg["model_id"]
+            })
+            
+            logger.info("Successfully activated model: %s", req.model)
+            return {
+                "ok": True,
+                "model": new_cfg["model_id"],
+                "cfg": {
+                    "model": new_cfg["model"],
+                    "model_id": new_cfg["model_id"],
+                    "model_path": new_cfg["model_path"],
+                    "backend": new_cfg["backend"],
+                    "mmproj_path": new_cfg.get("mmproj_path"),
+                    "llama_server_port": new_cfg.get("llama_server_port"),
+                    "ctx_size": new_cfg["ctx_size"],
+                    "n_gpu_layers": new_cfg["n_gpu_layers"],
+                    "n_threads": new_cfg["n_threads"]
+                }
+            }
+        except Exception as e:
+            import traceback
+            logger.error("Failed to activate model:\n%s", traceback.format_exc())
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Impossibile caricare il modello '{req.model}': {str(e)}"
+            )
+
+
+@app.post("/api/v1/terminal/run", tags=["System"])
+def run_terminal_command(req: TerminalCommandRequest):
+    """Execute a terminal command on the host within the current working directory."""
+    if not hasattr(app.state, "terminal_cwd"):
+        app.state.terminal_cwd = os.getcwd()
+
+    command = req.command.strip()
+    if not command:
+        return {
+            "exit_code": 0,
+            "stdout": "",
+            "stderr": "",
+            "cwd": app.state.terminal_cwd
+        }
+
+    # Handle 'cd' statefully
+    if command.startswith("cd"):
+        parts = shlex.split(command)
+        target = "~"
+        if len(parts) > 1:
+            target = parts[1]
+        
+        try:
+            if target == "~":
+                path = os.path.expanduser("~")
+            else:
+                path = os.path.abspath(os.path.join(app.state.terminal_cwd, target))
+            
+            if not os.path.exists(path):
+                return {
+                    "exit_code": 1,
+                    "stdout": "",
+                    "stderr": f"cd: no such file or directory: {target}",
+                    "cwd": app.state.terminal_cwd
+                }
+            if not os.path.isdir(path):
+                return {
+                    "exit_code": 1,
+                    "stdout": "",
+                    "stderr": f"cd: not a directory: {target}",
+                    "cwd": app.state.terminal_cwd
+                }
+            
+            app.state.terminal_cwd = path
+            return {
+                "exit_code": 0,
+                "stdout": f"Directory cambiata in: {path}",
+                "stderr": "",
+                "cwd": path
+            }
+        except Exception as e:
+            return {
+                "exit_code": 1,
+                "stdout": "",
+                "stderr": f"Errore nel cambio directory: {str(e)}",
+                "cwd": app.state.terminal_cwd
+            }
+
+    # Run command in the shell under the current working directory
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            cwd=app.state.terminal_cwd,
+            capture_output=True,
+            text=True,
+            timeout=15.0
+        )
+        return {
+            "exit_code": result.returncode,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "cwd": app.state.terminal_cwd
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": "Errore: Il comando ha superato il timeout di 15 secondi.",
+            "cwd": app.state.terminal_cwd
+        }
+    except Exception as e:
+        return {
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": f"Errore durante l'esecuzione: {str(e)}",
+            "cwd": app.state.terminal_cwd
+        }
+
+
 # Static Files Serving
 
 @app.get("/", response_class=HTMLResponse, tags=["UI"])
@@ -908,7 +1125,7 @@ def chat_completions(req: ChatCompletionRequest):
         "repeat_penalty": float(request_payload.get("repeat_penalty", 1.0)),
         "presence_penalty": float(request_payload.get("presence_penalty", 0.0)),
         "frequency_penalty": float(request_payload.get("frequency_penalty", 0.0)),
-        "stream": True,  # Keep streaming for internal console logs & updates
+        "stream": True,  # Keep streaming for internal console logs & updates when supported
         "model": str(request_payload.get("model") or cfg["model_id"]),
     }
 
@@ -926,6 +1143,8 @@ def chat_completions(req: ChatCompletionRequest):
 
     # Handle stream vs non-stream request
     wants_stream = request_payload.get("stream", False)
+    if not wants_stream and cfg.get("backend") == "llama_server":
+        kwargs["stream"] = False
 
     def generate_chat_completions_stream():
         with app.state.generation_lock:
@@ -942,6 +1161,9 @@ def chat_completions(req: ChatCompletionRequest):
                 print(f"\n\033[94m[{time.strftime('%H:%M:%S')}] LLM inference started | Model: {kwargs['model']} | Messages: {len(messages)} | Temp: {kwargs['temperature']} | Max Tokens: {kwargs.get('max_tokens', 'default')}\033[0m", flush=True)
 
                 is_thinking = False
+                is_thinking_for_client = False
+                show_thinking = cfg.get("show_thinking", True)
+
                 for chunk in stream:
                     if getattr(app.state, "shutdown", False):
                         break
@@ -964,6 +1186,34 @@ def chat_completions(req: ChatCompletionRequest):
                         app.state.current_status["tokens_generated"] += 1
                         app.state.current_status["last_token_at"] = time.perf_counter()
                         app.state.current_status["last_content"] = (app.state.current_status["last_content"] + token)[-100:]
+
+                    # Handle streaming filtration if show_thinking is False
+                    if not show_thinking:
+                        client_token = token
+                        if is_thinking_for_client:
+                            if "</think>" in client_token:
+                                parts = client_token.split("</think>", 1)
+                                client_token = parts[1]
+                                is_thinking_for_client = False
+                            else:
+                                client_token = ""
+                        else:
+                            if "<think>" in client_token:
+                                is_thinking_for_client = True
+                                parts = client_token.split("<think>", 1)
+                                before = parts[0]
+                                rest = parts[1]
+                                if "</think>" in rest:
+                                    after = rest.split("</think>", 1)[1]
+                                    client_token = before + after
+                                    is_thinking_for_client = False
+                                else:
+                                    client_token = before
+
+                        if client_token:
+                            chunk["choices"][0]["delta"]["content"] = client_token
+                        else:
+                            continue
 
                     # Yield chunk to client as SSE
                     yield f"data: {json.dumps(chunk)}\n\n"
@@ -995,6 +1245,15 @@ def chat_completions(req: ChatCompletionRequest):
 
         try:
             stream = app.state.llm.create_chat_completion(**kwargs)
+            if isinstance(stream, dict):
+                return _build_response(
+                    stream,
+                    model_id=cfg["model_id"],
+                    backend=getattr(app.state.llm, "backend", cfg.get("backend", "unknown")),
+                    started_at=started_at,
+                    finished_at=time.perf_counter(),
+                    show_thinking=cfg["show_thinking"],
+                )
             print(f"\n\033[94m[{time.strftime('%H:%M:%S')}] LLM inference started | Model: {kwargs['model']} | Messages: {len(messages)} | Temp: {kwargs['temperature']} | Max Tokens: {kwargs.get('max_tokens', 'default')}\033[0m", flush=True)
 
             full_content = ""
@@ -1042,6 +1301,15 @@ def chat_completions(req: ChatCompletionRequest):
                 }
 
             finished_at = time.perf_counter()
+            if raw_response is None:
+                raw_response = {
+                    "id": "chatcmpl-local-empty",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": cfg["model_id"],
+                    "choices": [{"index": 0, "message": {"role": "assistant", "content": full_content}, "finish_reason": "stop"}],
+                }
+
             response = _build_response(
                 raw_response,
                 model_id=cfg["model_id"],
@@ -1072,6 +1340,7 @@ def run_server(cfg: dict[str, Any], llm: Any) -> None:
     app.state.llm = llm
     app.state.generation_lock = threading.Lock()
     app.state.shutdown = False
+    app.state.terminal_cwd = os.getcwd()
     app.state.current_status = {
         "active": False,
         "phase": "idle",

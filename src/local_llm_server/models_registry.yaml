@@ -58,4 +58,18 @@ models:
       chat_format: "chatml"
     tags: [instruct, medium, 7b]
 
+  voxtral-mini-3b:
+    filename: "mistralai_Voxtral-Mini-3B-2507-Q4_K_M.gguf"
+    mmproj_filename: "mmproj-mistralai_Voxtral-Mini-3B-2507-f16.gguf"
+    model_id: "mistralai/voxtral-mini-3b"
+    size_gb: 3.8
+    backend: llama_server
+    multimodal: true
+    modalities: [text, audio]
+    params:
+      ctx_size: 4096
+      enable_thinking: false
+    lmstudio_path: "bartowski/mistralai_Voxtral-Mini-3B-2507-GGUF"
+    tags: [multimodal, audio, small, 3b]
+
 default_model: nemotron-nano-4b

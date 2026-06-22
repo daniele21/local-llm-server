@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 
 def main() -> None:
@@ -30,9 +31,9 @@ def main() -> None:
     p_serve = sub.add_parser("serve", help="Start the LLM server.")
     p_serve.add_argument(
         "--backend",
-        choices=["llama_cpp", "mlx"],
+        choices=["llama_cpp", "mlx", "llama_server"],
         default=None,
-        help="Inference backend: llama_cpp for GGUF, mlx for MLX models.",
+        help="Inference backend: llama_cpp for GGUF, mlx for MLX models, llama_server for multimodal llama.cpp.",
     )
     p_serve.add_argument(
         "--model",
@@ -50,6 +51,10 @@ def main() -> None:
     p_serve.add_argument("--ctx-size", type=int, default=None, dest="ctx_size")
     p_serve.add_argument("--n-gpu-layers", type=int, default=None, dest="n_gpu_layers")
     p_serve.add_argument("--n-threads", type=int, default=None, dest="n_threads")
+    p_serve.add_argument("--llama-server-port", type=int, default=None, dest="llama_server_port")
+    p_serve.add_argument("--llama-server-bin", default=None, dest="llama_server_bin")
+    p_serve.add_argument("--mmproj-path", default=None, dest="mmproj_path")
+    p_serve.add_argument("--startup-timeout", type=int, default=None, dest="startup_timeout")
     p_serve.add_argument("--chat-format", default=None, dest="chat_format")
     p_serve.add_argument("--force-json", action=argparse.BooleanOptionalAction, default=None)
     p_serve.add_argument("--show-thinking", action=argparse.BooleanOptionalAction, default=None, dest="show_thinking")
@@ -83,6 +88,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
     # Collect only explicitly set flags (skip None so config resolution works)
     explicit: dict = {}
     for key in ("backend", "host", "port", "ctx_size", "n_gpu_layers", "n_threads",
+                "llama_server_port", "llama_server_bin", "mmproj_path", "startup_timeout",
                 "chat_format", "force_json", "show_thinking", "enable_thinking",
                 "no_download", "verbose"):
         val = getattr(args, key, None)
@@ -123,9 +129,14 @@ def _cmd_models() -> None:
         size = f"{entry['size_gb']:.1f} GB" if entry.get("size_gb") else "? GB"
         tags = ", ".join(entry.get("tags") or [])
         path = models_dir / entry["filename"]
+        if entry.get("lmstudio_path"):
+            lmstudio_path = Path.home() / ".lmstudio" / "models" / str(entry["lmstudio_path"]) / str(entry["filename"])
+            if lmstudio_path.exists():
+                path = lmstudio_path
         status = "\033[92m✅ downloaded\033[0m" if path.exists() else "\033[90m❌ not downloaded\033[0m"
         marker = " (default)" if key == default else ""
-        print(f"  {key:<{col_key}} {model_id:<{col_id}} {size:<8}  [{tags}]  {status}{marker}")
+        backend = entry.get("backend", "llama_cpp")
+        print(f"  {key:<{col_key}} {model_id:<{col_id}} {size:<8}  {backend:<13} [{tags}]  {status}{marker}")
 
     print()
 

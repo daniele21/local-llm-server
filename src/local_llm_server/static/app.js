@@ -52,6 +52,27 @@ document.addEventListener('DOMContentLoaded', () => {
         cfgBackend: document.getElementById('cfg-backend'),
         cfgModelPath: document.getElementById('cfg-model-path'),
         modelsContainer: document.getElementById('models-list-container'),
+        hardwareForm: document.getElementById('hardware-config-form'),
+        cfgCtxSize: document.getElementById('cfg-ctx-size'),
+        cfgGpuLayers: document.getElementById('cfg-gpu-layers'),
+        cfgThreads: document.getElementById('cfg-threads'),
+        cfgNBatch: document.getElementById('cfg-n-batch'),
+        cfgNUbatch: document.getElementById('cfg-n-ubatch'),
+        cfgTimeout: document.getElementById('cfg-timeout'),
+        cfgOffloadKqv: document.getElementById('cfg-offload-kqv'),
+        cfgFlashAttn: document.getElementById('cfg-flash-attn'),
+        cfgUseMmap: document.getElementById('cfg-use-mmap'),
+        cfgEnableThinking: document.getElementById('cfg-enable-thinking'),
+        cfgShowThinking: document.getElementById('cfg-show-thinking'),
+        cfgVerbose: document.getElementById('cfg-verbose'),
+
+        // Terminal elements
+        terminalBody: document.getElementById('terminal-screen-body'),
+        terminalInput: document.getElementById('terminal-command-input'),
+        terminalRunBtn: document.getElementById('run-terminal-btn'),
+        terminalClearBtn: document.getElementById('clear-terminal-btn'),
+        terminalCwdPath: document.getElementById('terminal-cwd-path'),
+        terminalSuggestions: document.getElementById('terminal-suggestions-container'),
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -62,6 +83,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let chatHistory = [];
     let isGenerating = false;
     let statusInterval = null;
+    let isHardwareConfigLoaded = false;
+    let activeModelKey = '';
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Core Initialisation
@@ -79,6 +102,15 @@ document.addEventListener('DOMContentLoaded', () => {
             search: dom.logSearch,
             sseIndicator: dom.sseIndicator,
             sseIndicatorDot: dom.sseIndicatorDot
+        });
+
+        TerminalComponent.bind({
+            body: dom.terminalBody,
+            input: dom.terminalInput,
+            runBtn: dom.terminalRunBtn,
+            clearBtn: dom.terminalClearBtn,
+            cwdPath: dom.terminalCwdPath,
+            suggestionsContainer: dom.terminalSuggestions
         });
 
         ChatWindow.bind(
@@ -182,6 +214,87 @@ document.addEventListener('DOMContentLoaded', () => {
             this.style.height = 'auto';
             this.style.height = (this.scrollHeight) + 'px';
         });
+
+        // Hardware Config Form Submit Handler
+        if (dom.hardwareForm) {
+            dom.hardwareForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if (!activeModelKey) {
+                    Toast.show("Nessun modello attivo identificato per il riavvio.", "error");
+                    return;
+                }
+
+                const formData = new FormData(dom.hardwareForm);
+                const backend = formData.get('backend');
+                const ctx_size = formData.get('ctx_size') ? parseInt(formData.get('ctx_size')) : null;
+                const n_gpu_layers = formData.get('n_gpu_layers') !== "" ? parseInt(formData.get('n_gpu_layers')) : null;
+                const n_threads = formData.get('n_threads') ? parseInt(formData.get('n_threads')) : null;
+                const n_batch = formData.get('n_batch') ? parseInt(formData.get('n_batch')) : null;
+                const n_ubatch = formData.get('n_ubatch') ? parseInt(formData.get('n_ubatch')) : null;
+                const timeout = formData.get('timeout') ? parseInt(formData.get('timeout')) : null;
+                
+                const offload_kqv = formData.get('offload_kqv') === 'on';
+                const flash_attn = formData.get('flash_attn') === 'on';
+                const use_mmap = formData.get('use_mmap') === 'on';
+                const enable_thinking = formData.get('enable_thinking') === 'on';
+                const show_thinking = formData.get('show_thinking') === 'on';
+                const verbose = formData.get('verbose') === 'on';
+
+                const payload = {
+                    model: activeModelKey,
+                    backend,
+                    ctx_size,
+                    n_gpu_layers,
+                    n_threads,
+                    n_batch,
+                    n_ubatch,
+                    timeout,
+                    offload_kqv,
+                    flash_attn,
+                    use_mmap,
+                    enable_thinking,
+                    show_thinking,
+                    verbose
+                };
+
+                const btnSubmit = dom.hardwareForm.querySelector('button[type="submit"]');
+                const originalBtnText = btnSubmit.innerHTML;
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = `
+                    <svg class="animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" width="14" height="14" style="margin-right: 6px; display: inline-block; vertical-align: middle; animation: spin 1s linear infinite;"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" style="opacity: 0.25;"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" style="opacity: 0.75;"></path></svg>
+                    <span>Caricamento modello...</span>
+                `;
+
+                Toast.show("Riavvio del modello con i nuovi parametri in corso...", "info");
+
+                try {
+                    const res = await fetch('/api/v1/models/activate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        throw new Error(err.detail || `HTTP ${res.status}`);
+                    }
+
+                    const data = await res.json();
+                    Toast.show(`Modello ricaricato con successo: ${data.model}`, "success");
+                    
+                    // Force refresh registry and server health
+                    isHardwareConfigLoaded = false;
+                    await checkServerHealth();
+                    await loadRegistryModels();
+                } catch (err) {
+                    console.error("Failed to reload model:", err);
+                    Toast.show(`Errore di ricarica: ${err.message}`, "error");
+                } finally {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = originalBtnText;
+                }
+            });
+        }
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -199,6 +312,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Trigger LogConsole re-rendering if switching to Logs Tab
         if (tabId === 'logs-tab') {
             LogConsole.renderAll();
+            TerminalComponent.refreshCwd();
+            if (dom.terminalInput) {
+                setTimeout(() => dom.terminalInput.focus(), 100);
+            }
         }
     }
 
@@ -230,8 +347,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Update tab 3 configuration metrics
                 dom.cfgHost.textContent = data.host || '127.0.0.1';
                 dom.cfgPort.textContent = data.port || '1235';
-                dom.cfgBackend.textContent = data.backend || 'llama_cpp';
                 dom.cfgModelPath.textContent = data.model_path || '-';
+                activeModelKey = data.model_key || '';
+                
+                if (dom.cfgBackend) {
+                    dom.cfgBackend.value = data.backend || 'llama_cpp';
+                }
+
+                if (!isHardwareConfigLoaded) {
+                    if (dom.cfgCtxSize && data.ctx_size) dom.cfgCtxSize.value = data.ctx_size;
+                    if (dom.cfgGpuLayers && data.n_gpu_layers !== undefined) dom.cfgGpuLayers.value = data.n_gpu_layers;
+                    if (dom.cfgThreads && data.n_threads) dom.cfgThreads.value = data.n_threads;
+                    if (dom.cfgNBatch && data.n_batch) dom.cfgNBatch.value = data.n_batch;
+                    if (dom.cfgNUbatch && data.n_ubatch) dom.cfgNUbatch.value = data.n_ubatch;
+                    if (dom.cfgTimeout && data.timeout) dom.cfgTimeout.value = data.timeout;
+                    if (dom.cfgOffloadKqv && data.offload_kqv !== undefined) dom.cfgOffloadKqv.checked = data.offload_kqv;
+                    if (dom.cfgFlashAttn && data.flash_attn !== undefined) dom.cfgFlashAttn.checked = data.flash_attn;
+                    if (dom.cfgUseMmap && data.use_mmap !== undefined) dom.cfgUseMmap.checked = data.use_mmap;
+                    if (dom.cfgEnableThinking && data.enable_thinking !== undefined) dom.cfgEnableThinking.checked = data.enable_thinking;
+                    if (dom.cfgShowThinking && data.show_thinking !== undefined) dom.cfgShowThinking.checked = data.show_thinking;
+                    if (dom.cfgVerbose && data.verbose !== undefined) dom.cfgVerbose.checked = data.verbose;
+                    isHardwareConfigLoaded = true;
+                }
                 
                 if (dom.defaultModelOpt) {
                     dom.defaultModelOpt.textContent = `Predefinito (${modelShort})`;
@@ -289,12 +426,38 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Connect selected Catalog model to Chat select & switch tab
-    function handleModelActivation(modelKey) {
-        if (dom.modelSelect) {
-            dom.modelSelect.value = modelKey;
+    // Connect selected Catalog model to Chat select & switch tab & activate on server
+    async function handleModelActivation(modelKey) {
+        Toast.show(`Avvio attivazione modello ${modelKey}...`, 'info');
+        
+        try {
+            const res = await fetch('/api/v1/models/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: modelKey })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `HTTP ${res.status}`);
+            }
+
+            const data = await res.json();
+            Toast.show(`Modello attivato con successo: ${data.model}`, 'success');
+            
+            if (dom.modelSelect) {
+                dom.modelSelect.value = modelKey;
+            }
+            
+            // Force refresh registry and server health
+            isHardwareConfigLoaded = false;
+            await checkServerHealth();
+            await loadRegistryModels();
+            
             switchTab('chat-tab');
-            Toast.show(`Selezionato modello: ${modelKey} per la prossima richiesta.`, 'info');
+        } catch (err) {
+            console.error("Failed to activate model:", err);
+            Toast.show(`Errore di attivazione: ${err.message}`, 'error');
         }
     }
 

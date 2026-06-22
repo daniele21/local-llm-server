@@ -32,6 +32,14 @@ const APP_CONFIG = {
         defaultSystemPrompt: "Sei un assistente utile e sintetico."
     },
 
+    // Terminal settings
+    terminal: {
+        welcomeMessage: "Digita un comando e premi Invio. Esempi: <code>uname -a</code>, <code>ls -la</code> o <code>python --version</code>. Digita <code>help</code> per i comandi speciali.",
+        defaultPrompt: "$",
+        timeoutSeconds: 15,
+        maxLines: 100
+    },
+
     // UI Translation Labels
     labels: {
         online: "Online",
@@ -42,11 +50,13 @@ const APP_CONFIG = {
         toastChatCleared: "Conversazione svuotata!",
         toastLogsDownloaded: "Log scaricati con successo!",
         toastLogsCleared: "Console log svuotata!",
+        toastTerminalCleared: "Terminale pulito!",
         toastCopySuccess: "Copiato negli appunti!",
         toastCopyError: "Impossibile copiare il testo.",
         typingStart: "L'LLM sta pensando...",
         typingEval: "Valutazione prompt...",
         typingGenerating: (tokens, speed) => `Generazione in corso: ${tokens} tokens (${speed} t/s)`,
-        inferenceError: "Errore durante l'elaborazione dell'inferenza:"
+        inferenceError: "Errore durante l'elaborazione dell'inferenza:",
+        terminalRunning: "In esecuzione..."
     }
 };
