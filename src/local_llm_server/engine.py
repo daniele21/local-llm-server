@@ -65,6 +65,7 @@ class LlamaCppEngine:
         self.llm = Llama(**kwargs)
 
     def create_chat_completion(self, **kwargs: Any) -> Any:
+        kwargs.pop("enable_thinking", None)
         return self.llm.create_chat_completion(**kwargs)
 
 
@@ -99,9 +100,16 @@ class MLXEngine:
         messages = kwargs["messages"]
         max_tokens = int(kwargs.get("max_tokens") or 512)
 
+        enable_thinking = kwargs.pop("enable_thinking", None)
+        template_kwargs = {}
+        if enable_thinking is not None:
+            template_kwargs["enable_thinking"] = enable_thinking
+            template_kwargs["thinking"] = enable_thinking
+
         prompt = self.tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
+            **template_kwargs,
         )
 
         sampler = make_sampler(
@@ -255,6 +263,11 @@ class LlamaServerEngine:
         raise TimeoutError(f"llama-server did not become ready within {timeout:.0f}s. Last error: {last_error}")
 
     def create_chat_completion(self, **kwargs: Any) -> Any:
+        enable_thinking = kwargs.pop("enable_thinking", None)
+        if enable_thinking is not None and "chat_template_kwargs" not in kwargs:
+            # For modern llama-server templates that support enable_thinking variable
+            kwargs["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
+
         stream = bool(kwargs.get("stream"))
         payload = json.dumps(kwargs).encode("utf-8")
         request = urllib.request.Request(

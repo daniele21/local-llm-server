@@ -31,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
         typingStatus: document.getElementById('typing-status'),
         typingText: document.getElementById('typing-text'),
         forceJsonCheckbox: document.getElementById('param-force-json'),
+        enableThinkingCheckbox: document.getElementById('param-enable-thinking'),
         showThinkingCheckbox: document.getElementById('param-show-thinking'),
 
         // Server Logs body
@@ -142,10 +143,19 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.forceJsonCheckbox.checked = savedForceJson;
         }
 
+        if (dom.enableThinkingCheckbox) {
+            const savedEnableThinking = localStorage.getItem('enable_thinking');
+            if (savedEnableThinking !== null) {
+                dom.enableThinkingCheckbox.checked = savedEnableThinking === 'true';
+            }
+        }
+
         if (dom.showThinkingCheckbox) {
-            const savedShowThinking = localStorage.getItem('show_thinking') !== 'false';
-            dom.showThinkingCheckbox.checked = savedShowThinking;
-            ChatWindow.setShowThinking(savedShowThinking);
+            const savedShowThinking = localStorage.getItem('show_thinking');
+            if (savedShowThinking !== null) {
+                dom.showThinkingCheckbox.checked = savedShowThinking === 'true';
+                ChatWindow.setShowThinking(savedShowThinking === 'true');
+            }
         }
     }
 
@@ -178,6 +188,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dom.forceJsonCheckbox) {
             dom.forceJsonCheckbox.addEventListener('change', (e) => {
                 localStorage.setItem('force_json', e.target.checked);
+            });
+        }
+
+        if (dom.enableThinkingCheckbox) {
+            dom.enableThinkingCheckbox.addEventListener('change', (e) => {
+                localStorage.setItem('enable_thinking', e.target.checked);
             });
         }
 
@@ -366,6 +382,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (dom.cfgUseMmap && data.use_mmap !== undefined) dom.cfgUseMmap.checked = data.use_mmap;
                     if (dom.cfgEnableThinking && data.enable_thinking !== undefined) dom.cfgEnableThinking.checked = data.enable_thinking;
                     if (dom.cfgShowThinking && data.show_thinking !== undefined) dom.cfgShowThinking.checked = data.show_thinking;
+                    if (dom.enableThinkingCheckbox && data.enable_thinking !== undefined && localStorage.getItem('enable_thinking') === null) {
+                        dom.enableThinkingCheckbox.checked = data.enable_thinking;
+                    }
+                    if (dom.showThinkingCheckbox && data.show_thinking !== undefined && localStorage.getItem('show_thinking') === null) {
+                        dom.showThinkingCheckbox.checked = data.show_thinking;
+                        ChatWindow.setShowThinking(data.show_thinking);
+                    }
                     if (dom.cfgVerbose && data.verbose !== undefined) dom.cfgVerbose.checked = data.verbose;
                     isHardwareConfigLoaded = true;
                 }
@@ -568,6 +591,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         if (model) payload.model = model;
         if (max_tokens) payload.max_tokens = max_tokens;
+        if (dom.enableThinkingCheckbox && localStorage.getItem('enable_thinking') !== null) {
+            payload.enable_thinking = dom.enableThinkingCheckbox.checked;
+        }
+        if (dom.showThinkingCheckbox && localStorage.getItem('show_thinking') !== null) {
+            payload.show_thinking = dom.showThinkingCheckbox.checked;
+        }
         if (dom.forceJsonCheckbox && dom.forceJsonCheckbox.checked) {
             payload.response_format = { type: "json_object" };
         }

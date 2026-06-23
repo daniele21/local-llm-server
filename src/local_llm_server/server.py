@@ -133,6 +133,10 @@ class ChatCompletionRequest(BaseModel):
     seed: Optional[int] = Field(None, description="Random seed for deterministic output.")
     stop: Optional[Union[str, List[str]]] = Field(None, description="Stop sequence(s).")
     response_format: Optional[Dict[str, Any]] = Field(None, description="Format specifications (e.g. {'type': 'json_object'}).")
+    enable_thinking: Optional[bool] = Field(None, description="Request-level override to enable reasoning/thinking where supported.")
+    show_thinking: Optional[bool] = Field(None, description="Request-level override to show or hide <think> blocks in output.")
+    enable_reasoning: Optional[bool] = Field(None, description="Alias for enable_thinking.")
+    show_reasoning: Optional[bool] = Field(None, description="Alias for show_thinking.")
 
 
 class TerminalCommandRequest(BaseModel):
@@ -1116,6 +1120,17 @@ def chat_completions(req: ChatCompletionRequest):
 
     max_tokens = request_payload.get("max_tokens") or request_payload.get("max_output_tokens")
 
+    # Resolve reasoning/thinking overrides with fallback to model configuration cfg
+    req_enable_thinking = request_payload.get("enable_thinking")
+    if req_enable_thinking is None:
+        req_enable_thinking = request_payload.get("enable_reasoning")
+    enable_thinking = req_enable_thinking if req_enable_thinking is not None else cfg.get("enable_thinking", False)
+
+    req_show_thinking = request_payload.get("show_thinking")
+    if req_show_thinking is None:
+        req_show_thinking = request_payload.get("show_reasoning")
+    show_thinking = req_show_thinking if req_show_thinking is not None else cfg.get("show_thinking", False)
+
     kwargs: dict[str, Any] = {
         "messages": messages,
         "temperature": float(request_payload.get("temperature", cfg.get("default_temperature", 0.0))),
@@ -1127,6 +1142,7 @@ def chat_completions(req: ChatCompletionRequest):
         "frequency_penalty": float(request_payload.get("frequency_penalty", 0.0)),
         "stream": True,  # Keep streaming for internal console logs & updates when supported
         "model": str(request_payload.get("model") or cfg["model_id"]),
+        "enable_thinking": enable_thinking,
     }
 
     if max_tokens is not None:
@@ -1162,7 +1178,6 @@ def chat_completions(req: ChatCompletionRequest):
 
                 is_thinking = False
                 is_thinking_for_client = False
-                show_thinking = cfg.get("show_thinking", True)
 
                 for chunk in stream:
                     if getattr(app.state, "shutdown", False):
@@ -1252,7 +1267,7 @@ def chat_completions(req: ChatCompletionRequest):
                     backend=getattr(app.state.llm, "backend", cfg.get("backend", "unknown")),
                     started_at=started_at,
                     finished_at=time.perf_counter(),
-                    show_thinking=cfg["show_thinking"],
+                    show_thinking=show_thinking,
                 )
             print(f"\n\033[94m[{time.strftime('%H:%M:%S')}] LLM inference started | Model: {kwargs['model']} | Messages: {len(messages)} | Temp: {kwargs['temperature']} | Max Tokens: {kwargs.get('max_tokens', 'default')}\033[0m", flush=True)
 
@@ -1316,7 +1331,7 @@ def chat_completions(req: ChatCompletionRequest):
                 backend=getattr(app.state.llm, "backend", cfg.get("backend", "unknown")),
                 started_at=started_at,
                 finished_at=finished_at,
-                show_thinking=cfg["show_thinking"],
+                show_thinking=show_thinking,
             )
             return response
 
