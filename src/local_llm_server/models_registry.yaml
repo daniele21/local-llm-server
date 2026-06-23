@@ -17,6 +17,7 @@ models:
     url: "https://huggingface.co/lmstudio-community/NVIDIA-Nemotron-3-Nano-4B-GGUF/resolve/main/NVIDIA-Nemotron-3-Nano-4B-Q4_K_M.gguf"
     model_id: "nvidia/nemotron-3-nano-4b"
     size_gb: 2.5
+    lmstudio_path: "lmstudio-community/NVIDIA-Nemotron-3-Nano-4B-GGUF"
     params:
       ctx_size: 36466
       n_gpu_layers: 42
