@@ -173,6 +173,7 @@ local-llm download qwen3-8b
 | Key | Backend | Parameters | Size | Tags |
 |---|---|---:|---:|---|
 | `nemotron-nano-4b` | `llama_cpp` | 4B | ~2.5 GB | reasoning, small |
+| `nemotron-nano-4b-q8` | `llama_cpp` | 4B | ~4.3 GB | reasoning, small |
 | `qwen3-8b` | `llama_cpp` | 8B | ~4.9 GB | reasoning, medium |
 | `phi-3-mini` | `llama_cpp` | 3.8B | ~2.3 GB | instruct, small |
 | `qwen2.5-7b` | `llama_cpp` | 7B | ~4.4 GB | instruct, medium |

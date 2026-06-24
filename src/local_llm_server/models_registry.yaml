@@ -24,53 +24,30 @@ models:
       enable_thinking: true
     tags: [reasoning, small, 4b]
 
-  qwen3-8b:
-    filename: "Qwen3-8B-Q4_K_M.gguf"
-    url: "https://huggingface.co/unsloth/Qwen3-8B-GGUF/resolve/main/Qwen3-8B-Q4_K_M.gguf"
-    model_id: "qwen/qwen3-8b"
-    size_gb: 4.9
+  nemotron-nano-4b-q8:
+    filename: "NVIDIA-Nemotron-3-Nano-4B-Q8_0.gguf"
+    url: "https://huggingface.co/lmstudio-community/NVIDIA-Nemotron-3-Nano-4B-GGUF/resolve/main/NVIDIA-Nemotron-3-Nano-4B-Q8_0.gguf"
+    model_id: "nvidia/nemotron-3-nano-4b-q8"
+    size_gb: 4.3
+    lmstudio_path: "lmstudio-community/NVIDIA-Nemotron-3-Nano-4B-GGUF"
     params:
-      ctx_size: 40960
-      n_gpu_layers: 37
+      ctx_size: 36466
+      n_gpu_layers: 42
       enable_thinking: true
-      default_temperature: 0.6
-    tags: [reasoning, medium, 8b]
+    tags: [reasoning, small, 4b]
 
-  phi-3-mini:
-    filename: "Phi-3-mini-4k-instruct-Q4_K_M.gguf"
-    url: "https://huggingface.co/bartowski/Phi-3-mini-4k-instruct-GGUF/resolve/main/Phi-3-mini-4k-instruct-Q4_K_M.gguf"
-    model_id: "microsoft/phi-3-mini"
-    size_gb: 2.3
-    params:
-      ctx_size: 4096
-      n_gpu_layers: 35
-      enable_thinking: false
-    tags: [instruct, small, 3.8b]
-
-  qwen2.5-7b:
-    filename: "Qwen2.5-7B-Instruct-Q4_K_M.gguf"
-    url: "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-GGUF/resolve/main/qwen2.5-7b-instruct-q4_k_m.gguf"
-    model_id: "qwen/qwen2.5-7b-instruct"
-    size_gb: 4.4
-    params:
-      ctx_size: 32768
-      n_gpu_layers: 35
-      enable_thinking: false
-      chat_format: "chatml"
-    tags: [instruct, medium, 7b]
-
-  voxtral-mini-3b:
-    filename: "mistralai_Voxtral-Mini-3B-2507-Q4_K_M.gguf"
-    mmproj_filename: "mmproj-mistralai_Voxtral-Mini-3B-2507-f16.gguf"
-    model_id: "mistralai/voxtral-mini-3b"
-    size_gb: 3.8
-    backend: llama_server
-    multimodal: true
-    modalities: [text, audio]
-    params:
-      ctx_size: 4096
-      enable_thinking: false
-    lmstudio_path: "bartowski/mistralai_Voxtral-Mini-3B-2507-GGUF"
-    tags: [multimodal, audio, small, 3b]
+  # voxtral-mini-3b:
+  #   filename: "mistralai_Voxtral-Mini-3B-2507-Q4_K_M.gguf"
+  #   mmproj_filename: "mmproj-mistralai_Voxtral-Mini-3B-2507-f16.gguf"
+  #   model_id: "mistralai/voxtral-mini-3b"
+  #   size_gb: 3.8
+  #   backend: llama_server
+  #   multimodal: true
+  #   modalities: [text, audio]
+  #   params:
+  #     ctx_size: 4096
+  #     enable_thinking: false
+  #   lmstudio_path: "bartowski/mistralai_Voxtral-Mini-3B-2507-GGUF"
+  #   tags: [multimodal, audio, small, 3b]
 
 default_model: nemotron-nano-4b

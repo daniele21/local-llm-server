@@ -47,3 +47,6 @@ coverage.xml
 .env
 .env.*
 !.env.example
+src/local_llm_server/models_registry.yaml
+test.ipynb
+docs/IMPLEMENTATION_PLAN_v0.2.md
