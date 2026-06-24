@@ -50,4 +50,4 @@ models:
   #   lmstudio_path: "bartowski/mistralai_Voxtral-Mini-3B-2507-GGUF"
   #   tags: [multimodal, audio, small, 3b]
 
-default_model: nemotron-nano-4b
+default_model: nemotron-nano-4b-q8
