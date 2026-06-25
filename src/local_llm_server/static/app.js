@@ -311,6 +311,126 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         }
+
+        // Initialize modern input UI behaviors
+        function setupSliderStepper(sliderId, inputId, minusId, plusId) {
+            const slider = document.getElementById(sliderId);
+            const input = document.getElementById(inputId);
+            const minusBtn = document.getElementById(minusId);
+            const plusBtn = document.getElementById(plusId);
+
+            if (!slider || !input) return;
+
+            // Sync slider -> input
+            slider.addEventListener('input', () => {
+                input.value = slider.value;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+
+            // Sync input -> slider
+            input.addEventListener('change', () => {
+                let val = parseInt(input.value);
+                if (isNaN(val)) return;
+                const min = parseInt(slider.min) || 0;
+                const max = parseInt(slider.max) || 200;
+                if (val < min) val = min;
+                if (val > max) val = max;
+                slider.value = val;
+            });
+
+            // Minus button
+            if (minusBtn) {
+                minusBtn.addEventListener('click', () => {
+                    let val = parseInt(input.value);
+                    if (isNaN(val)) val = parseInt(slider.value) || 0;
+                    const step = parseInt(slider.step) || 1;
+                    const min = parseInt(slider.min) || 0;
+                    val = Math.max(min, val - step);
+                    input.value = val;
+                    slider.value = val;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            }
+
+            // Plus button
+            if (plusBtn) {
+                plusBtn.addEventListener('click', () => {
+                    let val = parseInt(input.value);
+                    if (isNaN(val)) val = parseInt(slider.value) || 0;
+                    const step = parseInt(slider.step) || 1;
+                    const max = parseInt(slider.max) || 200;
+                    val = Math.min(max, val + step);
+                    input.value = val;
+                    slider.value = val;
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            }
+        }
+
+        function setupSegmentedControl(presetContainerId, hiddenInputId) {
+            const container = document.getElementById(presetContainerId);
+            const hiddenInput = document.getElementById(hiddenInputId);
+            if (!container || !hiddenInput) return;
+
+            const buttons = container.querySelectorAll('.segmented-control__btn');
+
+            buttons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    buttons.forEach(b => b.classList.remove('segmented-control__btn--active'));
+                    btn.classList.add('segmented-control__btn--active');
+
+                    const val = btn.dataset.value;
+                    if (val === 'custom') {
+                        hiddenInput.style.display = 'block';
+                        hiddenInput.focus();
+                    } else {
+                        hiddenInput.value = val;
+                        if (hiddenInput.tagName === 'INPUT') {
+                            hiddenInput.style.display = 'none';
+                        }
+                        hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+                    }
+                });
+            });
+
+            const syncFromSource = () => {
+                const currentVal = hiddenInput.value;
+                let found = false;
+                buttons.forEach(btn => {
+                    if (btn.dataset.value === String(currentVal)) {
+                        buttons.forEach(b => b.classList.remove('segmented-control__btn--active'));
+                        btn.classList.add('segmented-control__btn--active');
+                        if (hiddenInput.tagName === 'INPUT') {
+                            hiddenInput.style.display = 'none';
+                        }
+                        found = true;
+                    }
+                });
+                if (!found && currentVal !== "") {
+                    buttons.forEach(b => b.classList.remove('segmented-control__btn--active'));
+                    const customBtn = Array.from(buttons).find(b => b.dataset.value === 'custom');
+                    if (customBtn) {
+                        customBtn.classList.add('segmented-control__btn--active');
+                        if (hiddenInput.tagName === 'INPUT') {
+                            hiddenInput.style.display = 'block';
+                        }
+                    }
+                }
+            };
+
+            hiddenInput.addEventListener('change', syncFromSource);
+            setTimeout(syncFromSource, 100);
+        }
+
+        // Setup the widgets
+        setupSegmentedControl('backend-preset-control', 'cfg-backend');
+        setupSegmentedControl('ctx-preset-control', 'cfg-ctx-size');
+        setupSegmentedControl('batch-preset-control', 'cfg-n-batch');
+        setupSegmentedControl('ubatch-preset-control', 'cfg-n-ubatch');
+
+        setupSliderStepper('slide-gpu-layers', 'cfg-gpu-layers', 'btn-gpu-minus', 'btn-gpu-plus');
+        setupSliderStepper('slide-threads', 'cfg-threads', 'btn-threads-minus', 'btn-threads-plus');
+        setupSliderStepper('slide-timeout', 'cfg-timeout', 'btn-timeout-minus', 'btn-timeout-plus');
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -371,12 +491,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 if (!isHardwareConfigLoaded) {
-                    if (dom.cfgCtxSize && data.ctx_size) dom.cfgCtxSize.value = data.ctx_size;
-                    if (dom.cfgGpuLayers && data.n_gpu_layers !== undefined) dom.cfgGpuLayers.value = data.n_gpu_layers;
-                    if (dom.cfgThreads && data.n_threads) dom.cfgThreads.value = data.n_threads;
-                    if (dom.cfgNBatch && data.n_batch) dom.cfgNBatch.value = data.n_batch;
-                    if (dom.cfgNUbatch && data.n_ubatch) dom.cfgNUbatch.value = data.n_ubatch;
-                    if (dom.cfgTimeout && data.timeout) dom.cfgTimeout.value = data.timeout;
+                    if (dom.cfgCtxSize && data.ctx_size) {
+                        dom.cfgCtxSize.value = data.ctx_size;
+                        dom.cfgCtxSize.dispatchEvent(new Event('change'));
+                    }
+                    if (dom.cfgGpuLayers && data.n_gpu_layers !== undefined) {
+                        dom.cfgGpuLayers.value = data.n_gpu_layers;
+                        dom.cfgGpuLayers.dispatchEvent(new Event('change'));
+                    }
+                    if (dom.cfgThreads && data.n_threads) {
+                        dom.cfgThreads.value = data.n_threads;
+                        dom.cfgThreads.dispatchEvent(new Event('change'));
+                    }
+                    if (dom.cfgNBatch && data.n_batch) {
+                        dom.cfgNBatch.value = data.n_batch;
+                        dom.cfgNBatch.dispatchEvent(new Event('change'));
+                    }
+                    if (dom.cfgNUbatch && data.n_ubatch) {
+                        dom.cfgNUbatch.value = data.n_ubatch;
+                        dom.cfgNUbatch.dispatchEvent(new Event('change'));
+                    }
+                    if (dom.cfgTimeout && data.timeout) {
+                        dom.cfgTimeout.value = data.timeout;
+                        dom.cfgTimeout.dispatchEvent(new Event('change'));
+                    }
                     if (dom.cfgOffloadKqv && data.offload_kqv !== undefined) dom.cfgOffloadKqv.checked = data.offload_kqv;
                     if (dom.cfgFlashAttn && data.flash_attn !== undefined) dom.cfgFlashAttn.checked = data.flash_attn;
                     if (dom.cfgUseMmap && data.use_mmap !== undefined) dom.cfgUseMmap.checked = data.use_mmap;
@@ -668,6 +806,32 @@ document.addEventListener('DOMContentLoaded', () => {
         ChatWindow.clearChat(APP_CONFIG.labels.emptyChatPlaceholder);
         Toast.show(APP_CONFIG.labels.toastChatCleared, 'success');
     }
+
+    // Listen to language changes to update dynamic layouts
+    window.addEventListener('app-lang-changed', (e) => {
+        // 1. Refresh health state immediately to update Online/Offline status texts
+        checkServerHealth();
+
+        // 2. If chat is empty, reload the welcome message with the new placeholder
+        if (chatHistory.length === 0) {
+            ChatWindow.clearChat(APP_CONFIG.labels.emptyChatPlaceholder);
+        }
+
+        // 3. Update the terminal welcome message if there is no custom command output
+        const termWelcome = dom.terminalBody.querySelector('.terminal-welcome');
+        if (termWelcome) {
+            termWelcome.innerHTML = APP_CONFIG.terminal.welcomeMessage;
+        }
+
+        // 4. Update logs count display
+        const logLines = dom.serverLogsBody.querySelectorAll('.log-line');
+        if (dom.logLineCount) {
+            const count = logLines.length;
+            dom.logLineCount.textContent = e.detail.lang === 'it' 
+                ? `${count} righe caricate` 
+                : `${count} lines loaded`;
+        }
+    });
 
     // Boot the UI Orchestrator
     init();

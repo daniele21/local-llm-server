@@ -37,10 +37,15 @@
                         <span class="status-badge__dot status-badge__dot--offline"></span>
                         <span class="status-badge__text">Connessione...</span>
                     </span>
-                    <button id="theme-toggle" class="theme-btn" aria-label="Cambia tema">
-                        <svg class="icon--sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-                        <svg class="icon--moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-                    </button>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <button id="lang-toggle" class="theme-btn lang-btn" aria-label="Cambia lingua" style="font-size: 1.1rem; line-height: 1; padding: 4px; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 50%; background: var(--color-bg-card); border: 1px solid var(--border-card); cursor: pointer; transition: all var(--transition-fast);">
+                            <span id="lang-flag-icon">🇮🇹</span>
+                        </button>
+                        <button id="theme-toggle" class="theme-btn" aria-label="Cambia tema">
+                            <svg class="icon--sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                            <svg class="icon--moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                        </button>
+                    </div>
                 </div>
 
                 <div class="status-info-list">
@@ -309,88 +314,156 @@
                         </div>
                         <form id="hardware-config-form" class="hardware-config-form">
                             <div class="config-form-grid">
-                                <div class="config-metric">
-                                    <span class="config-metric__label">Host Binding</span>
-                                    <span class="config-metric__value" id="cfg-host">-</span>
-                                </div>
-                                <div class="config-metric">
-                                    <span class="config-metric__label">Porta server</span>
-                                    <span class="config-metric__value" id="cfg-port">-</span>
+                                <div class="config-metric host-port-card">
+                                    <div class="host-port-item">
+                                        <span class="config-metric__label">Host Binding</span>
+                                        <span class="config-metric__value" id="cfg-host">-</span>
+                                    </div>
+                                    <div class="metric-divider"></div>
+                                    <div class="host-port-item">
+                                        <span class="config-metric__label">Porta server</span>
+                                        <span class="config-metric__value" id="cfg-port">-</span>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="cfg-backend">Motore Backend</label>
-                                    <select id="cfg-backend" name="backend">
+                                    <div class="segmented-control" id="backend-preset-control">
+                                        <button type="button" class="segmented-control__btn segmented-control__btn--active" data-value="llama_cpp">GGUF (llama.cpp)</button>
+                                        <button type="button" class="segmented-control__btn" data-value="mlx">MLX (Apple Silicon)</button>
+                                    </div>
+                                    <select id="cfg-backend" name="backend" style="display: none;">
                                         <option value="llama_cpp">llama-cpp-python (GGUF)</option>
                                         <option value="mlx">mlx-lm (Apple Silicon MLX)</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label for="cfg-ctx-size">Dimensione Contesto (ctx_size)</label>
-                                    <input type="number" inputmode="numeric" id="cfg-ctx-size" name="ctx_size" min="512" max="1000000" step="512" placeholder="es. 4096">
+                                    <div class="segmented-control" id="ctx-preset-control">
+                                        <button type="button" class="segmented-control__btn" data-value="2048">2K</button>
+                                        <button type="button" class="segmented-control__btn" data-value="4096">4K</button>
+                                        <button type="button" class="segmented-control__btn" data-value="8192">8K</button>
+                                        <button type="button" class="segmented-control__btn" data-value="16384">16K</button>
+                                        <button type="button" class="segmented-control__btn" data-value="32768">32K</button>
+                                        <button type="button" class="segmented-control__btn" data-value="custom">Custom</button>
+                                    </div>
+                                    <input type="number" inputmode="numeric" id="cfg-ctx-size" name="ctx_size" min="512" max="1000000" step="512" placeholder="es. 4096" style="margin-top: 8px;">
                                 </div>
                                 <div class="form-group">
                                     <label for="cfg-gpu-layers">GPU Layers (n_gpu_layers)</label>
-                                    <input type="number" inputmode="numeric" id="cfg-gpu-layers" name="n_gpu_layers" min="0" max="200" step="1" placeholder="es. 35">
+                                    <div class="modern-slider-stepper">
+                                        <input type="range" id="slide-gpu-layers" min="0" max="128" step="1" value="0">
+                                        <div class="stepper-input-container">
+                                            <button type="button" class="stepper-btn" id="btn-gpu-minus">-</button>
+                                            <input type="number" inputmode="numeric" id="cfg-gpu-layers" name="n_gpu_layers" min="0" max="200" step="1" placeholder="0">
+                                            <button type="button" class="stepper-btn" id="btn-gpu-plus">+</button>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="cfg-threads">CPU Threads (n_threads)</label>
-                                    <input type="number" inputmode="numeric" id="cfg-threads" name="n_threads" min="1" max="64" step="1" placeholder="es. 8">
+                                    <div class="modern-slider-stepper">
+                                        <input type="range" id="slide-threads" min="1" max="64" step="1" value="8">
+                                        <div class="stepper-input-container">
+                                            <button type="button" class="stepper-btn" id="btn-threads-minus">-</button>
+                                            <input type="number" inputmode="numeric" id="cfg-threads" name="n_threads" min="1" max="64" step="1" placeholder="8">
+                                            <button type="button" class="stepper-btn" id="btn-threads-plus">+</button>
+                                        </div>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label for="cfg-n-batch">Batch Size (n_batch)</label>
-                                    <input type="number" inputmode="numeric" id="cfg-n-batch" name="n_batch" min="1" max="8192" step="1" placeholder="es. 512">
+                                    <div class="segmented-control" id="batch-preset-control">
+                                        <button type="button" class="segmented-control__btn" data-value="128">128</button>
+                                        <button type="button" class="segmented-control__btn" data-value="256">256</button>
+                                        <button type="button" class="segmented-control__btn" data-value="512">512</button>
+                                        <button type="button" class="segmented-control__btn" data-value="1024">1024</button>
+                                        <button type="button" class="segmented-control__btn" data-value="custom">Custom</button>
+                                    </div>
+                                    <input type="number" inputmode="numeric" id="cfg-n-batch" name="n_batch" min="1" max="8192" step="1" placeholder="es. 512" style="margin-top: 8px;">
                                 </div>
                                 <div class="form-group">
                                     <label for="cfg-n-ubatch">Micro-batch (n_ubatch)</label>
-                                    <input type="number" inputmode="numeric" id="cfg-n-ubatch" name="n_ubatch" min="1" max="8192" step="1" placeholder="es. 512">
+                                    <div class="segmented-control" id="ubatch-preset-control">
+                                        <button type="button" class="segmented-control__btn" data-value="128">128</button>
+                                        <button type="button" class="segmented-control__btn" data-value="256">256</button>
+                                        <button type="button" class="segmented-control__btn" data-value="512">512</button>
+                                        <button type="button" class="segmented-control__btn" data-value="1024">1024</button>
+                                        <button type="button" class="segmented-control__btn" data-value="custom">Custom</button>
+                                    </div>
+                                    <input type="number" inputmode="numeric" id="cfg-n-ubatch" name="n_ubatch" min="1" max="8192" step="1" placeholder="es. 512" style="margin-top: 8px;">
                                 </div>
                                 <div class="form-group">
                                     <label for="cfg-timeout">Timeout (secondi)</label>
-                                    <input type="number" inputmode="numeric" id="cfg-timeout" name="timeout" min="1" step="1" placeholder="es. 1200">
+                                    <div class="modern-slider-stepper">
+                                        <input type="range" id="slide-timeout" min="60" max="3600" step="60" value="1200">
+                                        <div class="stepper-input-container">
+                                            <button type="button" class="stepper-btn" id="btn-timeout-minus">-</button>
+                                            <input type="number" inputmode="numeric" id="cfg-timeout" name="timeout" min="1" step="1" placeholder="es. 1200">
+                                            <button type="button" class="stepper-btn" id="btn-timeout-plus">+</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
-                            <div class="config-form-grid" style="margin-top: 1rem;">
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label" for="cfg-offload-kqv">
+                            <div class="config-toggles-grid">
+                                <div class="toggle-control-card">
+                                    <div class="toggle-control-info">
+                                        <span class="toggle-control-label">Offload KQV</span>
+                                        <span class="toggle-control-description">Offload dei tensori K/V su memoria GPU</span>
+                                    </div>
+                                    <label class="switch">
                                         <input type="checkbox" id="cfg-offload-kqv" name="offload_kqv">
-                                        <span class="custom-checkbox"></span>
-                                        <span>Offload KQV</span>
+                                        <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label" for="cfg-flash-attn">
+                                <div class="toggle-control-card">
+                                    <div class="toggle-control-info">
+                                        <span class="toggle-control-label">Flash Attention</span>
+                                        <span class="toggle-control-description">Velocizza inferenza con Flash Attention</span>
+                                    </div>
+                                    <label class="switch">
                                         <input type="checkbox" id="cfg-flash-attn" name="flash_attn">
-                                        <span class="custom-checkbox"></span>
-                                        <span>Flash Attention</span>
+                                        <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label" for="cfg-use-mmap">
+                                <div class="toggle-control-card">
+                                    <div class="toggle-control-info">
+                                        <span class="toggle-control-label">Usa mmap</span>
+                                        <span class="toggle-control-description">Memoria mappata per caricamento rapido</span>
+                                    </div>
+                                    <label class="switch">
                                         <input type="checkbox" id="cfg-use-mmap" name="use_mmap">
-                                        <span class="custom-checkbox"></span>
-                                        <span>Usa mmap</span>
+                                        <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label" for="cfg-enable-thinking">
+                                <div class="toggle-control-card">
+                                    <div class="toggle-control-info">
+                                        <span class="toggle-control-label">Abilita Thinking</span>
+                                        <span class="toggle-control-description">Ragionamento per modelli compatibili</span>
+                                    </div>
+                                    <label class="switch">
                                         <input type="checkbox" id="cfg-enable-thinking" name="enable_thinking">
-                                        <span class="custom-checkbox"></span>
-                                        <span>Abilita Thinking (Globale)</span>
+                                        <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label" for="cfg-show-thinking">
+                                <div class="toggle-control-card">
+                                    <div class="toggle-control-info">
+                                        <span class="toggle-control-label">Mostra Thinking</span>
+                                        <span class="toggle-control-description">Mostra i passaggi intermedi del ragionamento</span>
+                                    </div>
+                                    <label class="switch">
                                         <input type="checkbox" id="cfg-show-thinking" name="show_thinking">
-                                        <span class="custom-checkbox"></span>
-                                        <span>Mostra Thinking (Globale)</span>
+                                        <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label" for="cfg-verbose">
+                                <div class="toggle-control-card">
+                                    <div class="toggle-control-info">
+                                        <span class="toggle-control-label">Log Verbosi</span>
+                                        <span class="toggle-control-description">Abilita log dettagliati del server</span>
+                                    </div>
+                                    <label class="switch">
                                         <input type="checkbox" id="cfg-verbose" name="verbose">
-                                        <span class="custom-checkbox"></span>
-                                        <span>Log Verbosi</span>
+                                        <span class="switch-slider"></span>
                                     </label>
                                 </div>
                             </div>
@@ -434,6 +507,7 @@
 
     <!-- Script loading chain -->
     <script src="/static/config.js"></script>
+    <script src="/static/i18n.js"></script>
     <script src="/static/components.js"></script>
     <script src="/static/demo-data.js"></script>
     <script src="/static/app.js"></script>

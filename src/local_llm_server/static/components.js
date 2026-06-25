@@ -269,7 +269,10 @@ const LogConsole = (() => {
 
     function _updateStats() {
         if (dom.count) {
-            dom.count.textContent = `${rawLogs.length} righe caricate`;
+            const isIt = window.AppI18n ? window.AppI18n.getLang() === 'it' : true;
+            dom.count.textContent = isIt 
+                ? `${rawLogs.length} righe caricate` 
+                : `${rawLogs.length} lines loaded`;
         }
     }
 
@@ -594,10 +597,11 @@ const ChatWindow = (() => {
                 const pre = btn.closest('.code-block-container').querySelector('pre');
                 if (pre) {
                     navigator.clipboard.writeText(pre.innerText).then(() => {
-                        btn.textContent = "Copiato!";
+                        const isIt = window.AppI18n ? window.AppI18n.getLang() === 'it' : true;
+                        btn.textContent = isIt ? "Copiato!" : "Copied!";
                         btn.classList.add('code-block-header__copy--success');
                         setTimeout(() => {
-                            btn.textContent = "Copia";
+                            btn.textContent = isIt ? "Copia" : "Copy";
                             btn.classList.remove('code-block-header__copy--success');
                         }, 2000);
                     }).catch(() => {

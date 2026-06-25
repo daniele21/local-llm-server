@@ -1318,14 +1318,14 @@ body {
 .hardware-config-form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 20px;
     margin-top: 20px;
 }
 
 .config-form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
 }
 
 .path-metric {
@@ -1619,3 +1619,232 @@ body {
     animation: spin 1.2s linear infinite;
 }
 
+/* ─── Modern Input Controls & Widgets ────────────────────────────────────── */
+
+/* Switch Toggles */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.08);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 24px;
+    border: 1px solid var(--border-card);
+}
+.switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: #fff;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.switch input:checked + .switch-slider {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+.switch input:checked + .switch-slider:before {
+    transform: translateX(20px);
+}
+.switch input:focus-visible + .switch-slider {
+    box-shadow: 0 0 0 2px var(--color-primary-glow);
+}
+
+/* Toggle Control Cards */
+.toggle-control-card {
+    background-color: rgba(255, 255, 255, 0.01);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    transition: border-color var(--transition-fast), background-color var(--transition-fast);
+}
+.toggle-control-card:hover {
+    border-color: rgba(255, 255, 255, 0.08);
+    background-color: rgba(255, 255, 255, 0.02);
+}
+.toggle-control-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.toggle-control-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.toggle-control-description {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+/* Segmented Buttons Control */
+.segmented-control {
+    display: flex;
+    flex-wrap: wrap;
+    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-md);
+    padding: 3px;
+    gap: 4px;
+}
+.segmented-control__btn {
+    flex: 1 1 auto;
+    min-width: 45px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    padding: 6px 10px;
+    border-radius: calc(var(--radius-md) - 2px);
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    text-align: center;
+    white-space: nowrap;
+}
+.segmented-control__btn:hover {
+    color: var(--text-secondary);
+    background-color: rgba(255, 255, 255, 0.02);
+}
+.segmented-control__btn--active {
+    background-color: var(--color-primary) !important;
+    color: #fff !important;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+}
+
+/* Modern Slider & Stepper combination */
+.modern-slider-stepper {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    background-color: rgba(255, 255, 255, 0.015);
+    border: 1px solid var(--border-card);
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition-fast);
+}
+.modern-slider-stepper:focus-within {
+    border-color: var(--border-focus);
+}
+.modern-slider-stepper input[type="range"] {
+    flex: 1 1 100px;
+    height: 4px;
+    -webkit-appearance: none;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+}
+.modern-slider-stepper input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    cursor: pointer;
+    box-shadow: 0 0 4px rgba(0,0,0,0.3);
+    transition: transform var(--transition-fast);
+}
+.modern-slider-stepper input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+.modern-slider-stepper .stepper-input-container {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-sm);
+    background: rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.modern-slider-stepper input[type="number"] {
+    width: 50px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 4px 2px;
+    outline: none;
+}
+.modern-slider-stepper input[type="number"]::-webkit-outer-spin-button,
+.modern-slider-stepper input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.modern-slider-stepper .stepper-btn {
+    background: rgba(255, 255, 255, 0.03);
+    border: none;
+    color: var(--text-secondary);
+    width: 24px;
+    height: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    transition: all var(--transition-fast);
+}
+.modern-slider-stepper .stepper-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+/* Dedicated Grid for Toggle Cards */
+.config-toggles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 1.5rem;
+}
+
+/* Combined Host and Port card */
+.host-port-card {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 16px !important;
+    padding: 14px 22px !important;
+}
+.host-port-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+}
+.metric-divider {
+    width: 1px;
+    height: 32px;
+    background-color: var(--border-card);
+    align-self: center;
+    opacity: 0.8;
+}
