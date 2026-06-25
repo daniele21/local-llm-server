@@ -1,0 +1,257 @@
+/**
+ * tour.css — Styles for Demo Mode & Guided Tour
+ *
+ * Implements modern glassmorphic overlays, highlighted spotlights, and fluid animations
+ * to ensure a premium UI presentation.
+ */
+
+/* Tour overlay container */
+.tour-overlay-mask {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 99990;
+    pointer-events: none; /* Let clicks pass through, or toggle dynamically */
+}
+
+/* Spotlight element tracking the target */
+.tour-spotlight {
+    position: absolute;
+    z-index: 99991;
+    border-radius: var(--radius-md);
+    box-shadow: 0 0 0 9999px rgba(3, 5, 12, 0.72), 
+                0 0 20px 4px var(--color-primary);
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+    opacity: 0;
+}
+.tour-spotlight.active {
+    opacity: 1;
+}
+
+/* Glassmorphic Tooltip Card */
+.tour-tooltip-card {
+    position: absolute;
+    z-index: 99999;
+    width: 350px;
+    background: rgba(15, 23, 48, 0.88);
+    border: 1px solid rgba(139, 92, 246, 0.35);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg), 
+                0 0 30px rgba(139, 92, 246, 0.15);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 20px;
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+    pointer-events: auto; /* Allow clicking items inside the tooltip card */
+    transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+                transform 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+                left 0.3s cubic-bezier(0.25, 1, 0.5, 1),
+                top 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.tour-tooltip-card.active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+[data-theme="light"] .tour-tooltip-card {
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(109, 40, 217, 0.25);
+    color: var(--text-primary);
+    box-shadow: 0 10px 25px rgba(15, 23, 42, 0.15), 0 0 0 1px rgba(15, 23, 42, 0.05);
+}
+
+/* Tooltip Header */
+.tour-tooltip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+.tour-tooltip-title {
+    font-size: 0.95rem;
+    font-weight: 750;
+    color: #fff;
+    margin: 0;
+    line-height: 1.3;
+}
+[data-theme="light"] .tour-tooltip-title {
+    color: var(--text-primary);
+}
+
+.tour-tooltip-badge {
+    background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 99px;
+    letter-spacing: 0.05em;
+}
+
+/* Close/Dismiss Button */
+.tour-close-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color var(--transition-fast), background var(--transition-fast);
+}
+.tour-close-btn:hover {
+    color: var(--color-danger);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+/* Tooltip Content Body */
+.tour-tooltip-body {
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+}
+
+/* Tour Mode Selector (Step 1 choice) */
+.tour-mode-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 8px 0;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-sm);
+}
+[data-theme="light"] .tour-mode-selector {
+    background: rgba(0, 0, 0, 0.02);
+}
+.tour-mode-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: pointer;
+}
+.tour-mode-option input {
+    margin-top: 3px;
+}
+.tour-mode-option-text {
+    display: flex;
+    flex-direction: column;
+}
+.tour-mode-option-title {
+    font-size: 0.8rem;
+    font-weight: 650;
+    color: var(--text-primary);
+}
+.tour-mode-option-desc {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+}
+
+/* Action controls at footer of tooltip */
+.tour-tooltip-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 6px;
+    border-top: 1px solid var(--border-card);
+    padding-top: 12px;
+    gap: 8px;
+}
+.tour-step-indicator {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 550;
+}
+.tour-nav-buttons {
+    display: flex;
+    gap: 6px;
+}
+.tour-btn {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+.tour-btn--prev {
+    background: transparent;
+    border: 1px solid var(--border-card);
+    color: var(--text-secondary);
+}
+.tour-btn--prev:hover {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-primary);
+}
+[data-theme="light"] .tour-btn--prev:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+.tour-btn--next {
+    background: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    color: #fff;
+}
+.tour-btn--next:hover {
+    background: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+}
+.tour-btn--action {
+    background: linear-gradient(135deg, var(--color-primary-hover), var(--color-accent));
+    border: 1px solid var(--color-accent);
+    color: #fff;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(6, 182, 212, 0.25);
+}
+.tour-btn--action:hover {
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.45);
+}
+
+/* Locked state during tour simulation */
+.tour-locked {
+    pointer-events: none !important;
+}
+.tour-allow-clicks {
+    pointer-events: auto !important;
+}
+
+/* Custom indicator in Sidebar status while Tour is active */
+.sidebar-tour-badge {
+    background: var(--color-accent-glow);
+    border: 1px solid var(--color-accent);
+    color: var(--color-accent);
+    font-size: 0.65rem;
+    font-weight: 750;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    animation: tourBadgePulse 2s infinite alternate;
+}
+@keyframes tourBadgePulse {
+    0% { opacity: 0.85; box-shadow: 0 0 2px rgba(6, 182, 212, 0.2); }
+    100% { opacity: 1; box-shadow: 0 0 8px rgba(6, 182, 212, 0.5); }
+}
+
+/* UI overlay element to cover interactions during auto typing */
+.tour-interactive-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 99995;
+    background: transparent;
+    cursor: wait;
+}
