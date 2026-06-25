@@ -1137,7 +1137,7 @@ def chat_completions(req: ChatCompletionRequest):
         "top_p": float(request_payload.get("top_p", 1.0)),
         "top_k": int(request_payload.get("top_k", 40)),
         "min_p": float(request_payload.get("min_p", 0.05)),
-        "repeat_penalty": float(request_payload.get("repeat_penalty", 1.0)),
+        "repeat_penalty": float(request_payload.get("repeat_penalty", cfg.get("default_repeat_penalty", 1.1))),
         "presence_penalty": float(request_payload.get("presence_penalty", 0.0)),
         "frequency_penalty": float(request_payload.get("frequency_penalty", 0.0)),
         "stream": True,  # Keep streaming for internal console logs & updates when supported

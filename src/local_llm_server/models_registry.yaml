@@ -10,6 +10,7 @@ defaults:
   offload_kqv: true
   flash_attn: true
   use_mmap: true
+  default_repeat_penalty: 1.15
 
 models:
   nemotron-nano-4b:

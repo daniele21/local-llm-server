@@ -36,6 +36,7 @@ _FALLBACKS: dict[str, Any] = {
     "verbose": False,
     "no_download": False,
     "default_temperature": 0.0,
+    "default_repeat_penalty": 1.1,
     "backend": "llama_cpp",
     "mmproj_path": None,
     "llama_server_port": 8091,
@@ -64,6 +65,7 @@ _ENV_MAP: dict[str, str] = {
     "llama_server_port": "LOCAL_LLM_SERVER_PORT",
     "llama_server_bin": "LOCAL_LLM_SERVER_BIN",
     "startup_timeout": "LOCAL_LLM_STARTUP_TIMEOUT",
+    "default_repeat_penalty": "LOCAL_LLM_DEFAULT_REPEAT_PENALTY",
 }
 
 _BOOL_ENV = {"force_json", "enable_thinking", "show_thinking", "verbose", "offload_kqv", "flash_attn", "use_mmap", "multimodal"}
