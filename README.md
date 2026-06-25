@@ -11,8 +11,57 @@ It can serve:
 
 ---
 
+## Interactive Demo & Web UI Gallery
+
+### Guided Tour Demo
+Watch the interactive guided tour showing how to use the dashboard, configure parameters, run local model inference, and monitor server logs in real-time:
+
+<video src="docs/assets/local-llm-server%20demo.mp4" width="100%" controls alt="local-llm-server demo"></video>
+
+*(Can't play the video? [Watch/Download the Demo Video directly](docs/assets/local-llm-server%20demo.mp4))*
+
+### Web UI & API Gallery
+
+<table width="100%">
+  <tr>
+    <td width="50%" valign="top">
+      <h4>1. Interactive Chat Studio (Playground)</h4>
+      <p>A fully-featured chat interface to test model reasoning, adjust temperature, customize the system prompt, and toggle thinking mode.</p>
+      <img src="docs/assets/Chat-Studio.png" alt="Chat Studio" width="100%"/>
+    </td>
+    <td width="50%" valign="top">
+      <h4>2. Live Server Logs & Telemetry</h4>
+      <p>Monitor real-time server activity, model loading states, and generation statistics (tokens/second) streamed directly over SSE.</p>
+      <img src="docs/assets/Server-Logs.png" alt="Server Logs" width="100%"/>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>3. Model Registry & Configuration</h4>
+      <p>Browse available models, track download statuses, configure hardware settings (e.g., CPU threads, GPU layers), and hot-swap active models at runtime.</p>
+      <img src="docs/assets/Models-configs.png" alt="Model Registry" width="100%"/>
+    </td>
+    <td width="50%" valign="top">
+      <h4>4. Built-in Interactive Examples</h4>
+      <p>Interactive, copy-pasteable client code snippets (Python SDK, cURL, etc.) for rapid integration.</p>
+      <img src="docs/assets/Example-Usage.png" alt="Example Usage" width="100%"/>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <h4>5. OpenAPI/Swagger Documentation</h4>
+      <p>Self-documenting interactive API playground listing all runtime endpoints and schemas.</p>
+      <img src="docs/assets/Swagger-Api.png" alt="Swagger Api" width="100%"/>
+    </td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
+---
+
 ## Table of Contents
 
+- [Interactive Demo & Web UI Gallery](#interactive-demo--web-ui-gallery)
 1. [Why This Project Exists (Philosophy)](#1-why-this-project-exists-philosophy)
 2. [Core Features](#2-core-features)
 3. [Architecture & Ecosystem Integration](#3-architecture-ecosystem-integration)
