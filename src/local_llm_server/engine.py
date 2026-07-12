@@ -1,6 +1,7 @@
 """
 engine.py — load either llama-cpp-python or mlx-lm depending on configuration.
 """
+
 from __future__ import annotations
 
 import json
@@ -9,6 +10,8 @@ import atexit
 import os
 import shutil
 import subprocess
+import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -16,8 +19,63 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .downloader import ensure_model
+import signal
 
 logger = logging.getLogger("local-llm.engine")
+
+_ACTIVE_ENGINES: set[Any] = set()
+_signals_registered = False
+
+
+def _cleanup_active_engines() -> None:
+    for engine in list(_ACTIVE_ENGINES):
+        try:
+            engine.shutdown()
+        except Exception as exc:
+            logger.warning("Error shutting down engine during cleanup: %s", exc)
+
+
+def _setup_signal_handlers() -> None:
+    global _signals_registered
+    if _signals_registered:
+        return
+
+    def handle_exit_signal(signum: int, frame: Any) -> None:
+        logger.info("Received exit signal %d, cleaning up subprocesses...", signum)
+        _cleanup_active_engines()
+        sys.exit(128 + signum)
+
+    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
+        try:
+            signal.signal(sig, handle_exit_signal)
+        except (ValueError, OSError):
+            # Not in main thread, or signal not supported
+            pass
+    _signals_registered = True
+
+
+atexit.register(_cleanup_active_engines)
+try:
+    _setup_signal_handlers()
+except Exception:
+    pass
+
+
+
+def _start_logging_thread(process: subprocess.Popen, prefix: str) -> None:
+    def log_reader() -> None:
+        try:
+            if process.stdout:
+                for line in process.stdout:
+                    cleaned_line = line.rstrip("\r\n")
+                    logger.info("[%s] %s", prefix, cleaned_line)
+                    sys.stderr.write(f"[{prefix}] {cleaned_line}\n")
+                    sys.stderr.flush()
+        except Exception:
+            pass
+
+    thread = threading.Thread(target=log_reader, daemon=True)
+    thread.start()
 
 
 class LlamaCppEngine:
@@ -59,7 +117,9 @@ class LlamaCppEngine:
         logger.info("Loading GGUF model: %s", model_path)
         logger.info(
             "Model configuration: %s",
-            json.dumps({k: v for k, v in kwargs.items() if k != "model_path"}, indent=2),
+            json.dumps(
+                {k: v for k, v in kwargs.items() if k != "model_path"}, indent=2
+            ),
         )
 
         self.llm = Llama(**kwargs)
@@ -168,7 +228,9 @@ class LlamaServerEngine:
     def __init__(self, cfg: dict[str, Any]) -> None:
         self.cfg = cfg
         self.model_path = Path(cfg["model_path"]).expanduser()
-        self.mmproj_path = Path(cfg["mmproj_path"]).expanduser() if cfg.get("mmproj_path") else None
+        self.mmproj_path = (
+            Path(cfg["mmproj_path"]).expanduser() if cfg.get("mmproj_path") else None
+        )
         self.port = int(cfg.get("llama_server_port") or 8091)
         self.host = "127.0.0.1"
         self.base_url = f"http://{self.host}:{self.port}"
@@ -179,12 +241,16 @@ class LlamaServerEngine:
             dest=self.model_path,
             no_download=cfg.get("no_download", False),
         )
-        if self.mmproj_path and not self.mmproj_path.exists():
-            raise FileNotFoundError(f"Multimodal projector not found: {self.mmproj_path}")
+        if self.mmproj_path:
+            ensure_model(
+                url=cfg.get("mmproj_url", ""),
+                dest=self.mmproj_path,
+                no_download=cfg.get("no_download", False),
+            )
 
         self.binary = self._resolve_binary(cfg)
         self._start()
-        atexit.register(self.shutdown)
+        _ACTIVE_ENGINES.add(self)
 
     @staticmethod
     def _resolve_binary(cfg: dict[str, Any]) -> Path:
@@ -240,6 +306,7 @@ class LlamaServerEngine:
             bufsize=1,
         )
         self._wait_until_ready(timeout=float(self.cfg.get("startup_timeout") or 60))
+        _start_logging_thread(self.process, "llama-server")
 
     def _wait_until_ready(self, timeout: float) -> None:
         deadline = time.monotonic() + timeout
@@ -251,16 +318,22 @@ class LlamaServerEngine:
                     output = self.process.stdout.read()[-4000:]
                 raise RuntimeError(f"llama-server exited during startup. {output}")
             try:
-                with urllib.request.urlopen(f"{self.base_url}/health", timeout=2) as response:
+                with urllib.request.urlopen(
+                    f"{self.base_url}/health", timeout=2
+                ) as response:
                     body = response.read().decode("utf-8", errors="replace")
-                    if response.status == 200 and (not body or '"ok"' in body or '"status"' in body):
+                    if response.status == 200 and (
+                        not body or '"ok"' in body or '"status"' in body
+                    ):
                         logger.info("llama-server ready on %s", self.base_url)
                         return
             except (urllib.error.URLError, TimeoutError, OSError) as exc:
                 last_error = str(exc)
             time.sleep(1)
         self.shutdown()
-        raise TimeoutError(f"llama-server did not become ready within {timeout:.0f}s. Last error: {last_error}")
+        raise TimeoutError(
+            f"llama-server did not become ready within {timeout:.0f}s. Last error: {last_error}"
+        )
 
     def create_chat_completion(self, **kwargs: Any) -> Any:
         enable_thinking = kwargs.pop("enable_thinking", None)
@@ -278,11 +351,15 @@ class LlamaServerEngine:
         )
 
         if not stream:
-            with urllib.request.urlopen(request, timeout=float(self.cfg.get("timeout") or 1200)) as response:
+            with urllib.request.urlopen(
+                request, timeout=float(self.cfg.get("timeout") or 1200)
+            ) as response:
                 return json.loads(response.read().decode("utf-8"))
 
         def iter_chunks() -> Iterator[dict[str, Any]]:
-            with urllib.request.urlopen(request, timeout=float(self.cfg.get("timeout") or 1200)) as response:
+            with urllib.request.urlopen(
+                request, timeout=float(self.cfg.get("timeout") or 1200)
+            ) as response:
                 for raw_line in response:
                     line = raw_line.decode("utf-8", errors="replace").strip()
                     if not line or not line.startswith("data:"):
@@ -295,8 +372,10 @@ class LlamaServerEngine:
         return iter_chunks()
 
     def shutdown(self) -> None:
+        _ACTIVE_ENGINES.discard(self)
         process = self.process
         if process is None or process.poll() is not None:
+            self.process = None
             return
         logger.info("Stopping llama-server on port %s", self.port)
         process.terminate()
@@ -305,6 +384,132 @@ class LlamaServerEngine:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+        self.process = None
+
+
+class MLXVLMServerEngine:
+    """Engine backed by the OpenAI-compatible ``mlx_vlm.server`` subprocess."""
+
+    backend = "mlx_vlm_server"
+
+    def __init__(self, cfg: dict[str, Any]) -> None:
+        self.cfg = cfg
+        self.model_path = str(Path(str(cfg["model_path"])).expanduser())
+        self.port = int(cfg.get("mlx_vlm_server_port") or 8092)
+        self.host = "127.0.0.1"
+        self.base_url = f"http://{self.host}:{self.port}"
+        self.process: subprocess.Popen[str] | None = None
+        self._start()
+        _ACTIVE_ENGINES.add(self)
+
+    def _start(self) -> None:
+        cmd = [
+            sys.executable,
+            "-m",
+            "mlx_vlm.server",
+            "--model",
+            self.model_path,
+            "--host",
+            self.host,
+            "--port",
+            str(self.port),
+        ]
+        logger.info("Starting mlx_vlm.server: %s", " ".join(cmd))
+        self.process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+        _start_logging_thread(self.process, "mlx_vlm_server")
+        self._wait_until_ready(timeout=float(self.cfg.get("startup_timeout") or 60))
+
+    def _wait_until_ready(self, timeout: float) -> None:
+        deadline = time.monotonic() + timeout
+        last_error = ""
+        while time.monotonic() < deadline:
+            if self.process and self.process.poll() is not None:
+                output = (
+                    self.process.stdout.read()[-4000:] if self.process.stdout else ""
+                )
+                raise RuntimeError(f"mlx_vlm.server exited during startup. {output}")
+            try:
+                with urllib.request.urlopen(
+                    f"{self.base_url}/health", timeout=2
+                ) as response:
+                    if response.status == 200:
+                        logger.info("mlx_vlm.server ready on %s", self.base_url)
+                        return
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                last_error = str(exc)
+            time.sleep(1)
+        self.shutdown()
+        raise TimeoutError(
+            f"mlx_vlm.server did not become ready within {timeout:.0f}s. Last error: {last_error}"
+        )
+
+    def create_chat_completion(self, **kwargs: Any) -> Any:
+        stream = bool(kwargs.get("stream"))
+        # Pop thinking/reasoning flags so they are not sent to mlx_vlm.server
+        kwargs.pop("enable_thinking", None)
+        kwargs.pop("show_thinking", None)
+        # The subprocess is preloaded using ``self.model_path``. Sending the
+        # registry/Hugging Face model id here creates a different cache key in
+        # mlx_vlm.server and can trigger a second, very expensive model load.
+        backend_kwargs = {**kwargs, "model": self.model_path}
+        payload = json.dumps(backend_kwargs).encode("utf-8")
+        request = urllib.request.Request(
+            f"{self.base_url}/v1/chat/completions",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        timeout = float(self.cfg.get("timeout") or 1200)
+
+        def open_backend():
+            try:
+                return urllib.request.urlopen(request, timeout=timeout)
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                raise RuntimeError(
+                    f"mlx_vlm.server returned HTTP {exc.code}: {detail or exc.reason}"
+                ) from exc
+            except urllib.error.URLError as exc:
+                raise RuntimeError(f"Cannot reach mlx_vlm.server: {exc.reason}") from exc
+
+        if not stream:
+            with open_backend() as response:
+                return json.loads(response.read().decode("utf-8"))
+
+        def iter_chunks() -> Iterator[dict[str, Any]]:
+            with open_backend() as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line.removeprefix("data:").strip()
+                    if data == "[DONE]":
+                        break
+                    yield json.loads(data)
+
+        return iter_chunks()
+
+    def shutdown(self) -> None:
+        _ACTIVE_ENGINES.discard(self)
+        process = self.process
+        if process is None or process.poll() is not None:
+            self.process = None
+            return
+        logger.info("Stopping mlx_vlm.server on port %s", self.port)
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+        self.process = None
 
 
 def load_llm(cfg: dict[str, Any]) -> Any:
@@ -318,5 +523,8 @@ def load_llm(cfg: dict[str, Any]) -> Any:
 
     if backend == "llama_server":
         return LlamaServerEngine(cfg)
+
+    if backend == "mlx_vlm_server":
+        return MLXVLMServerEngine(cfg)
 
     raise ValueError(f"Unsupported backend: {backend}")

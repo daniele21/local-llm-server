@@ -58,6 +58,7 @@ def load_registry() -> dict[str, Any]:
         "defaults": defaults,
         "models": models,
         "default_model": default_model,
+        "startup_models": list(user.get("startup_models") or builtin.get("startup_models") or []),
     }
 
 

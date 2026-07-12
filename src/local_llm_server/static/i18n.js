@@ -28,8 +28,8 @@ const I18N_RESOURCES = {
             "title": "Local LLM Studio",
             ".sidebar-brand-text h1": "Local LLM Studio",
             ".sidebar-brand-text .subtext": "Console Inferenza",
-            ".status-info-item:nth-child(1) .label": "Modello Attivo",
-            ".status-info-item:nth-child(2) .label": "Inference Backend",
+            ".status-info-item:nth-child(1) .label": "Modello predefinito",
+            ".status-info-item:nth-child(2) .label": "Backend predefinito",
             ".status-info-item:nth-child(3) .label": "Indirizzo Server",
             ".nav-item[data-tab='chat-tab']": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat Studio',
             ".nav-item[data-tab='logs-tab']": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="4 17 10 11 12 13 18 7"/><polyline points="14 7 18 7 18 11"/></svg> Log del Server',
@@ -68,8 +68,10 @@ const I18N_RESOURCES = {
             "#run-terminal-btn": "Invia",
             "#log-line-count": "0 righe caricate",
             "#sse-indicator span:last-child": "Streaming Attivo",
-            ".config-card .card-header h2": "Stato Configurazione Hardware",
-            ".config-card .card-header p": "Modifica i parametri del motore inference ed esegui un hot-reload del modello in-memory.",
+            ".config-card .card-header h2": "Configurazione avanzata",
+            ".config-card .card-header p": "I parametri vengono applicati soltanto al runtime selezionato.",
+            ".advanced-config-disclosure summary > span:first-child": "Mostra parametri inference",
+            ".advanced-config-summary__hint": "Solo opzioni supportate dal runtime",
             ".host-port-item:nth-child(1) .config-metric__label": "Host Binding",
             ".host-port-item:nth-child(3) .config-metric__label": "Porta server",
             "label[for='cfg-backend']": "Motore Backend",
@@ -93,10 +95,10 @@ const I18N_RESOURCES = {
             ".toggle-control-card:nth-of-type(6) .toggle-control-description": "Abilita log dettagliati del server",
             ".path-metric .config-metric__label": "Percorso File Modello",
             "#btn-reload-model span": "Salva e Riavvia Modello",
-            ".registry-card .card-header h2": "Catalogo Modelli Disponibili",
-            ".registry-card .card-header p": "Visualizza i modelli locali configurati nel file <code>models.yaml</code> o pronti al download.",
+            ".registry-card .card-header h2": "Modelli in memoria",
+            ".registry-card .card-header p": "Carica più modelli e interrogali in parallelo dalla stessa porta.",
             ".models-grid__placeholder": "Caricamento modelli in corso...",
-            ".app-footer p": "Powered by <strong>llama-cpp-python</strong> &amp; <strong>ThreadingHTTPServer</strong>. Accelerazione hardware Apple Silicon/NVIDIA se disponibile."
+            ".app-footer p": "Runtime locali con <strong>llama.cpp</strong>, <strong>MLX</strong> e routing OpenAI-compatible."
         }
     },
     en: {
@@ -124,8 +126,8 @@ const I18N_RESOURCES = {
             "title": "Local LLM Studio",
             ".sidebar-brand-text h1": "Local LLM Studio",
             ".sidebar-brand-text .subtext": "Inference Console",
-            ".status-info-item:nth-child(1) .label": "Active Model",
-            ".status-info-item:nth-child(2) .label": "Inference Backend",
+            ".status-info-item:nth-child(1) .label": "Default model",
+            ".status-info-item:nth-child(2) .label": "Default backend",
             ".status-info-item:nth-child(3) .label": "Server Address",
             ".nav-item[data-tab='chat-tab']": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat Studio',
             ".nav-item[data-tab='logs-tab']": '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><polyline points="4 17 10 11 12 13 18 7"/><polyline points="14 7 18 7 18 11"/></svg> Server Logs',
@@ -164,8 +166,10 @@ const I18N_RESOURCES = {
             "#run-terminal-btn": "Send",
             "#log-line-count": "0 lines loaded",
             "#sse-indicator span:last-child": "Streaming Active",
-            ".config-card .card-header h2": "Hardware Config Status",
-            ".config-card .card-header p": "Modify inference engine parameters and perform an in-memory hot-reload of the model.",
+            ".config-card .card-header h2": "Advanced configuration",
+            ".config-card .card-header p": "Parameters apply only to the selected runtime.",
+            ".advanced-config-disclosure summary > span:first-child": "Show inference parameters",
+            ".advanced-config-summary__hint": "Only options supported by this runtime",
             ".host-port-item:nth-child(1) .config-metric__label": "Host Binding",
             ".host-port-item:nth-child(3) .config-metric__label": "Server Port",
             "label[for='cfg-backend']": "Backend Engine",
@@ -189,10 +193,10 @@ const I18N_RESOURCES = {
             ".toggle-control-card:nth-of-type(6) .toggle-control-description": "Enable detailed server logs",
             ".path-metric .config-metric__label": "Model File Path",
             "#btn-reload-model span": "Save & Restart Model",
-            ".registry-card .card-header h2": "Available Models Catalog",
-            ".registry-card .card-header p": "View local models configured in the <code>models.yaml</code> file or ready to download.",
+            ".registry-card .card-header h2": "Models in memory",
+            ".registry-card .card-header p": "Load multiple models and query them in parallel through the same port.",
             ".models-grid__placeholder": "Loading models...",
-            ".app-footer p": "Powered by <strong>llama-cpp-python</strong> &amp; <strong>ThreadingHTTPServer</strong>. Apple Silicon/NVIDIA hardware acceleration if available."
+            ".app-footer p": "Local runtimes with <strong>llama.cpp</strong>, <strong>MLX</strong>, and OpenAI-compatible routing."
         }
     }
 };

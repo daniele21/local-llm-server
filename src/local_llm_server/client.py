@@ -111,6 +111,23 @@ class LocalLLMClient:
     def transcribe_audio(self, audio_path: str | Path, language: str = "it") -> str:
         return str(self.analyze_audio(audio_path, task="transcribe", language=language)["transcript"])
 
+    def analyze_image(
+        self,
+        image_path: str | Path,
+        prompt: str = "Descrivi accuratamente questa immagine.",
+        *,
+        temperature: float = 0.0,
+        max_tokens: int = 512,
+    ) -> str:
+        """Analyze a local image through the server's multimodal chat endpoint."""
+        from .vision import prepare_image_message
+
+        return self.chat(
+            prepare_image_message(image_path, prompt),
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
     def shutdown(self) -> None:
         if self._handle is not None:
             self._handle.shutdown()

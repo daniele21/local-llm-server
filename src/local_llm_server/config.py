@@ -36,11 +36,15 @@ _FALLBACKS: dict[str, Any] = {
     "verbose": False,
     "no_download": False,
     "default_temperature": 0.0,
-    "default_repeat_penalty": 1.1,
+    "default_top_p": 0.8,
+    "default_top_k": 20,
+    "default_min_p": 0.0,
+    "default_repeat_penalty": 1.0,
     "backend": "llama_cpp",
     "mmproj_path": None,
     "llama_server_port": 8091,
     "llama_server_bin": None,
+    "mlx_vlm_server_port": 8092,
     "multimodal": False,
     "modalities": [],
     "startup_timeout": 60,
@@ -64,12 +68,20 @@ _ENV_MAP: dict[str, str] = {
     "backend": "LOCAL_LLM_BACKEND",
     "llama_server_port": "LOCAL_LLM_SERVER_PORT",
     "llama_server_bin": "LOCAL_LLM_SERVER_BIN",
+    "mlx_vlm_server_port": "LOCAL_LLM_MLX_VLM_SERVER_PORT",
     "startup_timeout": "LOCAL_LLM_STARTUP_TIMEOUT",
+    "default_temperature": "LOCAL_LLM_DEFAULT_TEMPERATURE",
+    "default_top_p": "LOCAL_LLM_DEFAULT_TOP_P",
+    "default_top_k": "LOCAL_LLM_DEFAULT_TOP_K",
+    "default_min_p": "LOCAL_LLM_DEFAULT_MIN_P",
     "default_repeat_penalty": "LOCAL_LLM_DEFAULT_REPEAT_PENALTY",
 }
 
 _BOOL_ENV = {"force_json", "enable_thinking", "show_thinking", "verbose", "offload_kqv", "flash_attn", "use_mmap", "multimodal"}
-_INT_ENV = {"port", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch", "timeout", "llama_server_port", "startup_timeout"}
+_INT_ENV = {
+    "port", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch", "timeout",
+    "llama_server_port", "mlx_vlm_server_port", "startup_timeout", "default_top_k",
+}
 
 
 def _lmstudio_model_path(entry: dict[str, Any], filename_key: str = "filename") -> Path | None:
@@ -112,7 +124,7 @@ def build_config(
 
     # Resolve model_path
     if model_path is None:
-        if backend == "mlx":
+        if backend in {"mlx", "mlx_vlm_server"}:
             model_path = entry.get("path") or entry.get("model_id") or model
         else:
             filename = entry.get("filename", f"{model}.gguf")
@@ -160,6 +172,7 @@ def build_config(
     cfg["models_dir"] = models_dir
     cfg["backend"] = backend
     cfg["mmproj_filename"] = entry.get("mmproj_filename")
+    cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")
 
     if not cfg.get("mmproj_path") and entry.get("mmproj_filename"):

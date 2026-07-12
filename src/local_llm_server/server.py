@@ -23,6 +23,8 @@ from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from .runtime import ModelRuntimeManager
+
 logger = logging.getLogger("local-llm.server")
 
 # ── Log capturing infrastructure ───────────────────────────────────────────────
@@ -145,7 +147,7 @@ class TerminalCommandRequest(BaseModel):
 
 class ModelActivateRequest(BaseModel):
     model: str = Field(..., description="Registry key of the model to activate.")
-    backend: Optional[str] = Field(None, description="Inference backend override (llama_cpp, mlx, or llama_server).")
+    backend: Optional[str] = Field(None, description="Inference backend override (llama_cpp, mlx, llama_server, or mlx_vlm_server).")
     ctx_size: Optional[int] = Field(None, description="Context size override.")
     n_gpu_layers: Optional[int] = Field(None, description="Number of GPU layers override.")
     n_threads: Optional[int] = Field(None, description="Number of CPU threads override.")
@@ -157,6 +159,7 @@ class ModelActivateRequest(BaseModel):
     timeout: Optional[int] = Field(None, description="Inference timeout in seconds.")
     llama_server_port: Optional[int] = Field(None, description="Internal llama-server subprocess port.")
     llama_server_bin: Optional[str] = Field(None, description="Path to llama-server executable.")
+    mlx_vlm_server_port: Optional[int] = Field(None, description="Internal mlx_vlm.server subprocess port.")
     mmproj_path: Optional[str] = Field(None, description="Path to multimodal projector GGUF.")
     startup_timeout: Optional[int] = Field(None, description="llama-server startup timeout in seconds.")
     enable_thinking: Optional[bool] = Field(None, description="Enable thinking mode globally.")
@@ -322,16 +325,19 @@ app.add_middleware(
 def on_shutdown():
     """Handle server shutdown events."""
     app.state.shutdown = True
-    llm = getattr(app.state, "llm", None)
-    if llm is not None and hasattr(llm, "shutdown"):
-        llm.shutdown()
+    manager = getattr(app.state, "runtime_manager", None)
+    if manager is not None:
+        manager.shutdown()
 
 
 @app.get("/health", tags=["System"])
 def get_health():
     """Check the health status of the LLM server."""
-    cfg = app.state.cfg
-    llm = app.state.llm
+    manager: ModelRuntimeManager = app.state.runtime_manager
+    default_runtime = manager.resolve()
+    cfg = default_runtime.cfg
+    llm = default_runtime.engine
+    from local_llm_server.runtime import config_capabilities_for_backend
     return {
         "ok": True,
         "server": "local-llm-server",
@@ -357,6 +363,11 @@ def get_health():
         "mmproj_path": cfg.get("mmproj_path"),
         "llama_server_port": cfg.get("llama_server_port"),
         "model_key": cfg.get("model"),
+        "default_model": manager.default_model,
+        "loaded_models": [runtime.key for runtime in manager.list()],
+        "config_capabilities": config_capabilities_for_backend(
+            str(cfg.get("backend", "unknown"))
+        ),
         "endpoints": [
             "GET /health",
             "GET /v1/models",
@@ -372,16 +383,22 @@ def get_health():
 @app.get("/api/v1/models", tags=["Models"])
 def get_models():
     """List loaded models."""
-    cfg = app.state.cfg
+    manager: ModelRuntimeManager = app.state.runtime_manager
     return {
         "object": "list",
-        "data": [{
-            "id": cfg["model_id"],
-            "object": "model",
-            "created": int(time.time()),
-            "owned_by": "local",
-            "path": cfg["model_path"],
-        }],
+        "data": [
+            {
+                "id": runtime.model_id,
+                "key": runtime.key,
+                "object": "model",
+                "created": int(runtime.loaded_at),
+                "owned_by": "local",
+                "path": runtime.cfg["model_path"],
+                "backend": getattr(runtime.engine, "backend", runtime.cfg.get("backend")),
+                "default": runtime.key == manager.default_model,
+            }
+            for runtime in manager.list()
+        ],
     }
 
 
@@ -389,12 +406,10 @@ def get_models():
 @app.get("/api/v1/status", tags=["System"])
 def get_status():
     """Retrieve real-time inference status and speed statistics."""
-    status_info = dict(app.state.current_status)
-    if status_info["active"] and status_info["phase"] == "generating" and status_info["tokens_generated"] > 0:
-        elapsed = time.perf_counter() - status_info["started_at"]
-        if elapsed > 0:
-            status_info["tokens_per_second"] = status_info["tokens_generated"] / elapsed
-    return status_info
+    manager: ModelRuntimeManager = app.state.runtime_manager
+    models = {runtime.key: runtime.snapshot_status() for runtime in manager.list()}
+    default_status = dict(models.get(str(manager.default_model), {}))
+    return {**default_status, "default_model": manager.default_model, "models": models}
 
 
 @app.get("/api/v1/models/registry", tags=["Models"])
@@ -402,7 +417,27 @@ def get_models_registry():
     """List all configured models in local-llm-server registry."""
     try:
         from local_llm_server import list_models
+        from local_llm_server.runtime import config_capabilities_for_backend
         models = list_models()
+        manager: ModelRuntimeManager = app.state.runtime_manager
+        loaded = {runtime.key: runtime for runtime in manager.list()}
+        for model in models:
+            runtime = loaded.get(str(model["key"]))
+            model["resident"] = runtime is not None
+            model["default"] = runtime is not None and runtime.key == manager.default_model
+            model["runtime_status"] = runtime.snapshot_status() if runtime is not None else None
+            if runtime is not None:
+                model["config_capabilities"] = config_capabilities_for_backend(
+                    str(runtime.cfg.get("backend", ""))
+                )
+                model["runtime_config"] = {
+                    key: runtime.cfg.get(key)
+                    for key in (
+                        "backend", "model_path", "ctx_size", "n_gpu_layers", "n_threads",
+                        "n_batch", "n_ubatch", "timeout", "offload_kqv", "flash_attn",
+                        "use_mmap", "enable_thinking", "show_thinking", "verbose",
+                    )
+                }
         return {"models": models}
     except Exception as e:
         raise HTTPException(
@@ -917,80 +952,81 @@ uv run python test_inference.py --server-url http://{host}:{port}/v1</code></pre
 
 
 @app.post("/api/v1/models/load", tags=["Models"])
-def load_model_compat():
-    """LM Studio compatible load endpoint (returns success since model is already loaded)."""
-    return {
-        "ok": True,
-        "model": app.state.cfg["model_id"],
-        "already_loaded": True,
-    }
+def load_model_compat(req: ModelActivateRequest | None = None):
+    """Load a model while keeping all currently resident models active."""
+    if req is None:
+        runtime = app.state.runtime_manager.resolve()
+        return {"ok": True, "model": runtime.model_id, "key": runtime.key, "already_loaded": True}
+    return _load_or_activate_model(req, set_default=False)
 
 
 @app.post("/api/v1/models/activate", tags=["Models"])
 def activate_model(req: ModelActivateRequest):
-    """Load and activate a model with optional custom parameters."""
-    with app.state.generation_lock:
-        try:
-            from local_llm_server.config import build_config
-            from local_llm_server.engine import load_llm
-            
-            explicit = {}
-            for field_name in [
-                "backend", "ctx_size", "n_gpu_layers", "n_threads",
-                "n_batch", "n_ubatch", "timeout", "offload_kqv",
-                "flash_attn", "use_mmap", "enable_thinking",
-                "show_thinking", "verbose", "llama_server_port",
-                "llama_server_bin", "mmproj_path", "startup_timeout",
-            ]:
-                val = getattr(req, field_name)
-                if val is not None:
-                    explicit[field_name] = val
+    """Load a model if necessary and make it the default route."""
+    return _load_or_activate_model(req, set_default=True)
 
-            current_model_key = app.state.cfg.get("model") if hasattr(app.state, "cfg") and app.state.cfg else None
-            model_path_to_use = app.state.cfg.get("model_path") if req.model == current_model_key else None
 
-            new_cfg = build_config(
-                model=req.model,
-                model_path=model_path_to_use,
-                **explicit
-            )
-            
-            # Load the new LLM engine
-            new_llm = load_llm(new_cfg)
-            old_llm = getattr(app.state, "llm", None)
-            
-            # If load succeeds, update app.state
-            app.state.cfg = new_cfg
-            app.state.llm = new_llm
-            if old_llm is not None and old_llm is not new_llm and hasattr(old_llm, "shutdown"):
-                old_llm.shutdown()
-            app.state.current_status.update({
-                "model": new_cfg["model_id"]
-            })
-            
-            logger.info("Successfully activated model: %s", req.model)
-            return {
-                "ok": True,
-                "model": new_cfg["model_id"],
-                "cfg": {
-                    "model": new_cfg["model"],
-                    "model_id": new_cfg["model_id"],
-                    "model_path": new_cfg["model_path"],
-                    "backend": new_cfg["backend"],
-                    "mmproj_path": new_cfg.get("mmproj_path"),
-                    "llama_server_port": new_cfg.get("llama_server_port"),
-                    "ctx_size": new_cfg["ctx_size"],
-                    "n_gpu_layers": new_cfg["n_gpu_layers"],
-                    "n_threads": new_cfg["n_threads"]
-                }
-            }
-        except Exception as e:
-            import traceback
-            logger.error("Failed to activate model:\n%s", traceback.format_exc())
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Impossibile caricare il modello '{req.model}': {str(e)}"
-            )
+def _load_or_activate_model(req: ModelActivateRequest, *, set_default: bool) -> dict[str, Any]:
+    manager: ModelRuntimeManager = app.state.runtime_manager
+    explicit = {}
+    for field_name in [
+        "backend", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch",
+        "timeout", "offload_kqv", "flash_attn", "use_mmap", "enable_thinking",
+        "show_thinking", "verbose", "llama_server_port", "llama_server_bin",
+        "mlx_vlm_server_port", "mmproj_path", "startup_timeout",
+    ]:
+        value = getattr(req, field_name)
+        if value is not None:
+            explicit[field_name] = value
+    try:
+        if set_default and explicit:
+            try:
+                runtime = manager.reload(req.model, **explicit)
+                loaded = True
+            except LookupError:
+                runtime, loaded = manager.load(req.model, **explicit)
+        else:
+            runtime, loaded = manager.load(req.model, **explicit)
+        if set_default:
+            manager.set_default(runtime.key)
+            app.state.cfg = runtime.cfg
+            app.state.llm = runtime.engine
+        logger.info("Model %s ready (newly loaded: %s)", req.model, loaded)
+        return {
+            "ok": True,
+            "model": runtime.model_id,
+            "key": runtime.key,
+            "loaded": loaded,
+            "default": runtime.key == manager.default_model,
+            "cfg": {
+                "model": runtime.cfg["model"],
+                "model_id": runtime.model_id,
+                "model_path": runtime.cfg["model_path"],
+                "backend": runtime.cfg["backend"],
+                "llama_server_port": runtime.cfg.get("llama_server_port"),
+                "mlx_vlm_server_port": runtime.cfg.get("mlx_vlm_server_port"),
+            },
+        }
+    except Exception as exc:
+        logger.exception("Failed to load model %s", req.model)
+        raise HTTPException(status_code=500, detail=f"Impossibile caricare il modello '{req.model}': {exc}") from exc
+
+
+@app.delete("/api/v1/models/{model}", tags=["Models"])
+def unload_model(model: str):
+    """Unload one idle model without affecting other resident models."""
+    manager: ModelRuntimeManager = app.state.runtime_manager
+    try:
+        runtime = manager.unload(model)
+        if manager.default_model:
+            default_runtime = manager.resolve()
+            app.state.cfg = default_runtime.cfg
+            app.state.llm = default_runtime.engine
+        return {"ok": True, "model": runtime.model_id, "key": runtime.key}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.post("/api/v1/terminal/run", tags=["System"])
@@ -1108,11 +1144,17 @@ def get_static_files(path: str):
 @app.post("/api/v1/chat", tags=["Inference"])
 def chat_completions(req: ChatCompletionRequest):
     """Generate completions for user chat prompts (supports both OpenAI-style and legacy formats)."""
-    cfg = app.state.cfg
     started_at = time.perf_counter()
 
     # Convert request object to payload dict for existing logic
-    request_payload = req.dict(exclude_none=True)
+    request_payload = req.model_dump(exclude_none=True)
+    manager: ModelRuntimeManager = app.state.runtime_manager
+    try:
+        runtime = manager.resolve(request_payload.get("model"))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    cfg = runtime.cfg
+    runtime_status = runtime.status
     try:
         messages = _normalize_messages(request_payload)
     except ValueError as exc:
@@ -1134,14 +1176,14 @@ def chat_completions(req: ChatCompletionRequest):
     kwargs: dict[str, Any] = {
         "messages": messages,
         "temperature": float(request_payload.get("temperature", cfg.get("default_temperature", 0.0))),
-        "top_p": float(request_payload.get("top_p", 1.0)),
-        "top_k": int(request_payload.get("top_k", 40)),
-        "min_p": float(request_payload.get("min_p", 0.05)),
+        "top_p": float(request_payload.get("top_p", cfg.get("default_top_p", 1.0))),
+        "top_k": int(request_payload.get("top_k", cfg.get("default_top_k", 40))),
+        "min_p": float(request_payload.get("min_p", cfg.get("default_min_p", 0.05))),
         "repeat_penalty": float(request_payload.get("repeat_penalty", cfg.get("default_repeat_penalty", 1.1))),
         "presence_penalty": float(request_payload.get("presence_penalty", 0.0)),
         "frequency_penalty": float(request_payload.get("frequency_penalty", 0.0)),
         "stream": True,  # Keep streaming for internal console logs & updates when supported
-        "model": str(request_payload.get("model") or cfg["model_id"]),
+        "model": runtime.model_id,
         "enable_thinking": enable_thinking,
     }
 
@@ -1159,13 +1201,14 @@ def chat_completions(req: ChatCompletionRequest):
 
     # Handle stream vs non-stream request
     wants_stream = request_payload.get("stream", False)
-    if not wants_stream and cfg.get("backend") == "llama_server":
+    if not wants_stream and cfg.get("backend") in {"llama_server", "mlx_vlm_server"}:
         kwargs["stream"] = False
 
     def generate_chat_completions_stream():
-        with app.state.generation_lock:
-            app.state.current_status.update({
+        with runtime.lock:
+            runtime_status.update({
                 "active": True,
+                "active_requests": 1,
                 "phase": "prompt_eval",
                 "tokens_generated": 0,
                 "max_tokens": int(max_tokens) if max_tokens else 0,
@@ -1173,8 +1216,18 @@ def chat_completions(req: ChatCompletionRequest):
             })
 
             try:
-                stream = app.state.llm.create_chat_completion(**kwargs)
-                print(f"\n\033[94m[{time.strftime('%H:%M:%S')}] LLM inference started | Model: {kwargs['model']} | Messages: {len(messages)} | Temp: {kwargs['temperature']} | Max Tokens: {kwargs.get('max_tokens', 'default')}\033[0m", flush=True)
+                print(
+                    f"[LLM] Request started | model={runtime.key} "
+                    f"backend={getattr(runtime.engine, 'backend', 'unknown')} "
+                    f"messages={len(messages)} max_tokens={kwargs.get('max_tokens', 'default')}",
+                    flush=True,
+                )
+                logger.info(
+                    "LLM inference started | model=%s messages=%d temperature=%s max_tokens=%s",
+                    kwargs["model"], len(messages), kwargs["temperature"],
+                    kwargs.get("max_tokens", "default"),
+                )
+                stream = runtime.engine.create_chat_completion(**kwargs)
 
                 is_thinking = False
                 is_thinking_for_client = False
@@ -1182,13 +1235,22 @@ def chat_completions(req: ChatCompletionRequest):
                 for chunk in stream:
                     if getattr(app.state, "shutdown", False):
                         break
-                    if app.state.current_status["phase"] == "prompt_eval":
-                        app.state.current_status["phase"] = "generating"
-                        app.state.current_status["started_at"] = time.perf_counter()
+                    if runtime_status["phase"] == "prompt_eval":
+                        runtime_status["phase"] = "generating"
+                        runtime_status["started_at"] = time.perf_counter()
                         print("\033[90mPrompt evaluated. Generating:\033[0m\n", end="", flush=True)
 
-                    delta = chunk["choices"][0].get("delta", {})
-                    token = delta.get("content", "")
+                    choices = chunk.get("choices")
+                    if not choices:
+                        continue
+                    choice = choices[0]
+                    if not isinstance(choice, dict):
+                        continue
+                    delta = choice.get("delta")
+                    if not isinstance(delta, dict):
+                        delta = {}
+                        choice["delta"] = delta
+                    token = delta.get("content") or ""
                     if token:
                         if "<think>" in token:
                             is_thinking = True
@@ -1198,9 +1260,9 @@ def chat_completions(req: ChatCompletionRequest):
                             is_thinking = False
                             print("\n\033[92m[RESPONSE]\033[0m ", end="", flush=True)
 
-                        app.state.current_status["tokens_generated"] += 1
-                        app.state.current_status["last_token_at"] = time.perf_counter()
-                        app.state.current_status["last_content"] = (app.state.current_status["last_content"] + token)[-100:]
+                        runtime_status["tokens_generated"] += 1
+                        runtime_status["last_token_at"] = time.perf_counter()
+                        runtime_status["last_content"] = (runtime_status["last_content"] + token)[-100:]
 
                     # Handle streaming filtration if show_thinking is False
                     if not show_thinking:
@@ -1226,7 +1288,7 @@ def chat_completions(req: ChatCompletionRequest):
                                     client_token = before
 
                         if client_token:
-                            chunk["choices"][0]["delta"]["content"] = client_token
+                            choice["delta"]["content"] = client_token
                         else:
                             continue
 
@@ -1234,24 +1296,28 @@ def chat_completions(req: ChatCompletionRequest):
                     yield f"data: {json.dumps(chunk)}\n\n"
 
                 elapsed = time.perf_counter() - started_at
-                tokens = app.state.current_status["tokens_generated"]
+                tokens = runtime_status["tokens_generated"]
                 speed = tokens / elapsed if elapsed > 0 else 0
                 print(f"\n\033[92m[Inference complete] Generated {tokens} tokens in {elapsed:.2f}s ({speed:.1f} tokens/s)\033[0m\n", flush=True)
                 yield "data: [DONE]\n\n"
             except Exception as e:
                 import traceback
                 logger.error("Inference stream error:\n%s", traceback.format_exc())
+                print(f"[LLM] Request failed | model={runtime.key} error={e}", flush=True)
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
             finally:
-                app.state.current_status["active"] = False
+                runtime_status["active"] = False
+                runtime_status["active_requests"] = 0
+                runtime_status["phase"] = "idle"
 
     if wants_stream:
         return StreamingResponse(generate_chat_completions_stream(), media_type="text/event-stream")
 
     # Non-streaming request: Reconstruct response from stream generator
-    with app.state.generation_lock:
-        app.state.current_status.update({
+    with runtime.lock:
+        runtime_status.update({
             "active": True,
+            "active_requests": 1,
             "phase": "prompt_eval",
             "tokens_generated": 0,
             "max_tokens": int(max_tokens) if max_tokens else 0,
@@ -1259,12 +1325,12 @@ def chat_completions(req: ChatCompletionRequest):
         })
 
         try:
-            stream = app.state.llm.create_chat_completion(**kwargs)
+            stream = runtime.engine.create_chat_completion(**kwargs)
             if isinstance(stream, dict):
                 return _build_response(
                     stream,
                     model_id=cfg["model_id"],
-                    backend=getattr(app.state.llm, "backend", cfg.get("backend", "unknown")),
+                    backend=getattr(runtime.engine, "backend", cfg.get("backend", "unknown")),
                     started_at=started_at,
                     finished_at=time.perf_counter(),
                     show_thinking=show_thinking,
@@ -1278,13 +1344,22 @@ def chat_completions(req: ChatCompletionRequest):
             for chunk in stream:
                 if getattr(app.state, "shutdown", False):
                     break
-                if app.state.current_status["phase"] == "prompt_eval":
-                    app.state.current_status["phase"] = "generating"
-                    app.state.current_status["started_at"] = time.perf_counter()
+                if runtime_status["phase"] == "prompt_eval":
+                    runtime_status["phase"] = "generating"
+                    runtime_status["started_at"] = time.perf_counter()
                     print("\033[90mPrompt evaluated. Generating:\033[0m\n", end="", flush=True)
 
-                delta = chunk["choices"][0].get("delta", {})
-                token = delta.get("content", "")
+                choices = chunk.get("choices")
+                if not choices:
+                    continue
+                choice = choices[0]
+                if not isinstance(choice, dict):
+                    continue
+                delta = choice.get("delta")
+                if not isinstance(delta, dict):
+                    delta = {}
+                    choice["delta"] = delta
+                token = delta.get("content") or ""
                 if token:
                     if "<think>" in token:
                         is_thinking = True
@@ -1295,15 +1370,15 @@ def chat_completions(req: ChatCompletionRequest):
                         print("\n\033[92m[RESPONSE]\033[0m ", end="", flush=True)
 
                     full_content += token
-                    app.state.current_status["tokens_generated"] += 1
-                    app.state.current_status["last_token_at"] = time.perf_counter()
-                    app.state.current_status["last_content"] = full_content[-100:]
+                    runtime_status["tokens_generated"] += 1
+                    runtime_status["last_token_at"] = time.perf_counter()
+                    runtime_status["last_content"] = full_content[-100:]
 
                 if raw_response is None:
                     raw_response = chunk
 
             elapsed = time.perf_counter() - started_at
-            tokens = app.state.current_status["tokens_generated"]
+            tokens = runtime_status["tokens_generated"]
             speed = tokens / elapsed if elapsed > 0 else 0
             print(f"\n\033[92m[Inference complete] Generated {tokens} tokens in {elapsed:.2f}s ({speed:.1f} tokens/s)\033[0m\n", flush=True)
 
@@ -1311,8 +1386,8 @@ def chat_completions(req: ChatCompletionRequest):
                 raw_response["choices"][0]["message"] = {"role": "assistant", "content": full_content}
                 raw_response["usage"] = {
                     "prompt_tokens": 0,
-                    "completion_tokens": app.state.current_status["tokens_generated"],
-                    "total_tokens": app.state.current_status["tokens_generated"],
+                    "completion_tokens": runtime_status["tokens_generated"],
+                    "total_tokens": runtime_status["tokens_generated"],
                 }
 
             finished_at = time.perf_counter()
@@ -1328,7 +1403,7 @@ def chat_completions(req: ChatCompletionRequest):
             response = _build_response(
                 raw_response,
                 model_id=cfg["model_id"],
-                backend=getattr(app.state.llm, "backend", cfg.get("backend", "unknown")),
+                backend=getattr(runtime.engine, "backend", cfg.get("backend", "unknown")),
                 started_at=started_at,
                 finished_at=finished_at,
                 show_thinking=show_thinking,
@@ -1340,40 +1415,47 @@ def chat_completions(req: ChatCompletionRequest):
             logger.error("Inference error:\n%s", traceback.format_exc())
             raise HTTPException(status_code=500, detail=f"Inference failed: {exc}")
         finally:
-            app.state.current_status["active"] = False
+            runtime_status["active"] = False
+            runtime_status["active_requests"] = 0
+            runtime_status["phase"] = "idle"
 
 
 # ── Public entry point ──────────────────────────────────────────────────────────
 
-def run_server(cfg: dict[str, Any], llm: Any) -> None:
+def configure_runtime(
+    cfg: dict[str, Any],
+    llm: Any,
+    manager: ModelRuntimeManager | None = None,
+) -> ModelRuntimeManager:
+    """Attach a single- or multi-model runtime manager to the FastAPI app."""
+    if manager is None:
+        manager = ModelRuntimeManager(default_model=str(cfg["model"]))
+        manager.add(cfg, llm)
+    default_runtime = manager.resolve()
+    app.state.runtime_manager = manager
+    app.state.cfg = default_runtime.cfg
+    app.state.llm = default_runtime.engine
+    app.state.shutdown = False
+    app.state.terminal_cwd = os.getcwd()
+    return manager
+
+
+def run_server(
+    cfg: dict[str, Any],
+    llm: Any,
+    manager: ModelRuntimeManager | None = None,
+) -> None:
     """Start the FastAPI uvicorn server."""
     import os
     import uvicorn
     
-    # Attach config & engine state to app.state
-    app.state.cfg = cfg
-    app.state.llm = llm
-    app.state.generation_lock = threading.Lock()
-    app.state.shutdown = False
-    app.state.terminal_cwd = os.getcwd()
-    app.state.current_status = {
-        "active": False,
-        "phase": "idle",
-        "tokens_generated": 0,
-        "max_tokens": 0,
-        "started_at": 0.0,
-        "last_token_at": 0.0,
-        "tokens_per_second": 0.0,
-        "model": cfg["model_id"],
-        "last_content": "",
-    }
+    manager = configure_runtime(cfg, llm, manager)
+    cfg = manager.resolve().cfg
 
     class CustomUvicornServer(uvicorn.Server):
         def handle_exit(self, sig: int, frame) -> None:
-            import time
             print("\n[*] Stopping local-llm-server...", flush=True)
-            time.sleep(0.1)
-            os._exit(0)
+            super().handle_exit(sig, frame)
 
     logger.info(
         "local-llm-server starting on http://%s:%d (model: %s)",

@@ -41,3 +41,19 @@ def test_chat_prefers_server_output(monkeypatch):
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
 
     assert LocalLLMClient().chat([{"role": "user", "content": "ciao"}]) == "ciao"
+
+
+def test_analyze_image_sends_multimodal_message(monkeypatch, tmp_path):
+    image = tmp_path / "image.png"
+    image.write_bytes(b"png")
+
+    def fake_urlopen(request, timeout):
+        payload = json.loads(request.data.decode("utf-8"))
+        assert payload["messages"][0]["content"][0]["type"] == "image_url"
+        assert payload["temperature"] == 0.0
+        assert payload["max_tokens"] == 512
+        return _Response({"choices": [{"message": {"content": "un'immagine"}}]})
+
+    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+
+    assert LocalLLMClient().analyze_image(image) == "un'immagine"

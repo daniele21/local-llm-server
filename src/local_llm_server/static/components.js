@@ -391,7 +391,14 @@ const ModelCatalog = (() => {
         onSelectModel = onSelect;
     }
 
-    function render(models, activeModelId) {
+    const escapeHtml = (value) => String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+
+    function render(models) {
         if (!domContainer) return;
         domContainer.innerHTML = '';
 
@@ -402,32 +409,37 @@ const ModelCatalog = (() => {
 
         models.forEach(model => {
             const card = document.createElement('div');
-            const isActive = model.key === activeModelId || model.model_id === activeModelId;
-            card.className = `model-card ${isActive ? 'model-card--active' : ''}`;
+            const isResident = Boolean(model.resident);
+            const isDefault = Boolean(model.default);
+            const isBusy = Boolean(model.runtime_status?.active);
+            card.className = `model-card ${isResident ? 'model-card--resident' : ''} ${isDefault ? 'model-card--active' : ''}`;
 
-            const statusBadge = model.downloaded
-                ? `<span class="tag-badge tag-badge--downloaded">Scaricato</span>`
+            const availabilityBadge = model.downloaded
+                ? `<span class="tag-badge tag-badge--downloaded">Disponibile</span>`
                 : `<span class="tag-badge tag-badge--missing">Non scaricato</span>`;
-
-            const tagsHtml = model.tags.map(t => `<span class="tag-badge">${t}</span>`).join('');
+            const runtimeBadge = isResident
+                ? `<span class="tag-badge tag-badge--resident">${isBusy ? 'In uso' : 'In memoria'}</span>`
+                : '';
+            const tagsHtml = (model.tags || []).slice(0, 3).map(t => `<span class="tag-badge">${escapeHtml(t)}</span>`).join('');
             
-            const detailId = `model-detail-${model.key}`;
+            const detailId = `model-detail-${String(model.key).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
 
             card.innerHTML = `
                 <div class="model-card__header">
                     <div>
-                        <h4 class="model-card__title">${model.key}</h4>
+                        <h4 class="model-card__title">${escapeHtml(model.key)}</h4>
                         <div class="model-card__tags">
-                            ${statusBadge}
+                            ${runtimeBadge}
+                            ${availabilityBadge}
                             ${tagsHtml}
                         </div>
                     </div>
-                    ${isActive ? '<span class="active-indicator-pulse">Corrente</span>' : ''}
+                    ${isDefault ? '<span class="active-indicator-pulse">Predefinito</span>' : ''}
                 </div>
 
                 <div class="model-card__body">
                     <div class="compact-info-row">
-                        <span>Dimensione: <strong>${model.size_gb ? model.size_gb + ' GB' : 'Sconosciuta'}</strong></span>
+                        <span>${escapeHtml(model.backend)} · <strong>${model.size_gb ? model.size_gb + ' GB' : 'Dimensione N/A'}</strong></span>
                         <button class="btn btn--link btn--sm p-0 collapsible-trigger-link" data-collapsible-trigger="${detailId}">
                             Dettagli parametri
                             <svg class="chevron-icon" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="6 9 12 15 18 9"/></svg>
@@ -439,27 +451,38 @@ const ModelCatalog = (() => {
                         <div class="model-technical-details">
                             <div class="technical-row">
                                 <span>ID Modello:</span>
-                                <code class="technical-code">${model.model_id}</code>
+                                <code class="technical-code">${escapeHtml(model.model_id)}</code>
                             </div>
                             <div class="technical-row">
                                 <span>Percorso locale:</span>
-                                <code class="technical-code technical-code--path" title="${model.path}">${model.path}</code>
-                            </div>
-                            <div class="technical-row">
-                                <span>Sorgente HF:</span>
-                                <a href="${model.path.includes('.gguf') ? 'https://huggingface.co' : '#'}" target="_blank" class="technical-link">HuggingFace Repo</a>
+                                <code class="technical-code technical-code--path" title="${escapeHtml(model.path)}">${escapeHtml(model.path)}</code>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="model-card__actions">
-                    <button type="button" class="btn btn--secondary btn--sm btn--copy-id" data-model-id="${model.key}">
+                    <button type="button" class="btn btn--secondary btn--sm btn--copy-id" data-model-id="${escapeHtml(model.key)}">
                         Copia ID
                     </button>
-                    ${model.downloaded && !isActive ? `
-                        <button type="button" class="btn btn--primary btn--sm btn--activate-model" data-model-key="${model.key}">
-                            Riavvia con questo
+                    ${model.downloaded && !isResident ? `
+                        <button type="button" class="btn btn--primary btn--sm" data-model-action="load" data-model-key="${escapeHtml(model.key)}">
+                            Carica in memoria
+                        </button>
+                    ` : ''}
+                    ${isResident && !isDefault ? `
+                        <button type="button" class="btn btn--primary btn--sm" data-model-action="default" data-model-key="${escapeHtml(model.key)}">
+                            Imposta predefinito
+                        </button>
+                    ` : ''}
+                    ${isResident ? `
+                        <button type="button" class="btn btn--secondary btn--sm" data-model-action="configure" data-model-key="${escapeHtml(model.key)}">
+                            Configura
+                        </button>
+                    ` : ''}
+                    ${isResident ? `
+                        <button type="button" class="btn btn--danger-subtle btn--sm" data-model-action="unload" data-model-key="${escapeHtml(model.key)}" ${isBusy ? 'disabled title="Modello in uso"' : ''}>
+                            Scarica memoria
                         </button>
                     ` : ''}
                     ${!model.downloaded ? `
@@ -479,13 +502,19 @@ const ModelCatalog = (() => {
                 });
             });
 
-            // Bind click to activate model if clicked
-            const activateBtn = card.querySelector('.btn--activate-model');
-            if (activateBtn) {
-                activateBtn.addEventListener('click', () => {
-                    if (onSelectModel) onSelectModel(model.key);
+            card.querySelectorAll('[data-model-action]').forEach(button => {
+                button.addEventListener('click', async () => {
+                    if (!onSelectModel) return;
+                    button.disabled = true;
+                    button.classList.add('btn--loading');
+                    try {
+                        await onSelectModel(button.dataset.modelAction, model.key);
+                    } finally {
+                        button.disabled = false;
+                        button.classList.remove('btn--loading');
+                    }
                 });
-            }
+            });
 
             domContainer.appendChild(card);
         });
@@ -527,7 +556,7 @@ const ChatWindow = (() => {
         `;
     }
 
-    function appendMessage(role, text, thinking = '', stats = {}) {
+    function appendMessage(role, text, thinking = '', stats = {}, imageUrl = '') {
         if (!container) return;
 
         const msgDiv = document.createElement('div');
@@ -573,7 +602,11 @@ const ChatWindow = (() => {
                 `;
             }
         } else {
-            contentHtml = `<div class="user-response"><p>${_escapeHTML(text)}</p></div>`;
+            contentHtml = `<div class="user-response">`;
+            if (imageUrl) {
+                contentHtml += `<div class="user-attached-image-wrapper"><img src="${imageUrl}" class="user-attached-image" alt="Immagine allegata"></div>`;
+            }
+            contentHtml += `<p>${_escapeHTML(text)}</p></div>`;
         }
 
         msgDiv.innerHTML = `
@@ -589,6 +622,15 @@ const ChatWindow = (() => {
 
         // Bind copy buttons inside code blocks
         _bindCodeCopyButtons(msgDiv);
+        return msgDiv;
+    }
+
+    function updateAssistantMessage(messageEl, text) {
+        if (!messageEl) return;
+        const response = messageEl.querySelector('.assistant-response');
+        if (!response) return;
+        response.innerHTML = _formatMarkdown(text);
+        container.scrollTop = container.scrollHeight;
     }
 
     function _bindCodeCopyButtons(messageEl) {
@@ -677,7 +719,7 @@ const ChatWindow = (() => {
             .replace(/'/g, '&#039;');
     }
 
-    return { bind, clearChat, appendMessage, setShowThinking };
+    return { bind, clearChat, appendMessage, updateAssistantMessage, setShowThinking };
 })();
 
 /* ═══════════════════════════════════════════════════════════════════════════════

@@ -50,7 +50,7 @@
 
                 <div class="status-info-list">
                     <div class="status-info-item">
-                        <span class="label">Modello Attivo</span>
+                        <span class="label">Modello predefinito</span>
                         <span class="value" id="sidebar-active-model">-</span>
                     </div>
                     <div class="status-info-item">
@@ -61,6 +61,15 @@
                         <span class="label">Indirizzo Server</span>
                         <span class="value" id="sidebar-address">-</span>
                     </div>
+                </div>
+                <div class="resident-runtimes" aria-live="polite">
+                    <div class="resident-runtimes__header">
+                        <span>Runtime residenti</span>
+                        <span id="sidebar-runtime-count">0</span>
+                    </div>
+                    <ul class="resident-runtimes__list" id="sidebar-runtime-list">
+                        <li class="resident-runtimes__empty">Nessun modello caricato</li>
+                    </ul>
                 </div>
             </div>
 
@@ -196,8 +205,29 @@
                             <span id="typing-text">In attesa...</span>
                         </div>
 
+                        <!-- Image Preview Container -->
+                        <div id="chat-image-preview-container" class="chat-image-preview-container" style="display: none;">
+                            <div class="preview-wrapper">
+                                <img id="chat-image-preview" src="" alt="Anteprima immagine">
+                                <button type="button" class="remove-image-btn" id="remove-image-btn" aria-label="Rimuovi immagine">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Input field controls -->
                         <div class="chat-input-bar">
+                            <button type="button" class="btn btn--secondary" id="attach-image-btn" aria-label="Carica immagine" style="display: none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                                    <polyline points="21 15 16 10 5 21"/>
+                                </svg>
+                            </button>
+                            <input type="file" id="chat-image-input" accept="image/jpeg,image/png,image/webp" style="display: none;">
                             <textarea id="chat-textarea" placeholder="Scrivi un messaggio... (Invio invia, Shift+Invio per riga nuova)" rows="1"></textarea>
                             <button type="button" class="btn btn--primary" id="send-chat-btn" aria-label="Invia messaggio">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
@@ -309,34 +339,30 @@
                     <!-- Config Options Card -->
                     <div class="card config-card">
                         <div class="card-header">
-                            <h2>Stato Configurazione Hardware</h2>
-                            <p class="section-desc">Modifica i parametri del motore inference ed esegui un hot-reload del modello in-memory.</p>
+                            <h2>Configurazione avanzata</h2>
+                            <p class="section-desc">I parametri vengono applicati soltanto al runtime selezionato.</p>
                         </div>
+                        <div class="config-target-bar">
+                            <div>
+                                <span class="config-target-bar__eyebrow">Stai configurando</span>
+                                <label for="config-model-select" class="sr-only">Runtime da configurare</label>
+                                <select id="config-model-select" class="config-target-bar__select" aria-describedby="config-target-status"></select>
+                            </div>
+                            <span class="config-target-bar__status" id="config-target-status">Seleziona un runtime residente</span>
+                        </div>
+                        <details class="advanced-config-disclosure">
+                            <summary>
+                                <span>Mostra parametri inference</span>
+                                <span class="advanced-config-summary__hint">Solo opzioni supportate dal runtime</span>
+                            </summary>
                         <form id="hardware-config-form" class="hardware-config-form">
                             <div class="config-form-grid">
-                                <div class="config-metric host-port-card">
-                                    <div class="host-port-item">
-                                        <span class="config-metric__label">Host Binding</span>
-                                        <span class="config-metric__value" id="cfg-host">-</span>
-                                    </div>
-                                    <div class="metric-divider"></div>
-                                    <div class="host-port-item">
-                                        <span class="config-metric__label">Porta server</span>
-                                        <span class="config-metric__value" id="cfg-port">-</span>
-                                    </div>
+                                <div class="form-group backend-identity">
+                                    <span class="form-label">Motore backend</span>
+                                    <div class="backend-identity__value" id="cfg-backend">-</div>
+                                    <span class="backend-identity__hint">Definito dal modello e non modificabile</span>
                                 </div>
-                                <div class="form-group">
-                                    <label for="cfg-backend">Motore Backend</label>
-                                    <div class="segmented-control" id="backend-preset-control">
-                                        <button type="button" class="segmented-control__btn segmented-control__btn--active" data-value="llama_cpp">GGUF (llama.cpp)</button>
-                                        <button type="button" class="segmented-control__btn" data-value="mlx">MLX (Apple Silicon)</button>
-                                    </div>
-                                    <select id="cfg-backend" name="backend" style="display: none;">
-                                        <option value="llama_cpp">llama-cpp-python (GGUF)</option>
-                                        <option value="mlx">mlx-lm (Apple Silicon MLX)</option>
-                                    </select>
-                                </div>
-                                <div class="form-group">
+                                <div class="form-group" data-config-key="ctx_size">
                                     <label for="cfg-ctx-size">Dimensione Contesto (ctx_size)</label>
                                     <div class="segmented-control" id="ctx-preset-control">
                                         <button type="button" class="segmented-control__btn" data-value="2048">2K</button>
@@ -348,7 +374,7 @@
                                     </div>
                                     <input type="number" inputmode="numeric" id="cfg-ctx-size" name="ctx_size" min="512" max="1000000" step="512" placeholder="es. 4096" style="margin-top: 8px;">
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" data-config-key="n_gpu_layers">
                                     <label for="cfg-gpu-layers">GPU Layers (n_gpu_layers)</label>
                                     <div class="modern-slider-stepper">
                                         <input type="range" id="slide-gpu-layers" min="0" max="128" step="1" value="0">
@@ -359,7 +385,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" data-config-key="n_threads">
                                     <label for="cfg-threads">CPU Threads (n_threads)</label>
                                     <div class="modern-slider-stepper">
                                         <input type="range" id="slide-threads" min="1" max="64" step="1" value="8">
@@ -370,7 +396,7 @@
                                         </div>
                                     </div>
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" data-config-key="n_batch">
                                     <label for="cfg-n-batch">Batch Size (n_batch)</label>
                                     <div class="segmented-control" id="batch-preset-control">
                                         <button type="button" class="segmented-control__btn" data-value="128">128</button>
@@ -381,7 +407,7 @@
                                     </div>
                                     <input type="number" inputmode="numeric" id="cfg-n-batch" name="n_batch" min="1" max="8192" step="1" placeholder="es. 512" style="margin-top: 8px;">
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" data-config-key="n_ubatch">
                                     <label for="cfg-n-ubatch">Micro-batch (n_ubatch)</label>
                                     <div class="segmented-control" id="ubatch-preset-control">
                                         <button type="button" class="segmented-control__btn" data-value="128">128</button>
@@ -392,7 +418,7 @@
                                     </div>
                                     <input type="number" inputmode="numeric" id="cfg-n-ubatch" name="n_ubatch" min="1" max="8192" step="1" placeholder="es. 512" style="margin-top: 8px;">
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" data-config-key="timeout">
                                     <label for="cfg-timeout">Timeout (secondi)</label>
                                     <div class="modern-slider-stepper">
                                         <input type="range" id="slide-timeout" min="60" max="3600" step="60" value="1200">
@@ -406,7 +432,7 @@
                             </div>
                             
                             <div class="config-toggles-grid">
-                                <div class="toggle-control-card">
+                                <div class="toggle-control-card" data-config-key="offload_kqv">
                                     <div class="toggle-control-info">
                                         <span class="toggle-control-label">Offload KQV</span>
                                         <span class="toggle-control-description">Offload dei tensori K/V su memoria GPU</span>
@@ -416,7 +442,7 @@
                                         <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="toggle-control-card">
+                                <div class="toggle-control-card" data-config-key="flash_attn">
                                     <div class="toggle-control-info">
                                         <span class="toggle-control-label">Flash Attention</span>
                                         <span class="toggle-control-description">Velocizza inferenza con Flash Attention</span>
@@ -426,7 +452,7 @@
                                         <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="toggle-control-card">
+                                <div class="toggle-control-card" data-config-key="use_mmap">
                                     <div class="toggle-control-info">
                                         <span class="toggle-control-label">Usa mmap</span>
                                         <span class="toggle-control-description">Memoria mappata per caricamento rapido</span>
@@ -436,7 +462,7 @@
                                         <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="toggle-control-card">
+                                <div class="toggle-control-card" data-config-key="enable_thinking">
                                     <div class="toggle-control-info">
                                         <span class="toggle-control-label">Abilita Thinking</span>
                                         <span class="toggle-control-description">Ragionamento per modelli compatibili</span>
@@ -446,7 +472,7 @@
                                         <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="toggle-control-card">
+                                <div class="toggle-control-card" data-config-key="show_thinking">
                                     <div class="toggle-control-info">
                                         <span class="toggle-control-label">Mostra Thinking</span>
                                         <span class="toggle-control-description">Mostra i passaggi intermedi del ragionamento</span>
@@ -456,7 +482,7 @@
                                         <span class="switch-slider"></span>
                                     </label>
                                 </div>
-                                <div class="toggle-control-card">
+                                <div class="toggle-control-card" data-config-key="verbose">
                                     <div class="toggle-control-info">
                                         <span class="toggle-control-label">Log Verbosi</span>
                                         <span class="toggle-control-description">Abilita log dettagliati del server</span>
@@ -480,13 +506,22 @@
                                 </button>
                             </div>
                         </form>
+                        </details>
                     </div>
 
                     <!-- Models Catalog Registry Grid -->
                     <div class="card registry-card">
                         <div class="card-header">
-                            <h2>Catalogo Modelli Disponibili</h2>
-                            <p class="section-desc">Visualizza i modelli locali configurati nel file <code>models.yaml</code> o pronti al download.</p>
+                            <div class="registry-heading-row">
+                                <div>
+                                    <h2>Modelli in memoria</h2>
+                                    <p class="section-desc">Carica più modelli e interrogali in parallelo dalla stessa porta.</p>
+                                </div>
+                                <div class="resident-summary" aria-live="polite">
+                                    <span class="resident-summary__count" id="resident-model-count">0</span>
+                                    <span>residenti</span>
+                                </div>
+                            </div>
                         </div>
                         <div class="models-grid" id="models-list-container">
                             <div class="models-grid__placeholder">Caricamento modelli in corso...</div>
@@ -497,7 +532,7 @@
 
             <!-- ─── Shared Footer ───────────────────────────────────────────── -->
             <footer class="app-footer">
-                <p>Powered by <strong>llama-cpp-python</strong> &amp; <strong>ThreadingHTTPServer</strong>. Accelerazione hardware Apple Silicon/NVIDIA se disponibile.</p>
+                <p>Runtime locali con <strong>llama.cpp</strong>, <strong>MLX</strong> e routing OpenAI-compatible.</p>
             </footer>
         </main>
     </div>

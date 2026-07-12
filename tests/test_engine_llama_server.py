@@ -86,3 +86,37 @@ def test_resolve_binary_prefers_explicit(tmp_path):
     binary.chmod(0o755)
 
     assert LlamaServerEngine._resolve_binary({"llama_server_bin": str(binary)}) == Path(binary)
+
+
+def test_llama_server_ensures_projector_and_passes_mmproj(monkeypatch, tmp_path):
+    model = tmp_path / "Qwen3VL-4B-Instruct-Q4_K_M.gguf"
+    projector = tmp_path / "mmproj-Qwen3VL-4B-Instruct-Q8_0.gguf"
+    binary = tmp_path / "llama-server"
+    binary.write_text("#!/bin/sh\n")
+    binary.chmod(0o755)
+    ensured = []
+    commands = []
+
+    monkeypatch.setattr("local_llm_server.engine.ensure_model", lambda **kwargs: ensured.append(kwargs))
+    monkeypatch.setattr("subprocess.Popen", lambda command, **_kwargs: commands.append(command) or _Process())
+    monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: _HealthResponse())
+
+    engine = LlamaServerEngine(
+        {
+            "model_path": str(model),
+            "download_url": "https://example.test/model.gguf",
+            "mmproj_path": str(projector),
+            "mmproj_url": "https://example.test/mmproj.gguf",
+            "llama_server_bin": str(binary),
+            "llama_server_port": 19092,
+            "ctx_size": 8192,
+            "startup_timeout": 1,
+            "no_download": False,
+        }
+    )
+
+    assert [item["dest"] for item in ensured] == [model, projector]
+    assert ensured[1]["url"] == "https://example.test/mmproj.gguf"
+    assert "--mmproj" in commands[0]
+    assert str(projector) in commands[0]
+    engine.shutdown()

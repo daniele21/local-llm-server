@@ -1,13 +1,14 @@
 # local-llm-server
 
-Self-contained local LLM server with an OpenAI-compatible API, CLI, Python API, interactive Web UI, and optional multimodal audio helpers.
+Self-contained local LLM server with an OpenAI-compatible API, CLI, Python API, interactive Web UI, and multimodal image/audio helpers.
 
-`local-llm-server` is a local inference server designed to let desktop and local-first applications use Large Language Models without depending on external cloud APIs. It abstracts local inference engines (`llama-cpp-python`, `mlx`, and `llama-server`) behind a stable, observable, and easy-to-use interface.
+`local-llm-server` is a local inference server designed to let desktop and local-first applications use Large Language Models without depending on external cloud APIs. It abstracts local inference engines (`llama-cpp-python`, `mlx-lm`, `llama-server`, and `mlx-vlm`) behind a stable, observable, and easy-to-use interface.
 
 It can serve:
 - **GGUF text models** in-process through `llama-cpp-python`.
 - **MLX models** through `mlx-lm` (optimized for Apple Silicon).
-- **Multimodal / Audio models** through an external `llama-server` subprocess with `--mmproj`.
+- **Multimodal image models** through `mlx_vlm.server`, using complete MLX VLM packages without a separate projector.
+- **GGUF multimodal/audio models** through an external `llama-server` subprocess with `--mmproj`.
 
 ---
 
@@ -96,8 +97,9 @@ This initiative is driven by key observations and principles:
 
 - **OpenAI-Compatible Endpoint**: Drop-in `/v1/chat/completions` API.
 - **Built-in Web UI**: A beautiful local dashboard (`http://127.0.0.1:1235/`) for chatting, listing models, viewing server telemetry, and streaming logs.
-- **Flexible Backend Support**: Support for `llama-cpp-python` (GGUF), Apple Silicon-optimized `mlx-lm` (MLX), and external `llama-server` (multimodal/audio).
+- **Flexible Backend Support**: Support for `llama-cpp-python` (GGUF), Apple Silicon-optimized `mlx-lm`, `mlx-vlm` for MLX vision models, and external `llama-server` for GGUF multimodal models.
 - **Runtime Model Switching**: Dynamically activate and switch models via API endpoints without restarting the server process.
+- **Concurrent Resident Models**: Keep multiple engines in memory and route requests by the OpenAI `model` field through one public port.
 - **Observability**: Real-time token generation telemetry, status updates, and SSE-based log streaming.
 - **Python Client SDK**: High-level wrappers for structured analysis and audio/multimodal processing.
 - **CLI Utilities**: Simple commands to download, list, and serve models.
@@ -118,10 +120,19 @@ The server acts as a stable runtime layer between downstream applications and fr
                  │
                  ▼ (Dynamic loading / Orchestration)
     [ Local Inference Backends ]
- ┌───────────────────────┬─────────────┬─────────────────┐
- │ llama-cpp-python      │ mlx-lm      │ llama-server    │
- │ (GGUF Text)           │ (Apple MLX) │ (Multimodal/Wav)│
- └───────────────────────┴─────────────┴─────────────────┘
+ ┌───────────────────────┬─────────────┬─────────────────┬──────────────────┐
+ │ llama-cpp-python      │ mlx-lm      │ llama-server    │ mlx-vlm.server   │
+ │ (GGUF Text)           │ (Apple MLX) │ (GGUF multimodal)│ (MLX vision)    │
+ └───────────────────────┴─────────────┴─────────────────┴──────────────────┘
+```
+
+All clients use the same public endpoint. Subprocess ports are private implementation details assigned uniquely per resident runtime:
+
+```text
+POST :1235/v1/chat/completions
+  model=nemotron-nano-4b-q8  -> llama-cpp-python
+  model=qwen3-vl-4b          -> mlx_vlm.server on a private port
+  model=another-gguf         -> llama-server on another private port
 ```
 
 ### Example: Integration with ClosedRoom
@@ -161,6 +172,9 @@ pip install ".[dev]"
 ```bash
 # Apple Silicon MLX backend
 pip install ".[mlx]"
+
+# Apple Silicon vision-language backend (Qwen3-VL MLX)
+pip install ".[vision]"
 
 # Audio preprocessing libraries (required for Voxtral and client audio helpers)
 pip install ".[audio]"
@@ -225,8 +239,10 @@ Start the inference server.
 | Flag | Default | Description |
 |---|---:|---|
 | `--model <key>` | registry `default_model` | Registry model key |
+| `--models <key...>` | registry `startup_models` | Models to keep resident simultaneously |
+| `--default-model <key>` | first startup model | Route used when a request omits `model` |
 | `--model-path <path>` | - | Direct GGUF path, MLX path, or HF model ref |
-| `--backend <backend>` | registry/backend fallback | `llama_cpp`, `mlx`, or `llama_server` |
+| `--backend <backend>` | registry/backend fallback | `llama_cpp`, `mlx`, `llama_server`, or `mlx_vlm_server` |
 | `--host <host>` | `127.0.0.1` | Bind address |
 | `--port <port>` | `1235` | Public HTTP port |
 | `--ctx-size <n>` | model default | Context window size |
@@ -234,6 +250,7 @@ Start the inference server.
 | `--n-threads <n>` | `8` | CPU inference threads |
 | `--llama-server-port <n>` | `8091` | Internal subprocess port for `llama_server` backend |
 | `--llama-server-bin <path>` | auto-detect | Path to `llama-server` executable |
+| `--mlx-vlm-server-port <n>` | `8092` | Internal subprocess port for `mlx_vlm.server` |
 | `--mmproj-path <path>` | registry/auto-detect | Multimodal projector GGUF |
 | `--startup-timeout <s>` | `60` | `llama-server` readiness timeout |
 | `--chat-format <fmt>` | model default | llama.cpp chat format override |
@@ -246,10 +263,48 @@ Start the inference server.
 ### `local-llm models`
 Print the merged built-in and user model registry, including backend and download status.
 
-### `local-llm download <key>`
-Pre-download a registry model without starting the server.
+Start two resident models behind the same public port:
+
 ```bash
-local-llm download qwen3-8b
+local-llm serve \
+  --models nemotron-nano-4b-q8 qwen3-vl-4b \
+  --default-model nemotron-nano-4b-q8 \
+  --port 1235
+```
+
+In the Web UI, open **Modelli e Config**. Each catalog entry exposes the action appropriate to its current state:
+
+- **Carica in memoria** keeps the existing runtimes active;
+- **Imposta predefinito** changes the route used when chat requests omit `model`;
+- **Scarica memoria** removes one idle runtime;
+- **Configurazione avanzata** always identifies the selected resident runtime before applying context, GPU, batch, and thinking controls.
+
+The Chat model selector lists resident models only, preventing requests to unloaded runtimes.
+
+Configuration is capability-driven. The backend is fixed by the model registry and is displayed read-only; the UI sends only settings consumed by that engine:
+
+| Backend | Configurable runtime settings |
+|---|---|
+| `llama_cpp` | context, GPU layers, threads, batch/micro-batch, timeout, KQV offload, Flash Attention, mmap, thinking |
+| `llama_server` | context, timeout, thinking |
+| `mlx` | thinking |
+| `mlx_vlm_server` | timeout, thinking |
+
+Model path and backend are runtime identity fields, not editable tuning controls.
+
+Requests select a runtime using the registry key or model ID:
+
+```json
+{
+  "model": "qwen3-vl-4b",
+  "messages": [{"role": "user", "content": "Describe this image"}]
+}
+```
+
+### `local-llm download <key>`
+Pre-download all artifacts for a registry model without starting the server. For multimodal models this includes the language GGUF and `mmproj` projector.
+```bash
+local-llm download qwen3-vl-4b
 ```
 
 ---
@@ -260,13 +315,14 @@ local-llm download qwen3-8b
 |---|---|---:|---:|---|---|
 | `nemotron-nano-4b` | `llama_cpp` | 4B | ~2.5 GB | reasoning, small | NVidia reasoning model, fast and efficient |
 | `nemotron-nano-4b-q8` | `llama_cpp` | 4B | ~4.3 GB | reasoning, small | NVidia reasoning model, 8-bit quantized |
+| `qwen3-vl-4b` | `mlx_vlm_server` | 4B | ~2.9 GB | multimodal, vision, small | Local Qwen3-VL MLX 4-bit model; vision encoder and processor are included |
 | `qwen3-8b` | `llama_cpp` | 8B | ~4.9 GB | reasoning, medium | Highly capable generalist model |
 | `phi-3-mini` | `llama_cpp` | 3.8B | ~2.3 GB | instruct, small | Lightweight, fast instruction follower |
 | `qwen2.5-7b` | `llama_cpp` | 7B | ~4.4 GB | instruct, medium | Balanced capacity instruction follower |
 | `voxtral-mini-3b` | `llama_server` | 3B | ~3.8 GB | multimodal, audio, small | Audio/text multimodal processing |
 
 > [!NOTE]
-> `voxtral-mini-3b` expects both the model GGUF and the `mmproj` projector. The registry can auto-detect the LM Studio layout configured in `models_registry.yaml`; otherwise, pass `--model-path`, `--mmproj-path`, and `--llama-server-bin` explicitly.
+> `qwen3-vl-4b` defaults to `~/.lmstudio/models/lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit`. This MLX package includes the vision encoder and projector, so it does not use a separate `mmproj` file. GGUF multimodal models still require both artifacts.
 
 ---
 
@@ -293,6 +349,7 @@ All major CLI flags have matching environment variables:
 | `LOCAL_LLM_TIMEOUT` | Request timeout in seconds |
 | `LOCAL_LLM_SERVER_PORT` | Internal `llama-server` port |
 | `LOCAL_LLM_SERVER_BIN` | `llama-server` executable path |
+| `LOCAL_LLM_MLX_VLM_SERVER_PORT` | Internal `mlx_vlm.server` port |
 | `LOCAL_LLM_STARTUP_TIMEOUT` | `llama-server` startup timeout |
 
 ### Custom Model Registry
@@ -311,12 +368,42 @@ models:
       n_gpu_layers: 35
       enable_thinking: false
     tags: [instruct, custom]
+
+startup_models:
+  - nemotron-nano-4b-q8
+  - qwen3-vl-4b
 ```
 
 To serve your custom model:
 ```bash
 local-llm serve --model my-model
 ```
+
+### Resident Model Lifecycle
+
+Load another model without unloading the current ones:
+
+```bash
+curl -X POST http://127.0.0.1:1235/api/v1/models/load \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen3-vl-4b"}'
+```
+
+Make a loaded model the default route:
+
+```bash
+curl -X POST http://127.0.0.1:1235/api/v1/models/activate \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"qwen3-vl-4b"}'
+```
+
+Unload an idle model:
+
+```bash
+curl -X DELETE http://127.0.0.1:1235/api/v1/models/qwen3-vl-4b
+```
+
+The server returns `409` when the model is processing a request or is the last resident model. Requests for different models use independent locks and can run concurrently.
 
 ---
 
@@ -333,6 +420,17 @@ handle = llm.serve(model="qwen3-8b", port=1235, background=True)
 
 # Stop background server
 handle.shutdown()
+```
+
+Start multiple resident models programmatically:
+
+```python
+handle = llm.serve(
+    models=["nemotron-nano-4b-q8", "qwen3-vl-4b"],
+    default_model="nemotron-nano-4b-q8",
+    port=1235,
+    background=True,
+)
 ```
 
 Foreground mode (blocks execution):
@@ -354,7 +452,7 @@ for model in llm.list_models():
 ```
 
 ### High-Level Analysis Client
-`LocalLLMClient` provides pre-packaged methods for structured text analysis and audio processing:
+`LocalLLMClient` provides pre-packaged methods for structured text, image, and audio processing:
 
 ```python
 from local_llm_server import LocalLLMClient
@@ -366,6 +464,29 @@ result = client.analyze_text(
     language="it",
 )
 print(result["summary"])
+```
+
+Analyze a local JPEG, PNG, or WebP without sending the image to a remote URL:
+
+```python
+from local_llm_server import LocalLLMClient
+
+client = LocalLLMClient(
+    base_url="http://127.0.0.1:1235",
+    model="qwen3-vl-4b",
+)
+description = client.analyze_image(
+    "screenshot.png",
+    prompt="Descrivi la schermata e i principali elementi dell'interfaccia.",
+)
+print(description)
+```
+
+Start the vision model with:
+
+```bash
+pip install ".[vision]"
+local-llm serve --model qwen3-vl-4b
 ```
 
 Auto-serving mode (automatically spins up a temporary server and shuts it down afterward):

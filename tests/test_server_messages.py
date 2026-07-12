@@ -24,6 +24,25 @@ def test_normalize_messages_preserves_multimodal_content():
     assert messages[0]["content"][0]["type"] == "input_audio"
 
 
+def test_normalize_messages_preserves_image_content():
+    messages = _normalize_messages(
+        {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}},
+                        {"type": "text", "text": "Descrivi l'immagine."},
+                    ],
+                }
+            ]
+        }
+    )
+
+    assert isinstance(messages[0]["content"], list)
+    assert messages[0]["content"][0]["type"] == "image_url"
+
+
 def test_normalize_messages_flattens_text_parts():
     messages = _normalize_messages(
         {

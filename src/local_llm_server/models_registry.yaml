@@ -10,7 +10,11 @@ defaults:
   offload_kqv: true
   flash_attn: true
   use_mmap: true
-  default_repeat_penalty: 1.15
+  default_temperature: 0.0
+  default_top_p: 0.8
+  default_top_k: 20
+  default_min_p: 0.0
+  default_repeat_penalty: 1.0
 
 models:
   nemotron-nano-4b:
@@ -36,6 +40,18 @@ models:
       n_gpu_layers: 42
       enable_thinking: true
     tags: [reasoning, small, 4b]
+
+  qwen3-vl-4b:
+    path: "~/.lmstudio/models/lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit"
+    model_id: "mlx-community/Qwen3-VL-4B-Instruct-4bit"
+    size_gb: 2.9
+    backend: mlx_vlm_server
+    multimodal: true
+    modalities: [text, image]
+    params:
+      ctx_size: 8192
+      enable_thinking: false
+    tags: [multimodal, vision, qwen, small, 4b]
 
   # voxtral-mini-3b:
   #   filename: "mistralai_Voxtral-Mini-3B-2507-Q4_K_M.gguf"

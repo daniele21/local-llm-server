@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', () => {
         sidebarActiveModel: document.getElementById('sidebar-active-model'),
         sidebarBackend: document.getElementById('sidebar-backend'),
         sidebarAddress: document.getElementById('sidebar-address'),
+        sidebarRuntimeCount: document.getElementById('sidebar-runtime-count'),
+        sidebarRuntimeList: document.getElementById('sidebar-runtime-list'),
 
         // Chat View components
         chatForm: document.getElementById('chat-params-form'),
@@ -33,6 +35,11 @@ document.addEventListener('DOMContentLoaded', () => {
         forceJsonCheckbox: document.getElementById('param-force-json'),
         enableThinkingCheckbox: document.getElementById('param-enable-thinking'),
         showThinkingCheckbox: document.getElementById('param-show-thinking'),
+        chatImageInput: document.getElementById('chat-image-input'),
+        attachImageBtn: document.getElementById('attach-image-btn'),
+        chatImagePreviewContainer: document.getElementById('chat-image-preview-container'),
+        chatImagePreview: document.getElementById('chat-image-preview'),
+        removeImageBtn: document.getElementById('remove-image-btn'),
 
         // Server Logs body
         logSearch: document.getElementById('log-search-input'),
@@ -52,7 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
         cfgPort: document.getElementById('cfg-port'),
         cfgBackend: document.getElementById('cfg-backend'),
         cfgModelPath: document.getElementById('cfg-model-path'),
+        configModelSelect: document.getElementById('config-model-select'),
+        configTargetStatus: document.getElementById('config-target-status'),
         modelsContainer: document.getElementById('models-list-container'),
+        residentModelCount: document.getElementById('resident-model-count'),
         hardwareForm: document.getElementById('hardware-config-form'),
         cfgCtxSize: document.getElementById('cfg-ctx-size'),
         cfgGpuLayers: document.getElementById('cfg-gpu-layers'),
@@ -86,6 +96,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let statusInterval = null;
     let isHardwareConfigLoaded = false;
     let activeModelKey = '';
+    let residentModels = [];
+    let configModelKey = '';
+    let activeConfigCapabilities = [];
+    let currentServerInfo = null;
+    let selectedImageBase64 = '';
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Core Initialisation
@@ -119,7 +134,14 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.showThinkingCheckbox ? dom.showThinkingCheckbox.checked : true
         );
 
-        ModelCatalog.init(dom.modelsContainer, handleModelActivation);
+        ModelCatalog.init(dom.modelsContainer, handleModelAction);
+        if (dom.configModelSelect) {
+            dom.configModelSelect.addEventListener('change', () => {
+                configModelKey = dom.configModelSelect.value;
+                const model = residentModels.find(item => item.key === configModelKey);
+                if (model) applyRuntimeConfig(model);
+            });
+        }
 
         // Clear and prepare chat welcome text
         ChatWindow.clearChat(APP_CONFIG.labels.emptyChatPlaceholder);
@@ -184,6 +206,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         dom.clearChatBtn.addEventListener('click', clearChat);
 
+        // Model change handler to toggle vision and thinking support
+        if (dom.modelSelect) {
+            dom.modelSelect.addEventListener('change', () => {
+                updateVisionSupport();
+                updateThinkingSupport();
+            });
+        }
+
+        // Image attach handlers
+        if (dom.attachImageBtn && dom.chatImageInput) {
+            dom.attachImageBtn.addEventListener('click', () => {
+                dom.chatImageInput.click();
+            });
+            dom.chatImageInput.addEventListener('change', handleImageSelect);
+        }
+
+        if (dom.removeImageBtn) {
+            dom.removeImageBtn.addEventListener('click', clearSelectedImage);
+        }
+
         // Chat Settings check updates
         if (dom.forceJsonCheckbox) {
             dom.forceJsonCheckbox.addEventListener('change', (e) => {
@@ -236,12 +278,11 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.hardwareForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 if (!activeModelKey) {
-                    Toast.show("Nessun modello attivo identificato per il riavvio.", "error");
+                    Toast.show("Seleziona un runtime residente da configurare.", "error");
                     return;
                 }
 
                 const formData = new FormData(dom.hardwareForm);
-                const backend = formData.get('backend');
                 const ctx_size = formData.get('ctx_size') ? parseInt(formData.get('ctx_size')) : null;
                 const n_gpu_layers = formData.get('n_gpu_layers') !== "" ? parseInt(formData.get('n_gpu_layers')) : null;
                 const n_threads = formData.get('n_threads') ? parseInt(formData.get('n_threads')) : null;
@@ -256,22 +297,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const show_thinking = formData.get('show_thinking') === 'on';
                 const verbose = formData.get('verbose') === 'on';
 
-                const payload = {
-                    model: activeModelKey,
-                    backend,
-                    ctx_size,
-                    n_gpu_layers,
-                    n_threads,
-                    n_batch,
-                    n_ubatch,
-                    timeout,
-                    offload_kqv,
-                    flash_attn,
-                    use_mmap,
-                    enable_thinking,
-                    show_thinking,
-                    verbose
+                const values = {
+                    ctx_size, n_gpu_layers, n_threads, n_batch, n_ubatch, timeout,
+                    offload_kqv, flash_attn, use_mmap, enable_thinking, show_thinking, verbose
                 };
+                const payload = { model: activeModelKey };
+                activeConfigCapabilities.forEach(key => {
+                    if (values[key] !== null && values[key] !== undefined) payload[key] = values[key];
+                });
 
                 const btnSubmit = dom.hardwareForm.querySelector('button[type="submit"]');
                 const originalBtnText = btnSubmit.innerHTML;
@@ -281,7 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <span>Caricamento modello...</span>
                 `;
 
-                Toast.show("Riavvio del modello con i nuovi parametri in corso...", "info");
+                Toast.show(`Applicazione parametri a ${activeModelKey}...`, "info");
 
                 try {
                     const res = await fetch('/api/v1/models/activate', {
@@ -296,7 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     const data = await res.json();
-                    Toast.show(`Modello ricaricato con successo: ${data.model}`, "success");
+                    Toast.show(`Configurazione applicata a ${activeModelKey}`, "success");
                     
                     // Force refresh registry and server health
                     isHardwareConfigLoaded = false;
@@ -423,7 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Setup the widgets
-        setupSegmentedControl('backend-preset-control', 'cfg-backend');
         setupSegmentedControl('ctx-preset-control', 'cfg-ctx-size');
         setupSegmentedControl('batch-preset-control', 'cfg-n-batch');
         setupSegmentedControl('ubatch-preset-control', 'cfg-n-ubatch');
@@ -471,26 +503,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 const data = await res.json();
                 isServerOnline = true;
+                currentServerInfo = data;
                 const modelShort = data.model ? data.model.split('/').pop() : 'Model';
                 
                 // Update Sidebar
-                setServerStatus(true, `${APP_CONFIG.labels.online} (${modelShort})`);
+                const loadedCount = (data.loaded_models || []).length;
+                setServerStatus(true, `${APP_CONFIG.labels.online} · ${loadedCount} ${loadedCount === 1 ? 'modello' : 'modelli'}`);
                 dom.sidebarActiveModel.textContent = modelShort;
                 dom.sidebarActiveModel.title = data.model;
                 dom.sidebarBackend.textContent = data.backend || 'llama_cpp';
                 dom.sidebarAddress.textContent = `${data.host || '127.0.0.1'}:${data.port || '1235'}`;
 
-                // Update tab 3 configuration metrics
-                dom.cfgHost.textContent = data.host || '127.0.0.1';
-                dom.cfgPort.textContent = data.port || '1235';
-                dom.cfgModelPath.textContent = data.model_path || '-';
-                activeModelKey = data.model_key || '';
-                
-                if (dom.cfgBackend) {
-                    dom.cfgBackend.value = data.backend || 'llama_cpp';
+                if (!residentModels.length) {
+                    activeModelKey = data.model_key || '';
+                    configModelKey = activeModelKey;
+                    applyConfigValues(data);
                 }
 
-                if (!isHardwareConfigLoaded) {
+                if (!isHardwareConfigLoaded && !residentModels.length) {
                     if (dom.cfgCtxSize && data.ctx_size) {
                         dom.cfgCtxSize.value = data.ctx_size;
                         dom.cfgCtxSize.dispatchEvent(new Event('change'));
@@ -534,6 +564,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (dom.defaultModelOpt) {
                     dom.defaultModelOpt.textContent = `Predefinito (${modelShort})`;
                 }
+                updateVisionSupport();
+                updateThinkingSupport();
             } else {
                 setServerStatus(false, APP_CONFIG.labels.serverError);
                 resetSidebarInfo();
@@ -553,6 +585,92 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.sidebarActiveModel.textContent = '-';
         dom.sidebarBackend.textContent = '-';
         dom.sidebarAddress.textContent = '-';
+        if (dom.sidebarRuntimeCount) dom.sidebarRuntimeCount.textContent = '0';
+        if (dom.sidebarRuntimeList) {
+            dom.sidebarRuntimeList.innerHTML = '<li class="resident-runtimes__empty">Nessun modello caricato</li>';
+        }
+    }
+
+    function applyConfigValues(config) {
+        if (dom.cfgHost) dom.cfgHost.textContent = config.host || '127.0.0.1';
+        if (dom.cfgPort) dom.cfgPort.textContent = config.port || '1235';
+        dom.cfgModelPath.textContent = config.model_path || '-';
+        if (dom.cfgBackend) {
+            dom.cfgBackend.textContent = config.backend || '-';
+        }
+        const numericFields = [
+            [dom.cfgCtxSize, 'ctx_size'], [dom.cfgGpuLayers, 'n_gpu_layers'],
+            [dom.cfgThreads, 'n_threads'], [dom.cfgNBatch, 'n_batch'],
+            [dom.cfgNUbatch, 'n_ubatch'], [dom.cfgTimeout, 'timeout']
+        ];
+        numericFields.forEach(([element, key]) => {
+            if (element && config[key] !== undefined && config[key] !== null) {
+                element.value = config[key];
+                element.dispatchEvent(new Event('change'));
+            }
+        });
+        const booleanFields = [
+            [dom.cfgOffloadKqv, 'offload_kqv'], [dom.cfgFlashAttn, 'flash_attn'],
+            [dom.cfgUseMmap, 'use_mmap'], [dom.cfgEnableThinking, 'enable_thinking'],
+            [dom.cfgShowThinking, 'show_thinking'], [dom.cfgVerbose, 'verbose']
+        ];
+        booleanFields.forEach(([element, key]) => {
+            if (element && config[key] !== undefined) element.checked = Boolean(config[key]);
+        });
+    }
+
+    function applyRuntimeConfig(model) {
+        configModelKey = model.key;
+        activeModelKey = model.key;
+        if (dom.configModelSelect) dom.configModelSelect.value = model.key;
+        activeConfigCapabilities = model.config_capabilities || [];
+        applyConfigValues(model.runtime_config || {});
+        document.querySelectorAll('[data-config-key]').forEach(group => {
+            const supported = activeConfigCapabilities.includes(group.dataset.configKey);
+            group.classList.toggle('config-field--hidden', !supported);
+            group.querySelectorAll('input, select, button').forEach(control => {
+                control.disabled = !supported;
+            });
+        });
+        if (dom.configTargetStatus) {
+            const backend = model.runtime_config?.backend || model.backend;
+            dom.configTargetStatus.textContent = `${backend} · ${model.default ? 'modello predefinito' : 'runtime residente'}`;
+        }
+        const submit = dom.hardwareForm?.querySelector('button[type="submit"] span');
+        if (submit) submit.textContent = `Applica e riavvia ${model.key}`;
+        isHardwareConfigLoaded = true;
+    }
+
+    function renderResidentSidebar(models) {
+        const residents = models.filter(model => model.resident);
+        if (dom.sidebarRuntimeCount) dom.sidebarRuntimeCount.textContent = String(residents.length);
+        if (!dom.sidebarRuntimeList) return;
+        dom.sidebarRuntimeList.replaceChildren();
+        if (!residents.length) {
+            const empty = document.createElement('li');
+            empty.className = 'resident-runtimes__empty';
+            empty.textContent = 'Nessun modello caricato';
+            dom.sidebarRuntimeList.appendChild(empty);
+            return;
+        }
+        residents.forEach(model => {
+            const item = document.createElement('li');
+            item.className = 'resident-runtime-item';
+            const dot = document.createElement('span');
+            dot.className = 'resident-runtime-item__dot';
+            const name = document.createElement('span');
+            name.className = 'resident-runtime-item__name';
+            name.textContent = model.key;
+            name.title = model.model_id;
+            item.append(dot, name);
+            if (model.default) {
+                const defaultBadge = document.createElement('span');
+                defaultBadge.className = 'resident-runtime-item__default';
+                defaultBadge.textContent = 'Default';
+                item.appendChild(defaultBadge);
+            }
+            dom.sidebarRuntimeList.appendChild(item);
+        });
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -564,22 +682,45 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) throw new Error('API registry error');
             const data = await res.json();
             
-            // Popolate select dropdown
+            // Chat can route only to models currently resident in memory.
             dom.modelSelect.innerHTML = `<option value="">Predefinito del server</option>`;
             
             const models = data.models || [];
+            residentModels = models.filter(model => model.resident);
             
             // Populate select options
-            models.forEach(model => {
+            models.filter(model => model.resident).forEach(model => {
                 const opt = document.createElement('option');
                 opt.value = model.key;
-                opt.textContent = `${model.key} (${model.size_gb ? model.size_gb + ' GB' : 'Dimensione N/A'})`;
+                opt.textContent = `${model.key}${model.default ? ' · predefinito' : ''}`;
                 dom.modelSelect.appendChild(opt);
             });
 
-            // Get active model to highlight in Catalog
-            const activeModel = dom.sidebarActiveModel.textContent !== '-' ? dom.sidebarActiveModel.textContent : '';
-            ModelCatalog.render(models, activeModel);
+            const residentCount = residentModels.length;
+            if (dom.residentModelCount) dom.residentModelCount.textContent = String(residentCount);
+            renderResidentSidebar(models);
+            if (dom.configModelSelect) {
+                const previous = configModelKey;
+                dom.configModelSelect.replaceChildren();
+                residentModels.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.key;
+                    option.textContent = `${model.key}${model.default ? ' · predefinito' : ''}`;
+                    dom.configModelSelect.appendChild(option);
+                });
+                const selected = residentModels.find(model => model.key === previous)
+                    || residentModels.find(model => model.default)
+                    || residentModels[0];
+                dom.configModelSelect.disabled = !selected;
+                if (selected) {
+                    applyRuntimeConfig(selected);
+                } else if (dom.configTargetStatus) {
+                    dom.configTargetStatus.textContent = 'Carica un modello per configurarlo';
+                }
+            }
+            ModelCatalog.render(models);
+            updateVisionSupport();
+            updateThinkingSupport();
 
         } catch (err) {
             console.error('Error loading model registry:', err);
@@ -587,15 +728,32 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Connect selected Catalog model to Chat select & switch tab & activate on server
-    async function handleModelActivation(modelKey) {
-        Toast.show(`Avvio attivazione modello ${modelKey}...`, 'info');
-        
+    async function handleModelAction(action, modelKey) {
+        if (action === 'configure') {
+            const model = residentModels.find(item => item.key === modelKey);
+            if (model) {
+                applyRuntimeConfig(model);
+                const advanced = document.querySelector('.advanced-config-disclosure');
+                if (advanced) advanced.open = true;
+                document.getElementById('config-model-select')?.focus();
+            }
+            return;
+        }
+        const endpoints = {
+            load: { url: '/api/v1/models/load', method: 'POST', body: { model: modelKey } },
+            default: { url: '/api/v1/models/activate', method: 'POST', body: { model: modelKey } },
+            unload: { url: `/api/v1/models/${encodeURIComponent(modelKey)}`, method: 'DELETE' }
+        };
+        const operation = endpoints[action];
+        if (!operation) return;
+        if (action === 'unload' && !window.confirm(`Scaricare ${modelKey} dalla memoria?`)) return;
+        const labels = { load: 'Caricamento', default: 'Cambio predefinito', unload: 'Scaricamento' };
+        Toast.show(`${labels[action]} di ${modelKey}...`, 'info');
         try {
-            const res = await fetch('/api/v1/models/activate', {
-                method: 'POST',
+            const res = await fetch(operation.url, {
+                method: operation.method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: modelKey })
+                body: operation.body ? JSON.stringify(operation.body) : undefined
             });
 
             if (!res.ok) {
@@ -604,21 +762,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await res.json();
-            Toast.show(`Modello attivato con successo: ${data.model}`, 'success');
-            
-            if (dom.modelSelect) {
-                dom.modelSelect.value = modelKey;
-            }
-            
-            // Force refresh registry and server health
+            const success = {
+                load: `${modelKey} è ora residente in memoria`,
+                default: `${modelKey} è il modello predefinito`,
+                unload: `${modelKey} è stato scaricato dalla memoria`
+            };
+            Toast.show(success[action], 'success');
             isHardwareConfigLoaded = false;
             await checkServerHealth();
             await loadRegistryModels();
-            
-            switchTab('chat-tab');
+            if (action !== 'unload' && dom.modelSelect) dom.modelSelect.value = modelKey;
         } catch (err) {
-            console.error("Failed to activate model:", err);
-            Toast.show(`Errore di attivazione: ${err.message}`, 'error');
+            console.error(`Model ${action} failed:`, err);
+            Toast.show(`Operazione non riuscita: ${err.message}`, 'error');
         }
     }
 
@@ -686,8 +842,21 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.chatTextarea.style.height = 'auto';
 
         // Add user message to UI state & memory
-        ChatWindow.appendMessage('user', userText);
-        chatHistory.push({ role: 'user', content: userText });
+        const imgUrlToSend = selectedImageBase64;
+        if (imgUrlToSend) {
+            ChatWindow.appendMessage('user', userText, '', {}, imgUrlToSend);
+            chatHistory.push({
+                role: 'user',
+                content: [
+                    { type: 'image_url', image_url: { url: imgUrlToSend } },
+                    { type: 'text', text: userText }
+                ]
+            });
+            clearSelectedImage();
+        } else {
+            ChatWindow.appendMessage('user', userText);
+            chatHistory.push({ role: 'user', content: userText });
+        }
 
         isGenerating = true;
         dom.sendChatBtn.disabled = true;
@@ -725,14 +894,14 @@ document.addEventListener('DOMContentLoaded', () => {
             top_p,
             top_k,
             repeat_penalty,
-            stream: false,
+            stream: true,
         };
         if (model) payload.model = model;
         if (max_tokens) payload.max_tokens = max_tokens;
-        if (dom.enableThinkingCheckbox && localStorage.getItem('enable_thinking') !== null) {
+        if (dom.enableThinkingCheckbox && localStorage.getItem('enable_thinking') !== null && isCurrentModelThinkingSupported()) {
             payload.enable_thinking = dom.enableThinkingCheckbox.checked;
         }
-        if (dom.showThinkingCheckbox && localStorage.getItem('show_thinking') !== null) {
+        if (dom.showThinkingCheckbox && localStorage.getItem('show_thinking') !== null && isCurrentModelThinkingSupported()) {
             payload.show_thinking = dom.showThinkingCheckbox.checked;
         }
         if (dom.forceJsonCheckbox && dom.forceJsonCheckbox.checked) {
@@ -748,18 +917,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || `HTTP ${response.status}`);
+                throw new Error(errData.detail || errData.error || `HTTP ${response.status}`);
             }
 
-            const data = await response.json();
-            
-            // Extract content and stats
-            const reply = data.final_answer || data.choices[0].message.content;
-            const thinking = data.thinking || '';
-            const stats = data.stats || {};
+            if (!response.body) throw new Error('Il browser non supporta lo streaming della risposta');
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            const assistantMessage = ChatWindow.appendMessage('assistant', 'In attesa del primo token…');
+            let buffer = '';
+            let reply = '';
+            let done = false;
 
-            // Render assistant response
-            ChatWindow.appendMessage('assistant', reply, thinking, stats);
+            while (!done) {
+                const result = await reader.read();
+                done = result.done;
+                buffer += decoder.decode(result.value || new Uint8Array(), { stream: !done });
+                const events = buffer.split(/\r?\n\r?\n/);
+                buffer = events.pop() || '';
+                for (const event of events) {
+                    const dataLine = event.split(/\r?\n/).find(line => line.startsWith('data:'));
+                    if (!dataLine) continue;
+                    const raw = dataLine.slice(5).trim();
+                    if (!raw || raw === '[DONE]') continue;
+                    const chunk = JSON.parse(raw);
+                    if (chunk.error) throw new Error(chunk.error);
+                    reply += chunk.choices?.[0]?.delta?.content || '';
+                    ChatWindow.updateAssistantMessage(assistantMessage, reply);
+                }
+            }
+
+            if (!reply) throw new Error('Il modello non ha restituito contenuto');
             chatHistory.push({ role: 'assistant', content: reply });
 
         } catch (err) {
@@ -781,12 +968,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const res = await fetch('/status');
                 if (res.ok) {
                     const status = await res.json();
-                    if (status.active) {
-                        if (status.phase === 'prompt_eval') {
+                    const selectedModel = dom.modelSelect?.value;
+                    const activeStatus = status.models?.[selectedModel] || status;
+                    if (activeStatus.active) {
+                        if (activeStatus.phase === 'prompt_eval') {
                             dom.typingText.textContent = APP_CONFIG.labels.typingEval;
-                        } else if (status.phase === 'generating') {
-                            const speed = status.tokens_per_second ? status.tokens_per_second.toFixed(1) : '0';
-                            dom.typingText.textContent = APP_CONFIG.labels.typingGenerating(status.tokens_generated, speed);
+                        } else if (activeStatus.phase === 'generating') {
+                            const speed = activeStatus.tokens_per_second ? activeStatus.tokens_per_second.toFixed(1) : '0';
+                            dom.typingText.textContent = APP_CONFIG.labels.typingGenerating(activeStatus.tokens_generated, speed);
                         }
                     }
                 }
@@ -803,8 +992,111 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function clearChat() {
         chatHistory = [];
+        clearSelectedImage();
         ChatWindow.clearChat(APP_CONFIG.labels.emptyChatPlaceholder);
         Toast.show(APP_CONFIG.labels.toastChatCleared, 'success');
+    }
+
+    function isCurrentModelMultimodal() {
+        const selectedKey = dom.modelSelect.value;
+        if (!selectedKey) {
+            if (currentServerInfo) {
+                const modalities = currentServerInfo.modalities || [];
+                return !!currentServerInfo.multimodal && modalities.includes('image');
+            }
+            return false;
+        }
+        const model = residentModels.find(m => m.key === selectedKey);
+        if (model) {
+            const modalities = model.modalities || [];
+            return !!model.multimodal && modalities.includes('image');
+        }
+        return false;
+    }
+
+    function updateVisionSupport() {
+        if (!dom.attachImageBtn) return;
+
+        if (isCurrentModelMultimodal()) {
+            dom.attachImageBtn.style.display = 'inline-flex';
+        } else {
+            dom.attachImageBtn.style.display = 'none';
+            clearSelectedImage();
+        }
+    }
+
+    function isCurrentModelThinkingSupported() {
+        const selectedKey = dom.modelSelect.value;
+        if (!selectedKey) {
+            if (currentServerInfo) {
+                const caps = currentServerInfo.config_capabilities || [];
+                return caps.includes('enable_thinking');
+            }
+            return false;
+        }
+        const model = residentModels.find(m => m.key === selectedKey);
+        if (model) {
+            const caps = model.config_capabilities || [];
+            return caps.includes('enable_thinking');
+        }
+        return false;
+    }
+
+    function updateThinkingSupport() {
+        if (!dom.enableThinkingCheckbox) return;
+        const supported = isCurrentModelThinkingSupported();
+        const enableGroup = dom.enableThinkingCheckbox.closest('.checkbox-group');
+        const showGroup = dom.showThinkingCheckbox.closest('.checkbox-group');
+        if (enableGroup) {
+            enableGroup.style.display = supported ? 'block' : 'none';
+        }
+        if (showGroup) {
+            showGroup.style.display = supported ? 'block' : 'none';
+        }
+    }
+
+    function handleImageSelect(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Supported types validation (jpeg, png, webp)
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        if (!allowedTypes.includes(file.type)) {
+            Toast.show('Formato immagine non supportato. Usa JPEG, PNG o WebP.', 'error');
+            dom.chatImageInput.value = '';
+            return;
+        }
+
+        // Limit size validation (10 MB maximum, matches DEFAULT_MAX_IMAGE_BYTES in python)
+        const maxSize = 10 * 1024 * 1024;
+        if (file.size > maxSize) {
+            Toast.show('L\'immagine è troppo grande. Dimensione massima 10MB.', 'error');
+            dom.chatImageInput.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            selectedImageBase64 = event.target.result;
+            if (dom.chatImagePreview && dom.chatImagePreviewContainer) {
+                dom.chatImagePreview.src = selectedImageBase64;
+                dom.chatImagePreviewContainer.style.display = 'flex';
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function clearSelectedImage() {
+        selectedImageBase64 = '';
+        if (dom.chatImagePreview) {
+            dom.chatImagePreview.src = '';
+        }
+        if (dom.chatImagePreviewContainer) {
+            dom.chatImagePreviewContainer.style.display = 'none';
+        }
+        if (dom.chatImageInput) {
+            dom.chatImageInput.value = '';
+        }
     }
 
     // Listen to language changes to update dynamic layouts
