@@ -1480,4 +1480,14 @@ def run_server(
         server.run()
     except KeyboardInterrupt:
         logger.info("Server uvicorn process interrupted by keyboard event.")
-        sys.exit(0)
+
+    try:
+        if manager is not None:
+            manager.shutdown()
+    except Exception:
+        pass
+    if hasattr(sys.stdout, "original"):
+        sys.stdout = sys.stdout.original
+    if hasattr(sys.stderr, "original"):
+        sys.stderr = sys.stderr.original
+    os._exit(0)

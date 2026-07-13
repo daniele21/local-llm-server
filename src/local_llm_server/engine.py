@@ -43,7 +43,12 @@ def _setup_signal_handlers() -> None:
     def handle_exit_signal(signum: int, frame: Any) -> None:
         logger.info("Received exit signal %d, cleaning up subprocesses...", signum)
         _cleanup_active_engines()
-        sys.exit(128 + signum)
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except Exception:
+            pass
+        os._exit(128 + signum)
 
     for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
         try:
