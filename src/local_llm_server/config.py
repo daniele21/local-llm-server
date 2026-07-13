@@ -99,6 +99,17 @@ def _lmstudio_model_path(entry: dict[str, Any], filename_key: str = "filename") 
     return Path.home() / ".lmstudio" / "models" / str(lmstudio_path) / str(filename)
 
 
+def _lmstudio_model_directory(entry: dict[str, Any]) -> Path | None:
+    """Return a complete MLX model directory managed by LM Studio, if present."""
+    lmstudio_path = entry.get("lmstudio_path")
+    if not lmstudio_path:
+        return None
+    candidate = Path.home() / ".lmstudio" / "models" / str(lmstudio_path)
+    if (candidate / "config.json").is_file() and any(candidate.glob("*.safetensors")):
+        return candidate
+    return None
+
+
 def build_config(
     model: str | None = None,
     model_path: str | None = None,
@@ -132,7 +143,13 @@ def build_config(
     # Resolve model_path
     if model_path is None:
         if backend in {"mlx", "mlx_vlm_server"}:
-            model_path = entry.get("path") or entry.get("model_id") or model
+            lmstudio_directory = _lmstudio_model_directory(entry)
+            model_path = (
+                entry.get("path")
+                or (str(lmstudio_directory) if lmstudio_directory else None)
+                or entry.get("model_id")
+                or model
+            )
         else:
             filename = entry.get("filename", f"{model}.gguf")
             lmstudio_path = _lmstudio_model_path(entry, "filename")

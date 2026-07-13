@@ -183,15 +183,18 @@ def list_models() -> list[dict]:
             downloaded = is_huggingface_snapshot_cached(str(entry.get("model_id", key)))
         lmstudio_path = None
         if entry.get("lmstudio_path"):
-            lmstudio_path = (
-                Path.home()
-                / ".lmstudio"
-                / "models"
-                / str(entry["lmstudio_path"])
-                / str(entry["filename"])
+            lmstudio_root = (
+                Path.home() / ".lmstudio" / "models" / str(entry["lmstudio_path"])
             )
+            if entry.get("filename"):
+                lmstudio_path = lmstudio_root / str(entry["filename"])
+            elif (
+                (lmstudio_root / "config.json").is_file()
+                and any(lmstudio_root.glob("*.safetensors"))
+            ):
+                lmstudio_path = lmstudio_root
         resolved_path = lmstudio_path if lmstudio_path and lmstudio_path.exists() else path
-        if entry.get("path") or entry.get("filename"):
+        if entry.get("path") or entry.get("filename") or lmstudio_path:
             downloaded = resolved_path.exists()
         mmproj_path = None
         if entry.get("mmproj_filename"):
