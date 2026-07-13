@@ -60,7 +60,7 @@ def test_manager_rejects_unload_while_model_is_busy():
     release = threading.Event()
 
     def hold_lock():
-        with runtime.lock:
+        with manager.lease_runtime(runtime):
             acquired.set()
             release.wait(timeout=2)
 
@@ -71,6 +71,51 @@ def test_manager_rejects_unload_while_model_is_busy():
         manager.unload("busy")
     release.set()
     thread.join(timeout=2)
+
+
+def test_runtime_admission_allows_configured_same_model_concurrency():
+    manager = ModelRuntimeManager()
+    cfg = _cfg("parallel")
+    cfg["max_concurrent_requests"] = 2
+    runtime = manager.add(cfg, _Engine())
+    barrier = threading.Barrier(2)
+    errors = []
+
+    def enter_lease():
+        try:
+            with manager.lease_runtime(runtime):
+                barrier.wait(timeout=1)
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=enter_lease) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=2)
+
+    assert errors == []
+    assert runtime.active_requests == 0
+
+
+def test_stale_resolved_runtime_cannot_be_leased_after_unload():
+    manager = ModelRuntimeManager()
+    stale = manager.add(_cfg("stale"), _Engine())
+    manager.add(_cfg("other"), _Engine())
+
+    manager.unload("stale")
+
+    with pytest.raises(LookupError, match="no longer available"):
+        with manager.lease_runtime(stale):
+            pytest.fail("a stopped engine must never be leased")
+
+
+def test_alias_cannot_collide_with_an_existing_model_id():
+    manager = ModelRuntimeManager()
+    manager.add(_cfg("first", model_id="org/shared"), _Engine())
+
+    with pytest.raises(ValueError, match="org/shared"):
+        manager.add(_cfg("org/shared", model_id="org/second"), _Engine())
 
 
 def test_private_ports_are_unique(monkeypatch):
@@ -108,6 +153,33 @@ def test_reload_replaces_only_target_runtime(monkeypatch):
     assert other_engine.stopped is False
 
 
+def test_unload_cannot_overlap_reload(monkeypatch):
+    manager = ModelRuntimeManager(default_model="one")
+    manager.add(_cfg("one"), _Engine())
+    manager.add(_cfg("two"), _Engine())
+    loading = threading.Event()
+    release = threading.Event()
+
+    monkeypatch.setattr("local_llm_server.config.build_config", lambda **_kwargs: _cfg("one"))
+
+    def load_replacement(_cfg):
+        loading.set()
+        release.wait(timeout=2)
+        return _Engine()
+
+    monkeypatch.setattr("local_llm_server.engine.load_llm", load_replacement)
+    thread = threading.Thread(target=manager.reload, args=("one",))
+    thread.start()
+    loading.wait(timeout=2)
+
+    with pytest.raises(RuntimeError, match="not ready"):
+        manager.unload("one")
+
+    release.set()
+    thread.join(timeout=2)
+    assert not thread.is_alive()
+
+
 def test_backend_config_capabilities_match_consumed_engine_settings():
     llama_cpp = config_capabilities_for_backend("llama_cpp")
     mlx_vlm = config_capabilities_for_backend("mlx_vlm_server")
@@ -116,4 +188,4 @@ def test_backend_config_capabilities_match_consumed_engine_settings():
     assert "n_batch" in llama_cpp
     assert "n_gpu_layers" not in mlx_vlm
     assert "n_batch" not in mlx_vlm
-    assert mlx_vlm == ["timeout"]
+    assert mlx_vlm == ["timeout", "max_concurrent_requests"]

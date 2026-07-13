@@ -290,37 +290,6 @@
                             <div class="console-placeholder">In attesa dei log del server...</div>
                         </div>
 
-                        <!-- Terminal Commands Section -->
-                        <div class="logs-console__terminal">
-                            <div class="terminal-header">
-                                <div class="terminal-header-title">
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="4 17 10 11 12 13 18 7"/><polyline points="14 7 18 7 18 11"/></svg>
-                                    <span>Terminale Esecuzione Comandi</span>
-                                </div>
-                                <div class="terminal-header-cwd" id="terminal-cwd-container">
-                                    <span>CWD:</span>
-                                    <code id="terminal-cwd-path">Caricamento...</code>
-                                </div>
-                                <button type="button" class="btn btn--secondary btn--sm" id="clear-terminal-btn" style="padding: 2px 8px; font-size: 0.7rem;">
-                                    Pulisci
-                                </button>
-                            </div>
-                            <div class="terminal-body" id="terminal-screen-body"></div>
-                            <div class="terminal-suggestions" id="terminal-suggestions-container">
-                                <span class="terminal-suggestions-label">Esegui:</span>
-                                <button type="button" class="suggestion-pill" data-cmd="health">curl /health</button>
-                                <button type="button" class="suggestion-pill" data-cmd="models">curl /models</button>
-                                <button type="button" class="suggestion-pill" data-cmd="chat">curl chat-test</button>
-                            </div>
-                            <div class="terminal-input-bar">
-                                <span class="terminal-prompt-symbol">$</span>
-                                <input type="text" id="terminal-command-input" placeholder="Scrivi un comando (es: ls -la, uname -a, cd ..) e premi Invio..." autocomplete="off">
-                                <button type="button" class="btn btn--primary" id="run-terminal-btn">
-                                    Invia
-                                </button>
-                            </div>
-                        </div>
-
                         <!-- Console Footer -->
                         <div class="logs-console__footer">
                             <span id="log-line-count">0 righe caricate</span>

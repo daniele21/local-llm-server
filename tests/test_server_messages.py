@@ -152,11 +152,10 @@ def test_llama_server_maps_enable_thinking_to_template_kwargs():
     engine.cfg = {"timeout": 1}
 
     with patch("urllib.request.urlopen", return_value=FakeResponse()) as urlopen:
-        engine.create_chat_completion(
-            messages=[{"role": "user", "content": "hi"}],
-            stream=False,
-            enable_thinking=True,
-        )
+        engine.complete({
+            "messages": [{"role": "user", "content": "hi"}],
+            "enable_thinking": True,
+        })
 
     request = urlopen.call_args.args[0]
     payload = json.loads(request.data.decode("utf-8"))

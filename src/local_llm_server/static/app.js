@@ -77,13 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
         cfgShowThinking: document.getElementById('cfg-show-thinking'),
         cfgVerbose: document.getElementById('cfg-verbose'),
 
-        // Terminal elements
-        terminalBody: document.getElementById('terminal-screen-body'),
-        terminalInput: document.getElementById('terminal-command-input'),
-        terminalRunBtn: document.getElementById('run-terminal-btn'),
-        terminalClearBtn: document.getElementById('clear-terminal-btn'),
-        terminalCwdPath: document.getElementById('terminal-cwd-path'),
-        terminalSuggestions: document.getElementById('terminal-suggestions-container'),
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -101,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeConfigCapabilities = [];
     let currentServerInfo = null;
     let selectedImageBase64 = '';
+    let adminFeaturesInitialized = false;
 
     // ═══════════════════════════════════════════════════════════════════════════
     // Core Initialisation
@@ -118,15 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
             search: dom.logSearch,
             sseIndicator: dom.sseIndicator,
             sseIndicatorDot: dom.sseIndicatorDot
-        });
-
-        TerminalComponent.bind({
-            body: dom.terminalBody,
-            input: dom.terminalInput,
-            runBtn: dom.terminalRunBtn,
-            clearBtn: dom.terminalClearBtn,
-            cwdPath: dom.terminalCwdPath,
-            suggestionsContainer: dom.terminalSuggestions
         });
 
         ChatWindow.bind(
@@ -155,9 +140,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Run primary requests
         checkServerHealth();
         setInterval(checkServerHealth, APP_CONFIG.polling.serverHealth);
-
-        connectLogsStream();
-        loadRegistryModels();
 
         // Recover checkboxes settings from localstorage
         if (dom.forceJsonCheckbox) {
@@ -480,10 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Trigger LogConsole re-rendering if switching to Logs Tab
         if (tabId === 'logs-tab') {
             LogConsole.renderAll();
-            TerminalComponent.refreshCwd();
-            if (dom.terminalInput) {
-                setTimeout(() => dom.terminalInput.focus(), 100);
-            }
         }
     }
 
@@ -504,6 +482,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await res.json();
                 isServerOnline = true;
                 currentServerInfo = data;
+                if (!adminFeaturesInitialized) {
+                    adminFeaturesInitialized = true;
+                    if (data.admin_api_enabled) {
+                        connectLogsStream();
+                        loadRegistryModels();
+                    } else {
+                        loadResidentModels();
+                        LogConsole.setStreamStatus('disabled');
+                        if (dom.modelsContainer) {
+                            dom.modelsContainer.innerHTML = '<div class="models-grid__placeholder">API amministrativa disabilitata.</div>';
+                        }
+                    }
+                }
                 const modelShort = data.model ? data.model.split('/').pop() : 'Model';
                 
                 // Update Sidebar
@@ -676,6 +667,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // ═══════════════════════════════════════════════════════════════════════════
     // Models Registry management
     // ═══════════════════════════════════════════════════════════════════════════
+    async function loadResidentModels() {
+        try {
+            const res = await fetch('/v1/models');
+            if (!res.ok) return;
+            const data = await res.json();
+            const models = data.data || [];
+            dom.modelSelect.innerHTML = '<option value="">Predefinito del server</option>';
+            models.forEach(model => {
+                const opt = document.createElement('option');
+                opt.value = model.key || model.id;
+                opt.textContent = `${model.key || model.id}${model.default ? ' · predefinito' : ''}`;
+                dom.modelSelect.appendChild(opt);
+            });
+            if (dom.residentModelCount) dom.residentModelCount.textContent = String(models.length);
+        } catch (err) {
+            console.error('Error loading resident models:', err);
+        }
+    }
+
     async function loadRegistryModels() {
         try {
             const res = await fetch('/api/v1/models/registry');
@@ -974,8 +984,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (activeStatus.phase === 'prompt_eval') {
                             dom.typingText.textContent = APP_CONFIG.labels.typingEval;
                         } else if (activeStatus.phase === 'generating') {
-                            const speed = activeStatus.tokens_per_second ? activeStatus.tokens_per_second.toFixed(1) : '0';
-                            dom.typingText.textContent = APP_CONFIG.labels.typingGenerating(activeStatus.tokens_generated, speed);
+                            const speed = activeStatus.chunks_per_second ? activeStatus.chunks_per_second.toFixed(1) : '0';
+                            dom.typingText.textContent = APP_CONFIG.labels.typingGenerating(activeStatus.output_chunks, speed);
                         }
                     }
                 }
@@ -1109,13 +1119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ChatWindow.clearChat(APP_CONFIG.labels.emptyChatPlaceholder);
         }
 
-        // 3. Update the terminal welcome message if there is no custom command output
-        const termWelcome = dom.terminalBody.querySelector('.terminal-welcome');
-        if (termWelcome) {
-            termWelcome.innerHTML = APP_CONFIG.terminal.welcomeMessage;
-        }
-
-        // 4. Update logs count display
+        // 3. Update logs count display
         const logLines = dom.serverLogsBody.querySelectorAll('.log-line');
         if (dom.logLineCount) {
             const count = logLines.length;

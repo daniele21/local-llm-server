@@ -20,7 +20,7 @@ const I18N_RESOURCES = {
             toastCopyError: "Impossibile copiare il testo.",
             typingStart: "L'LLM sta pensando...",
             typingEval: "Valutazione prompt...",
-            typingGenerating: (tokens, speed) => `Generazione in corso: ${tokens} tokens (${speed} t/s)`,
+            typingGenerating: (chunks, speed) => `Generazione in corso: ${chunks} chunk (${speed} chunk/s)`,
             inferenceError: "Errore durante l'elaborazione dell'inferenza:",
             terminalRunning: "In esecuzione..."
         },
@@ -118,7 +118,7 @@ const I18N_RESOURCES = {
             toastCopyError: "Unable to copy text.",
             typingStart: "LLM is thinking...",
             typingEval: "Evaluating prompt...",
-            typingGenerating: (tokens, speed) => `Generating: ${tokens} tokens (${speed} t/s)`,
+            typingGenerating: (chunks, speed) => `Generating: ${chunks} chunks (${speed} chunks/s)`,
             inferenceError: "Error during inference processing:",
             terminalRunning: "Running..."
         },

@@ -76,8 +76,8 @@ def test_load_llm_supports_llama_server(monkeypatch, tmp_path):
     )
 
     assert isinstance(engine, LlamaServerEngine)
-    assert engine.create_chat_completion(messages=[], stream=False)["choices"][0]["message"]["content"] == "ok"
-    engine.shutdown()
+    assert engine.complete({"messages": []})["choices"][0]["message"]["content"] == "ok"
+    engine.close()
 
 
 def test_resolve_binary_prefers_explicit(tmp_path):
@@ -119,4 +119,28 @@ def test_llama_server_ensures_projector_and_passes_mmproj(monkeypatch, tmp_path)
     assert ensured[1]["url"] == "https://example.test/mmproj.gguf"
     assert "--mmproj" in commands[0]
     assert str(projector) in commands[0]
-    engine.shutdown()
+    engine.close()
+
+
+def test_llama_server_drains_logs_before_waiting_for_readiness(monkeypatch):
+    engine = LlamaServerEngine.__new__(LlamaServerEngine)
+    engine.binary = Path("/tmp/llama-server")
+    engine.model_path = Path("/tmp/model.gguf")
+    engine.mmproj_path = None
+    engine.port = 19093
+    engine.host = "127.0.0.1"
+    engine.cfg = {"ctx_size": 4096, "startup_timeout": 1}
+    events = []
+
+    monkeypatch.setattr(
+        "local_llm_server.process.ManagedProcess.start",
+        lambda _self: events.append("logs"),
+    )
+    monkeypatch.setattr(
+        "local_llm_server.process.ManagedProcess.wait_ready",
+        lambda _self, _check, **_kwargs: events.append("ready"),
+    )
+
+    engine._start()
+
+    assert events == ["logs", "ready"]

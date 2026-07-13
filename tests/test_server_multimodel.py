@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 import threading
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 from local_llm_server.runtime import ModelRuntimeManager
-from local_llm_server.server import ChatCompletionRequest, chat_completions, configure_runtime
+from local_llm_server.server import ChatCompletionRequest, app, chat_completions, configure_runtime
+
+
+def _request() -> Request:
+    return Request({"type": "http", "app": app})
 
 
 class _Engine:
@@ -17,8 +22,8 @@ class _Engine:
         self.barrier = barrier
         self.received_model = None
 
-    def create_chat_completion(self, **kwargs):
-        self.received_model = kwargs["model"]
+    def complete(self, payload):
+        self.received_model = payload["model"]
         if self.barrier:
             self.barrier.wait(timeout=2)
         return {
@@ -26,8 +31,19 @@ class _Engine:
             "usage": {"completion_tokens": 1},
         }
 
-    def shutdown(self):
+    def close(self):
         pass
+
+
+class _StreamingEngine(_Engine):
+    def stream(self, payload):
+        self.received_model = payload["model"]
+
+        def chunks():
+            for content in ("one", "two"):
+                yield {"choices": [{"index": 0, "delta": {"content": content}}]}
+
+        return chunks()
 
 
 def _cfg(key: str, model_id: str):
@@ -62,6 +78,7 @@ def test_chat_routes_to_requested_resident_model():
     _install_manager(text, vision)
 
     response = chat_completions(
+        _request(),
         ChatCompletionRequest(
             model="vision",
             messages=[{"role": "user", "content": "describe"}],
@@ -80,6 +97,7 @@ def test_chat_without_model_uses_default_runtime():
     _install_manager(text, vision)
 
     response = chat_completions(
+        _request(),
         ChatCompletionRequest(messages=[{"role": "user", "content": "hello"}], stream=False)
     )
 
@@ -92,6 +110,7 @@ def test_chat_rejects_model_that_is_not_resident():
 
     with pytest.raises(HTTPException) as exc_info:
         chat_completions(
+            _request(),
             ChatCompletionRequest(
                 model="missing",
                 messages=[{"role": "user", "content": "hello"}],
@@ -102,6 +121,31 @@ def test_chat_rejects_model_that_is_not_resident():
     assert exc_info.value.status_code == 404
 
 
+def test_text_model_rejects_image_before_calling_backend():
+    text = _Engine("text")
+    _install_manager(text, _Engine("vision"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        chat_completions(
+            _request(),
+            ChatCompletionRequest(
+                model="text",
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "describe"},
+                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
+                    ],
+                }],
+                stream=False,
+            )
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "unsupported_modality"
+    assert text.received_model is None
+
+
 def test_requests_for_different_models_run_in_parallel():
     barrier = threading.Barrier(2)
     _install_manager(_Engine("text", barrier), _Engine("vision", barrier))
@@ -110,6 +154,7 @@ def test_requests_for_different_models_run_in_parallel():
     def request(model):
         responses.append(
             chat_completions(
+                _request(),
                 ChatCompletionRequest(
                     model=model,
                     messages=[{"role": "user", "content": "go"}],
@@ -125,3 +170,26 @@ def test_requests_for_different_models_run_in_parallel():
         thread.join(timeout=3)
 
     assert sorted(responses) == ["text", "vision"]
+
+
+def test_streaming_response_releases_lease_when_client_disconnects():
+    manager = _install_manager(_StreamingEngine("unused"), _Engine("vision"))
+    runtime = manager.resolve("text")
+    response = chat_completions(
+        _request(),
+        ChatCompletionRequest(
+            model="text",
+            messages=[{"role": "user", "content": "go"}],
+            stream=True,
+        )
+    )
+
+    async def consume_one_chunk_and_disconnect():
+        iterator = response.body_iterator
+        await anext(iterator)
+        await iterator.aclose()
+
+    asyncio.run(consume_one_chunk_and_disconnect())
+
+    assert runtime.active_requests == 0
+    manager.unload("text")

@@ -48,6 +48,7 @@ _FALLBACKS: dict[str, Any] = {
     "multimodal": False,
     "modalities": [],
     "startup_timeout": 60,
+    "max_concurrent_requests": 1,
 }
 
 # ── Env-var names ──────────────────────────────────────────────────────────────
@@ -70,6 +71,7 @@ _ENV_MAP: dict[str, str] = {
     "llama_server_bin": "LOCAL_LLM_SERVER_BIN",
     "mlx_vlm_server_port": "LOCAL_LLM_MLX_VLM_SERVER_PORT",
     "startup_timeout": "LOCAL_LLM_STARTUP_TIMEOUT",
+    "max_concurrent_requests": "LOCAL_LLM_MAX_CONCURRENT_REQUESTS",
     "default_temperature": "LOCAL_LLM_DEFAULT_TEMPERATURE",
     "default_top_p": "LOCAL_LLM_DEFAULT_TOP_P",
     "default_top_k": "LOCAL_LLM_DEFAULT_TOP_K",
@@ -81,6 +83,11 @@ _BOOL_ENV = {"force_json", "enable_thinking", "show_thinking", "verbose", "offlo
 _INT_ENV = {
     "port", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch", "timeout",
     "llama_server_port", "mlx_vlm_server_port", "startup_timeout", "default_top_k",
+    "max_concurrent_requests",
+}
+_FLOAT_ENV = {
+    "default_temperature", "default_top_p", "default_min_p",
+    "default_repeat_penalty",
 }
 
 
@@ -120,7 +127,7 @@ def build_config(
     }
 
     # Resolve backend
-    backend = explicit.get("backend") or entry.get("backend") or os.getenv("LOCAL_LLM_BACKEND") or reg_params.get("backend") or "llama_cpp"
+    backend = explicit.get("backend") or os.getenv("LOCAL_LLM_BACKEND") or entry.get("backend") or reg_params.get("backend") or "llama_cpp"
 
     # Resolve model_path
     if model_path is None:
@@ -151,6 +158,8 @@ def build_config(
         if env_val:
             if key in _INT_ENV:
                 cfg[key] = int(env_val)
+            elif key in _FLOAT_ENV:
+                cfg[key] = float(env_val)
             elif key in _BOOL_ENV:
                 cfg[key] = env_val.lower() in {"1", "true", "yes", "on"}
             else:

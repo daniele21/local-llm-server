@@ -55,7 +55,7 @@ const APP_CONFIG = {
         toastCopyError: "Impossibile copiare il testo.",
         typingStart: "L'LLM sta pensando...",
         typingEval: "Valutazione prompt...",
-        typingGenerating: (tokens, speed) => `Generazione in corso: ${tokens} tokens (${speed} t/s)`,
+        typingGenerating: (chunks, speed) => `Generazione in corso: ${chunks} chunk (${speed} chunk/s)`,
         inferenceError: "Errore durante l'elaborazione dell'inferenza:",
         terminalRunning: "In esecuzione..."
     }

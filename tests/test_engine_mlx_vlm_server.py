@@ -12,6 +12,9 @@ from local_llm_server.engine import MLXVLMServerEngine, load_llm
 class _HealthResponse:
     status = 200
 
+    def __init__(self, model_path: str | None = None):
+        self.model_path = model_path
+
     def __enter__(self):
         return self
 
@@ -19,7 +22,7 @@ class _HealthResponse:
         return None
 
     def read(self):
-        return b'{"status":"healthy"}'
+        return json.dumps({"status": "healthy", "loaded_model": self.model_path}).encode()
 
 
 class _CompletionResponse(_HealthResponse):
@@ -50,7 +53,7 @@ def test_mlx_vlm_server_uses_local_model_and_openai_endpoint(monkeypatch, tmp_pa
 
     def urlopen(request, timeout=0):
         if str(getattr(request, "full_url", request)).endswith("/health"):
-            return _HealthResponse()
+            return _HealthResponse(str(model))
         requests.append(json.loads(request.data.decode("utf-8")))
         return _CompletionResponse()
 
@@ -69,9 +72,9 @@ def test_mlx_vlm_server_uses_local_model_and_openai_endpoint(monkeypatch, tmp_pa
     assert isinstance(engine, MLXVLMServerEngine)
     assert commands[0][1:4] == ["-m", "mlx_vlm.server", "--model"]
     assert commands[0][4] == str(model)
-    assert engine.create_chat_completion(messages=[], stream=False)["choices"][0]["message"]["content"] == "ok"
+    assert engine.complete({"messages": []})["choices"][0]["message"]["content"] == "ok"
     assert requests[0]["model"] == str(model)
-    engine.shutdown()
+    engine.close()
 
 
 def test_mlx_vlm_server_exposes_backend_http_error(monkeypatch):
@@ -87,4 +90,17 @@ def test_mlx_vlm_server_exposes_backend_http_error(monkeypatch):
 
     monkeypatch.setattr("urllib.request.urlopen", fail)
     with pytest.raises(RuntimeError, match="invalid image"):
-        engine.create_chat_completion(messages=[], stream=False)
+        engine.complete({"messages": []})
+
+
+def test_mlx_vlm_readiness_rejects_the_wrong_loaded_model(monkeypatch):
+    engine = object.__new__(MLXVLMServerEngine)
+    engine.base_url = "http://127.0.0.1:19092"
+    engine.model_path = "/models/expected"
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *_args, **_kwargs: _HealthResponse("/models/unexpected"),
+    )
+
+    with pytest.raises(RuntimeError, match="unexpected model"):
+        engine._is_ready()

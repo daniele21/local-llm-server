@@ -6,81 +6,26 @@ from __future__ import annotations
 
 import json
 import logging
-import atexit
 import os
 import shutil
-import subprocess
 import sys
-import threading
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Protocol
 
 from .downloader import ensure_model
-import signal
+from .process import ManagedProcess
 
 logger = logging.getLogger("local-llm.engine")
 
-_ACTIVE_ENGINES: set[Any] = set()
-_signals_registered = False
 
+class Engine(Protocol):
+    backend: str
 
-def _cleanup_active_engines() -> None:
-    for engine in list(_ACTIVE_ENGINES):
-        try:
-            engine.shutdown()
-        except Exception as exc:
-            logger.warning("Error shutting down engine during cleanup: %s", exc)
-
-
-def _setup_signal_handlers() -> None:
-    global _signals_registered
-    if _signals_registered:
-        return
-
-    def handle_exit_signal(signum: int, frame: Any) -> None:
-        logger.info("Received exit signal %d, cleaning up subprocesses...", signum)
-        _cleanup_active_engines()
-        try:
-            sys.stdout.flush()
-            sys.stderr.flush()
-        except Exception:
-            pass
-        os._exit(128 + signum)
-
-    for sig in (signal.SIGTERM, signal.SIGHUP, signal.SIGINT):
-        try:
-            signal.signal(sig, handle_exit_signal)
-        except (ValueError, OSError):
-            # Not in main thread, or signal not supported
-            pass
-    _signals_registered = True
-
-
-atexit.register(_cleanup_active_engines)
-try:
-    _setup_signal_handlers()
-except Exception:
-    pass
-
-
-
-def _start_logging_thread(process: subprocess.Popen, prefix: str) -> None:
-    def log_reader() -> None:
-        try:
-            if process.stdout:
-                for line in process.stdout:
-                    cleaned_line = line.rstrip("\r\n")
-                    logger.info("[%s] %s", prefix, cleaned_line)
-                    sys.stderr.write(f"[{prefix}] {cleaned_line}\n")
-                    sys.stderr.flush()
-        except Exception:
-            pass
-
-    thread = threading.Thread(target=log_reader, daemon=True)
-    thread.start()
+    def complete(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def stream(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]: ...
+    def close(self) -> None: ...
 
 
 class LlamaCppEngine:
@@ -129,9 +74,20 @@ class LlamaCppEngine:
 
         self.llm = Llama(**kwargs)
 
-    def create_chat_completion(self, **kwargs: Any) -> Any:
+    def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        kwargs = dict(payload)
         kwargs.pop("enable_thinking", None)
+        kwargs["stream"] = False
         return self.llm.create_chat_completion(**kwargs)
+
+    def stream(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        kwargs = dict(payload)
+        kwargs.pop("enable_thinking", None)
+        kwargs["stream"] = True
+        return iter(self.llm.create_chat_completion(**kwargs))
+
+    def close(self) -> None:
+        return None
 
 
 class MLXEngine:
@@ -158,10 +114,11 @@ class MLXEngine:
         )
         logger.info("MLX model loaded.")
 
-    def create_chat_completion(self, **kwargs: Any) -> Iterator[dict[str, Any]]:
+    def stream(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
         from mlx_lm import stream_generate
         from mlx_lm.sample_utils import make_logits_processors, make_sampler
 
+        kwargs = dict(payload)
         messages = kwargs["messages"]
         max_tokens = int(kwargs.get("max_tokens") or 512)
 
@@ -219,6 +176,27 @@ class MLXEngine:
                 ],
             }
 
+    def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        chunks = list(self.stream(payload))
+        content = "".join(
+            str(chunk.get("choices", [{}])[0].get("delta", {}).get("content") or "")
+            for chunk in chunks
+        )
+        return {
+            "id": "chatcmpl-local-mlx",
+            "object": "chat.completion",
+            "created": 0,
+            "model": str(payload.get("model") or self.model_ref),
+            "choices": [{
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }],
+        }
+
+    def close(self) -> None:
+        return None
+
 
 class LlamaServerEngine:
     """
@@ -239,7 +217,7 @@ class LlamaServerEngine:
         self.port = int(cfg.get("llama_server_port") or 8091)
         self.host = "127.0.0.1"
         self.base_url = f"http://{self.host}:{self.port}"
-        self.process: subprocess.Popen[str] | None = None
+        self.process: ManagedProcess | None = None
 
         ensure_model(
             url=cfg.get("download_url", ""),
@@ -255,7 +233,6 @@ class LlamaServerEngine:
 
         self.binary = self._resolve_binary(cfg)
         self._start()
-        _ACTIVE_ENGINES.add(self)
 
     @staticmethod
     def _resolve_binary(cfg: dict[str, Any]) -> Path:
@@ -303,50 +280,35 @@ class LlamaServerEngine:
             cmd.extend(["--mmproj", str(self.mmproj_path)])
 
         logger.info("Starting llama-server: %s", " ".join(cmd))
-        self.process = subprocess.Popen(
+        self.process = ManagedProcess(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
+            name="llama-server",
+            logger=logger,
         )
-        self._wait_until_ready(timeout=float(self.cfg.get("startup_timeout") or 60))
-        _start_logging_thread(self.process, "llama-server")
-
-    def _wait_until_ready(self, timeout: float) -> None:
-        deadline = time.monotonic() + timeout
-        last_error = ""
-        while time.monotonic() < deadline:
-            if self.process and self.process.poll() is not None:
-                output = ""
-                if self.process.stdout:
-                    output = self.process.stdout.read()[-4000:]
-                raise RuntimeError(f"llama-server exited during startup. {output}")
-            try:
-                with urllib.request.urlopen(
-                    f"{self.base_url}/health", timeout=2
-                ) as response:
-                    body = response.read().decode("utf-8", errors="replace")
-                    if response.status == 200 and (
-                        not body or '"ok"' in body or '"status"' in body
-                    ):
-                        logger.info("llama-server ready on %s", self.base_url)
-                        return
-            except (urllib.error.URLError, TimeoutError, OSError) as exc:
-                last_error = str(exc)
-            time.sleep(1)
-        self.shutdown()
-        raise TimeoutError(
-            f"llama-server did not become ready within {timeout:.0f}s. Last error: {last_error}"
+        self.process.start()
+        self.process.wait_ready(
+            self._is_ready,
+            timeout=float(self.cfg.get("startup_timeout") or 60),
         )
 
-    def create_chat_completion(self, **kwargs: Any) -> Any:
+    def _is_ready(self) -> bool:
+        with urllib.request.urlopen(f"{self.base_url}/health", timeout=2) as response:
+            body = response.read().decode("utf-8", errors="replace")
+            ready = response.status == 200 and (
+                not body or '"ok"' in body or '"status"' in body
+            )
+            if ready:
+                logger.info("llama-server ready on %s", self.base_url)
+            return ready
+
+    def _request(self, payload: dict[str, Any], *, stream: bool) -> Any:
+        kwargs = dict(payload)
         enable_thinking = kwargs.pop("enable_thinking", None)
         if enable_thinking is not None and "chat_template_kwargs" not in kwargs:
             # For modern llama-server templates that support enable_thinking variable
             kwargs["chat_template_kwargs"] = {"enable_thinking": enable_thinking}
 
-        stream = bool(kwargs.get("stream"))
+        kwargs["stream"] = stream
         payload = json.dumps(kwargs).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}/v1/chat/completions",
@@ -376,20 +338,17 @@ class LlamaServerEngine:
 
         return iter_chunks()
 
-    def shutdown(self) -> None:
-        _ACTIVE_ENGINES.discard(self)
-        process = self.process
-        if process is None or process.poll() is not None:
-            self.process = None
-            return
-        logger.info("Stopping llama-server on port %s", self.port)
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
-        self.process = None
+    def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request(payload, stream=False)
+
+    def stream(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        return self._request(payload, stream=True)
+
+    def close(self) -> None:
+        if self.process is not None:
+            self.process.close()
+
+    shutdown = close
 
 
 class MLXVLMServerEngine:
@@ -403,9 +362,8 @@ class MLXVLMServerEngine:
         self.port = int(cfg.get("mlx_vlm_server_port") or 8092)
         self.host = "127.0.0.1"
         self.base_url = f"http://{self.host}:{self.port}"
-        self.process: subprocess.Popen[str] | None = None
+        self.process: ManagedProcess | None = None
         self._start()
-        _ACTIVE_ENGINES.add(self)
 
     def _start(self) -> None:
         cmd = [
@@ -420,50 +378,43 @@ class MLXVLMServerEngine:
             str(self.port),
         ]
         logger.info("Starting mlx_vlm.server: %s", " ".join(cmd))
-        self.process = subprocess.Popen(
+        self.process = ManagedProcess(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
+            name="mlx_vlm_server",
+            logger=logger,
             env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
-        _start_logging_thread(self.process, "mlx_vlm_server")
-        self._wait_until_ready(timeout=float(self.cfg.get("startup_timeout") or 60))
-
-    def _wait_until_ready(self, timeout: float) -> None:
-        deadline = time.monotonic() + timeout
-        last_error = ""
-        while time.monotonic() < deadline:
-            if self.process and self.process.poll() is not None:
-                output = (
-                    self.process.stdout.read()[-4000:] if self.process.stdout else ""
-                )
-                raise RuntimeError(f"mlx_vlm.server exited during startup. {output}")
-            try:
-                with urllib.request.urlopen(
-                    f"{self.base_url}/health", timeout=2
-                ) as response:
-                    if response.status == 200:
-                        logger.info("mlx_vlm.server ready on %s", self.base_url)
-                        return
-            except (urllib.error.URLError, TimeoutError, OSError) as exc:
-                last_error = str(exc)
-            time.sleep(1)
-        self.shutdown()
-        raise TimeoutError(
-            f"mlx_vlm.server did not become ready within {timeout:.0f}s. Last error: {last_error}"
+        self.process.start()
+        self.process.wait_ready(
+            self._is_ready,
+            timeout=float(self.cfg.get("startup_timeout") or 60),
         )
 
-    def create_chat_completion(self, **kwargs: Any) -> Any:
-        stream = bool(kwargs.get("stream"))
+    def _is_ready(self) -> bool:
+        with urllib.request.urlopen(f"{self.base_url}/health", timeout=2) as response:
+            if response.status != 200:
+                return False
+            body = json.loads(response.read().decode("utf-8", errors="replace"))
+            loaded_model = body.get("loaded_model")
+            if loaded_model != self.model_path:
+                raise RuntimeError(
+                    "mlx_vlm.server is healthy but loaded an unexpected model: "
+                    f"expected {self.model_path!r}, got {loaded_model!r}"
+                )
+            ready = True
+            if ready:
+                logger.info("mlx_vlm.server ready on %s", self.base_url)
+            return ready
+
+    def _request(self, payload: dict[str, Any], *, stream: bool) -> Any:
+        kwargs = dict(payload)
         # Pop thinking/reasoning flags so they are not sent to mlx_vlm.server
         kwargs.pop("enable_thinking", None)
         kwargs.pop("show_thinking", None)
         # The subprocess is preloaded using ``self.model_path``. Sending the
         # registry/Hugging Face model id here creates a different cache key in
         # mlx_vlm.server and can trigger a second, very expensive model load.
-        backend_kwargs = {**kwargs, "model": self.model_path}
+        backend_kwargs = {**kwargs, "model": self.model_path, "stream": stream}
         payload = json.dumps(backend_kwargs).encode("utf-8")
         request = urllib.request.Request(
             f"{self.base_url}/v1/chat/completions",
@@ -501,20 +452,17 @@ class MLXVLMServerEngine:
 
         return iter_chunks()
 
-    def shutdown(self) -> None:
-        _ACTIVE_ENGINES.discard(self)
-        process = self.process
-        if process is None or process.poll() is not None:
-            self.process = None
-            return
-        logger.info("Stopping mlx_vlm.server on port %s", self.port)
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=5)
-        self.process = None
+    def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._request(payload, stream=False)
+
+    def stream(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        return self._request(payload, stream=True)
+
+    def close(self) -> None:
+        if self.process is not None:
+            self.process.close()
+
+    shutdown = close
 
 
 def load_llm(cfg: dict[str, Any]) -> Any:

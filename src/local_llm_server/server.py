@@ -4,21 +4,19 @@ Provides automatically generated interactive OpenAPI documentation at /docs.
 """
 from __future__ import annotations
 
-import os
-import subprocess
-import shlex
 import asyncio
 import json
 import logging
-import sys
 import threading
 import time
 import queue
 import collections
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List, Dict, Optional, Union
 
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import APIRouter, FastAPI, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -57,38 +55,6 @@ class LogStreamBuffer:
         return q
 
 
-log_buffer = LogStreamBuffer(limit=2000)
-
-
-class DualWriter:
-    def __init__(self, original: Any, buffer: LogStreamBuffer) -> None:
-        self.original = original
-        self.buffer = buffer
-        self._accumulator = ""
-
-    def write(self, text: str) -> None:
-        self.original.write(text)
-        self.original.flush()
-        
-        self._accumulator += text
-        while "\n" in self._accumulator:
-            line, self._accumulator = self._accumulator.split("\n", 1)
-            line = line.rstrip("\r")
-            if line.strip():
-                self.buffer.append(line)
-
-    def flush(self) -> None:
-        self.original.flush()
-
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self.original, name)
-
-
-# Redirect python's print outputs
-sys.stdout = DualWriter(sys.stdout, log_buffer)
-sys.stderr = DualWriter(sys.stderr, log_buffer)
-
-
 class LogBufferHandler(logging.Handler):
     def __init__(self, buffer: LogStreamBuffer) -> None:
         super().__init__()
@@ -102,11 +68,26 @@ class LogBufferHandler(logging.Handler):
             self.handleError(record)
 
 
-# Add logging handler to the root logger to capture all python logs
-log_handler = LogBufferHandler(log_buffer)
 log_formatter = logging.Formatter("[%(asctime)s] %(levelname)s [%(name)s]: %(message)s", datefmt="%H:%M:%S")
-log_handler.setFormatter(log_formatter)
-logging.getLogger().addHandler(log_handler)
+
+
+def _new_log_handler(buffer: LogStreamBuffer) -> LogBufferHandler:
+    handler = LogBufferHandler(buffer)
+    handler.setFormatter(log_formatter)
+    return handler
+
+
+def _install_log_handler(application: FastAPI) -> None:
+    handler: LogBufferHandler = application.state.log_handler
+    root_logger = logging.getLogger()
+    if handler not in root_logger.handlers:
+        root_logger.addHandler(handler)
+
+
+def _remove_log_handler(application: FastAPI) -> None:
+    handler = getattr(application.state, "log_handler", None)
+    if handler is not None:
+        logging.getLogger().removeHandler(handler)
 
 
 # ── Pydantic Request Models for Swagger ──────────────────────────────────────────
@@ -141,10 +122,6 @@ class ChatCompletionRequest(BaseModel):
     show_reasoning: Optional[bool] = Field(None, description="Alias for show_thinking.")
 
 
-class TerminalCommandRequest(BaseModel):
-    command: str = Field(..., description="The terminal command to execute.")
-
-
 class ModelActivateRequest(BaseModel):
     model: str = Field(..., description="Registry key of the model to activate.")
     backend: Optional[str] = Field(None, description="Inference backend override (llama_cpp, mlx, llama_server, or mlx_vlm_server).")
@@ -162,6 +139,7 @@ class ModelActivateRequest(BaseModel):
     mlx_vlm_server_port: Optional[int] = Field(None, description="Internal mlx_vlm.server subprocess port.")
     mmproj_path: Optional[str] = Field(None, description="Path to multimodal projector GGUF.")
     startup_timeout: Optional[int] = Field(None, description="llama-server startup timeout in seconds.")
+    max_concurrent_requests: Optional[int] = Field(None, ge=1, description="Maximum admitted requests for this runtime.")
     enable_thinking: Optional[bool] = Field(None, description="Enable thinking mode globally.")
     show_thinking: Optional[bool] = Field(None, description="Show thinking globally.")
     verbose: Optional[bool] = Field(None, description="Verbose logging.")
@@ -212,6 +190,23 @@ def _normalize_messages(payload: dict[str, Any]) -> list[dict[str, Any]]:
         msgs.append({"role": "system", "content": system_prompt})
     msgs.append({"role": "user", "content": user_input})
     return msgs
+
+
+def _detect_modalities(messages: list[dict[str, Any]]) -> set[str]:
+    required = {"text"}
+    for message in messages:
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            part_type = str(part.get("type") or "")
+            if part_type in {"image", "image_url", "input_image"}:
+                required.add("image")
+            elif part_type in {"audio", "input_audio"}:
+                required.add("audio")
+    return required
 
 
 # ── Response helpers ────────────────────────────────────────────────────────────
@@ -304,40 +299,44 @@ def _build_response(
 
 # ── FastAPI App Creation ────────────────────────────────────────────────────────
 
-app = FastAPI(
-    title="Local LLM Server API",
-    description="OpenAI-compatible API serving local LLMs (Llama-cpp, MLX, llama-server multimodal).",
-    version="0.2.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
+@dataclass(frozen=True)
+class ServerSettings:
+    enable_admin_api: bool = False
+    cors_origins: tuple[str, ...] = ()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@asynccontextmanager
+async def _app_lifespan(current_app: FastAPI):
+    current_app.state.shutdown = False
+    try:
+        yield
+    finally:
+        current_app.state.shutdown = True
+        _remove_log_handler(current_app)
 
-
-@app.on_event("shutdown")
-def on_shutdown():
-    """Handle server shutdown events."""
-    app.state.shutdown = True
-    manager = getattr(app.state, "runtime_manager", None)
-    if manager is not None:
-        manager.shutdown()
+router = APIRouter()
+admin_router = APIRouter()
 
 
-@app.get("/health", tags=["System"])
-def get_health():
+@router.get("/health", tags=["System"])
+def get_health(request: Request):
     """Check the health status of the LLM server."""
-    manager: ModelRuntimeManager = app.state.runtime_manager
+    manager: ModelRuntimeManager = request.app.state.runtime_manager
     default_runtime = manager.resolve()
     cfg = default_runtime.cfg
     llm = default_runtime.engine
     from local_llm_server.runtime import config_capabilities_for_backend
+    admin_enabled = request.app.state.settings.enable_admin_api
+    endpoints = [
+        "GET /health",
+        "GET /v1/models",
+        "POST /v1/chat/completions",
+        "GET /status",
+    ]
+    if admin_enabled:
+        endpoints.extend([
+            "GET /api/v1/logs/stream",
+            "GET /api/v1/models/registry",
+        ])
     return {
         "ok": True,
         "server": "local-llm-server",
@@ -365,25 +364,19 @@ def get_health():
         "model_key": cfg.get("model"),
         "default_model": manager.default_model,
         "loaded_models": [runtime.key for runtime in manager.list()],
+        "admin_api_enabled": admin_enabled,
         "config_capabilities": config_capabilities_for_backend(
             str(cfg.get("backend", "unknown"))
         ),
-        "endpoints": [
-            "GET /health",
-            "GET /v1/models",
-            "POST /v1/chat/completions",
-            "GET /status",
-            "GET /api/v1/logs/stream",
-            "GET /api/v1/models/registry",
-        ],
+        "endpoints": endpoints,
     }
 
 
-@app.get("/v1/models", tags=["Models"])
-@app.get("/api/v1/models", tags=["Models"])
-def get_models():
+@router.get("/v1/models", tags=["Models"])
+@router.get("/api/v1/models", tags=["Models"])
+def get_models(request: Request):
     """List loaded models."""
-    manager: ModelRuntimeManager = app.state.runtime_manager
+    manager: ModelRuntimeManager = request.app.state.runtime_manager
     return {
         "object": "list",
         "data": [
@@ -402,24 +395,24 @@ def get_models():
     }
 
 
-@app.get("/status", tags=["System"])
-@app.get("/api/v1/status", tags=["System"])
-def get_status():
+@router.get("/status", tags=["System"])
+@router.get("/api/v1/status", tags=["System"])
+def get_status(request: Request):
     """Retrieve real-time inference status and speed statistics."""
-    manager: ModelRuntimeManager = app.state.runtime_manager
+    manager: ModelRuntimeManager = request.app.state.runtime_manager
     models = {runtime.key: runtime.snapshot_status() for runtime in manager.list()}
     default_status = dict(models.get(str(manager.default_model), {}))
     return {**default_status, "default_model": manager.default_model, "models": models}
 
 
-@app.get("/api/v1/models/registry", tags=["Models"])
-def get_models_registry():
+@admin_router.get("/api/v1/models/registry", tags=["Models"])
+def get_models_registry(request: Request):
     """List all configured models in local-llm-server registry."""
     try:
         from local_llm_server import list_models
         from local_llm_server.runtime import config_capabilities_for_backend
         models = list_models()
-        manager: ModelRuntimeManager = app.state.runtime_manager
+        manager: ModelRuntimeManager = request.app.state.runtime_manager
         loaded = {runtime.key: runtime for runtime in manager.list()}
         for model in models:
             runtime = loaded.get(str(model["key"]))
@@ -446,14 +439,14 @@ def get_models_registry():
         )
 
 
-@app.get("/api/v1/logs/stream", tags=["System"])
+@admin_router.get("/api/v1/logs/stream", tags=["System"])
 def stream_logs(request: Request):
     """SSE endpoint streaming live console logs of the server process."""
     async def log_generator():
-        q = log_buffer.add_listener()
+        q = request.app.state.log_buffer.add_listener()
         ping_counter = 0
         try:
-            while not getattr(app.state, "shutdown", False):
+            while not getattr(request.app.state, "shutdown", False):
                 if await request.is_disconnected():
                     break
                 try:
@@ -475,10 +468,10 @@ def stream_logs(request: Request):
     return StreamingResponse(log_generator(), media_type="text/event-stream")
 
 
-@app.get("/example", response_class=HTMLResponse, tags=["Documentation"])
-def get_usage_examples():
+@router.get("/example", response_class=HTMLResponse, tags=["Documentation"])
+def get_usage_examples(request: Request):
     """Retrieve a interactive HTML page showing how to query the local LLM server."""
-    cfg = app.state.cfg
+    cfg = request.app.state.cfg
     model_id = cfg["model_id"]
     port = cfg["port"]
     host = cfg["host"]
@@ -951,29 +944,35 @@ uv run python test_inference.py --server-url http://{host}:{port}/v1</code></pre
     return HTMLResponse(content=html_content)
 
 
-@app.post("/api/v1/models/load", tags=["Models"])
-def load_model_compat(req: ModelActivateRequest | None = None):
+@admin_router.post("/api/v1/models/load", tags=["Models"])
+def load_model_compat(request: Request, req: ModelActivateRequest | None = None):
     """Load a model while keeping all currently resident models active."""
     if req is None:
-        runtime = app.state.runtime_manager.resolve()
+        runtime = request.app.state.runtime_manager.resolve()
         return {"ok": True, "model": runtime.model_id, "key": runtime.key, "already_loaded": True}
-    return _load_or_activate_model(req, set_default=False)
+    return _load_or_activate_model(req, set_default=False, app_state=request.app.state)
 
 
-@app.post("/api/v1/models/activate", tags=["Models"])
-def activate_model(req: ModelActivateRequest):
+@admin_router.post("/api/v1/models/activate", tags=["Models"])
+def activate_model(request: Request, req: ModelActivateRequest):
     """Load a model if necessary and make it the default route."""
-    return _load_or_activate_model(req, set_default=True)
+    return _load_or_activate_model(req, set_default=True, app_state=request.app.state)
 
 
-def _load_or_activate_model(req: ModelActivateRequest, *, set_default: bool) -> dict[str, Any]:
-    manager: ModelRuntimeManager = app.state.runtime_manager
+def _load_or_activate_model(
+    req: ModelActivateRequest,
+    *,
+    set_default: bool,
+    app_state: Any,
+) -> dict[str, Any]:
+    manager: ModelRuntimeManager = app_state.runtime_manager
     explicit = {}
     for field_name in [
         "backend", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch",
         "timeout", "offload_kqv", "flash_attn", "use_mmap", "enable_thinking",
         "show_thinking", "verbose", "llama_server_port", "llama_server_bin",
         "mlx_vlm_server_port", "mmproj_path", "startup_timeout",
+        "max_concurrent_requests",
     ]:
         value = getattr(req, field_name)
         if value is not None:
@@ -989,8 +988,8 @@ def _load_or_activate_model(req: ModelActivateRequest, *, set_default: bool) -> 
             runtime, loaded = manager.load(req.model, **explicit)
         if set_default:
             manager.set_default(runtime.key)
-            app.state.cfg = runtime.cfg
-            app.state.llm = runtime.engine
+            app_state.cfg = runtime.cfg
+            app_state.llm = runtime.engine
         logger.info("Model %s ready (newly loaded: %s)", req.model, loaded)
         return {
             "ok": True,
@@ -1012,16 +1011,16 @@ def _load_or_activate_model(req: ModelActivateRequest, *, set_default: bool) -> 
         raise HTTPException(status_code=500, detail=f"Impossibile caricare il modello '{req.model}': {exc}") from exc
 
 
-@app.delete("/api/v1/models/{model}", tags=["Models"])
-def unload_model(model: str):
+@admin_router.delete("/api/v1/models/{model}", tags=["Models"])
+def unload_model(model: str, request: Request):
     """Unload one idle model without affecting other resident models."""
-    manager: ModelRuntimeManager = app.state.runtime_manager
+    manager: ModelRuntimeManager = request.app.state.runtime_manager
     try:
         runtime = manager.unload(model)
         if manager.default_model:
             default_runtime = manager.resolve()
-            app.state.cfg = default_runtime.cfg
-            app.state.llm = default_runtime.engine
+            request.app.state.cfg = default_runtime.cfg
+            request.app.state.llm = default_runtime.engine
         return {"ok": True, "model": runtime.model_id, "key": runtime.key}
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1029,99 +1028,9 @@ def unload_model(model: str):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
-@app.post("/api/v1/terminal/run", tags=["System"])
-def run_terminal_command(req: TerminalCommandRequest):
-    """Execute a terminal command on the host within the current working directory."""
-    if not hasattr(app.state, "terminal_cwd"):
-        app.state.terminal_cwd = os.getcwd()
-
-    command = req.command.strip()
-    if not command:
-        return {
-            "exit_code": 0,
-            "stdout": "",
-            "stderr": "",
-            "cwd": app.state.terminal_cwd
-        }
-
-    # Handle 'cd' statefully
-    if command.startswith("cd"):
-        parts = shlex.split(command)
-        target = "~"
-        if len(parts) > 1:
-            target = parts[1]
-        
-        try:
-            if target == "~":
-                path = os.path.expanduser("~")
-            else:
-                path = os.path.abspath(os.path.join(app.state.terminal_cwd, target))
-            
-            if not os.path.exists(path):
-                return {
-                    "exit_code": 1,
-                    "stdout": "",
-                    "stderr": f"cd: no such file or directory: {target}",
-                    "cwd": app.state.terminal_cwd
-                }
-            if not os.path.isdir(path):
-                return {
-                    "exit_code": 1,
-                    "stdout": "",
-                    "stderr": f"cd: not a directory: {target}",
-                    "cwd": app.state.terminal_cwd
-                }
-            
-            app.state.terminal_cwd = path
-            return {
-                "exit_code": 0,
-                "stdout": f"Directory cambiata in: {path}",
-                "stderr": "",
-                "cwd": path
-            }
-        except Exception as e:
-            return {
-                "exit_code": 1,
-                "stdout": "",
-                "stderr": f"Errore nel cambio directory: {str(e)}",
-                "cwd": app.state.terminal_cwd
-            }
-
-    # Run command in the shell under the current working directory
-    try:
-        result = subprocess.run(
-            command,
-            shell=True,
-            cwd=app.state.terminal_cwd,
-            capture_output=True,
-            text=True,
-            timeout=15.0
-        )
-        return {
-            "exit_code": result.returncode,
-            "stdout": result.stdout,
-            "stderr": result.stderr,
-            "cwd": app.state.terminal_cwd
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "exit_code": -1,
-            "stdout": "",
-            "stderr": "Errore: Il comando ha superato il timeout di 15 secondi.",
-            "cwd": app.state.terminal_cwd
-        }
-    except Exception as e:
-        return {
-            "exit_code": -1,
-            "stdout": "",
-            "stderr": f"Errore durante l'esecuzione: {str(e)}",
-            "cwd": app.state.terminal_cwd
-        }
-
-
 # Static Files Serving
 
-@app.get("/", response_class=HTMLResponse, tags=["UI"])
+@router.get("/", response_class=HTMLResponse, tags=["UI"])
 def get_ui():
     """Serve the Web UI dashboard."""
     static_file = Path(__file__).parent / "static" / "index.html"
@@ -1130,7 +1039,7 @@ def get_ui():
     raise HTTPException(status_code=404, detail="Web UI file index.html not found.")
 
 
-@app.get("/static/{path:path}", tags=["UI"])
+@router.get("/static/{path:path}", tags=["UI"])
 def get_static_files(path: str):
     """Serve static assets for the Web UI."""
     static_dir = Path(__file__).parent / "static"
@@ -1140,25 +1049,37 @@ def get_static_files(path: str):
     raise HTTPException(status_code=404, detail="File not found")
 
 
-@app.post("/v1/chat/completions", tags=["Inference"])
-@app.post("/api/v1/chat", tags=["Inference"])
-def chat_completions(req: ChatCompletionRequest):
+@router.post("/v1/chat/completions", tags=["Inference"])
+@router.post("/api/v1/chat", tags=["Inference"])
+def chat_completions(request: Request, req: ChatCompletionRequest):
     """Generate completions for user chat prompts (supports both OpenAI-style and legacy formats)."""
     started_at = time.perf_counter()
 
     # Convert request object to payload dict for existing logic
     request_payload = req.model_dump(exclude_none=True)
-    manager: ModelRuntimeManager = app.state.runtime_manager
+    app_state = request.app.state
+    manager: ModelRuntimeManager = app_state.runtime_manager
     try:
         runtime = manager.resolve(request_payload.get("model"))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     cfg = runtime.cfg
-    runtime_status = runtime.status
     try:
         messages = _normalize_messages(request_payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    required_modalities = _detect_modalities(messages)
+    supported_modalities = set(cfg.get("modalities") or ["text"])
+    if not required_modalities.issubset(supported_modalities):
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "unsupported_modality",
+                "required": sorted(required_modalities),
+                "supported": sorted(supported_modalities),
+                "model": runtime.key,
+            },
+        )
 
     max_tokens = request_payload.get("max_tokens") or request_payload.get("max_output_tokens")
 
@@ -1182,7 +1103,6 @@ def chat_completions(req: ChatCompletionRequest):
         "repeat_penalty": float(request_payload.get("repeat_penalty", cfg.get("default_repeat_penalty", 1.1))),
         "presence_penalty": float(request_payload.get("presence_penalty", 0.0)),
         "frequency_penalty": float(request_payload.get("frequency_penalty", 0.0)),
-        "stream": True,  # Keep streaming for internal console logs & updates when supported
         "model": runtime.model_id,
         "enable_thinking": enable_thinking,
     }
@@ -1201,19 +1121,9 @@ def chat_completions(req: ChatCompletionRequest):
 
     # Handle stream vs non-stream request
     wants_stream = request_payload.get("stream", False)
-    if not wants_stream and cfg.get("backend") in {"llama_server", "mlx_vlm_server"}:
-        kwargs["stream"] = False
-
     def generate_chat_completions_stream():
-        with runtime.lock:
-            runtime_status.update({
-                "active": True,
-                "active_requests": 1,
-                "phase": "prompt_eval",
-                "tokens_generated": 0,
-                "max_tokens": int(max_tokens) if max_tokens else 0,
-                "started_at": time.perf_counter(),
-            })
+        with manager.lease_runtime(runtime):
+            runtime.mark_started(int(max_tokens) if max_tokens else 0)
 
             try:
                 print(
@@ -1227,17 +1137,16 @@ def chat_completions(req: ChatCompletionRequest):
                     kwargs["model"], len(messages), kwargs["temperature"],
                     kwargs.get("max_tokens", "default"),
                 )
-                stream = runtime.engine.create_chat_completion(**kwargs)
+                stream = runtime.engine.stream(kwargs)
 
                 is_thinking = False
                 is_thinking_for_client = False
 
                 for chunk in stream:
-                    if getattr(app.state, "shutdown", False):
+                    if getattr(app_state, "shutdown", False):
                         break
-                    if runtime_status["phase"] == "prompt_eval":
-                        runtime_status["phase"] = "generating"
-                        runtime_status["started_at"] = time.perf_counter()
+                    if runtime.snapshot_status()["phase"] == "prompt_eval":
+                        runtime.mark_generating()
                         print("\033[90mPrompt evaluated. Generating:\033[0m\n", end="", flush=True)
 
                     choices = chunk.get("choices")
@@ -1260,9 +1169,7 @@ def chat_completions(req: ChatCompletionRequest):
                             is_thinking = False
                             print("\n\033[92m[RESPONSE]\033[0m ", end="", flush=True)
 
-                        runtime_status["tokens_generated"] += 1
-                        runtime_status["last_token_at"] = time.perf_counter()
-                        runtime_status["last_content"] = (runtime_status["last_content"] + token)[-100:]
+                        runtime.record_output(token)
 
                     # Handle streaming filtration if show_thinking is False
                     if not show_thinking:
@@ -1296,9 +1203,9 @@ def chat_completions(req: ChatCompletionRequest):
                     yield f"data: {json.dumps(chunk)}\n\n"
 
                 elapsed = time.perf_counter() - started_at
-                tokens = runtime_status["tokens_generated"]
+                tokens = runtime.snapshot_status()["output_chunks"]
                 speed = tokens / elapsed if elapsed > 0 else 0
-                print(f"\n\033[92m[Inference complete] Generated {tokens} tokens in {elapsed:.2f}s ({speed:.1f} tokens/s)\033[0m\n", flush=True)
+                print(f"\n\033[92m[Inference complete] Received {tokens} chunks in {elapsed:.2f}s ({speed:.1f} chunks/s)\033[0m\n", flush=True)
                 yield "data: [DONE]\n\n"
             except Exception as e:
                 import traceback
@@ -1306,137 +1213,95 @@ def chat_completions(req: ChatCompletionRequest):
                 print(f"[LLM] Request failed | model={runtime.key} error={e}", flush=True)
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
             finally:
-                runtime_status["active"] = False
-                runtime_status["active_requests"] = 0
-                runtime_status["phase"] = "idle"
+                runtime.mark_idle()
 
     if wants_stream:
         return StreamingResponse(generate_chat_completions_stream(), media_type="text/event-stream")
 
-    # Non-streaming request: Reconstruct response from stream generator
-    with runtime.lock:
-        runtime_status.update({
-            "active": True,
-            "active_requests": 1,
-            "phase": "prompt_eval",
-            "tokens_generated": 0,
-            "max_tokens": int(max_tokens) if max_tokens else 0,
-            "started_at": time.perf_counter(),
-        })
+    # Non-streaming request uses the engine's explicit completion contract.
+    with manager.lease_runtime(runtime):
+        runtime.mark_started(int(max_tokens) if max_tokens else 0)
 
         try:
-            stream = runtime.engine.create_chat_completion(**kwargs)
-            if isinstance(stream, dict):
-                return _build_response(
-                    stream,
-                    model_id=cfg["model_id"],
-                    backend=getattr(runtime.engine, "backend", cfg.get("backend", "unknown")),
-                    started_at=started_at,
-                    finished_at=time.perf_counter(),
-                    show_thinking=show_thinking,
-                )
-            print(f"\n\033[94m[{time.strftime('%H:%M:%S')}] LLM inference started | Model: {kwargs['model']} | Messages: {len(messages)} | Temp: {kwargs['temperature']} | Max Tokens: {kwargs.get('max_tokens', 'default')}\033[0m", flush=True)
-
-            full_content = ""
-            raw_response = None
-            is_thinking = False
-
-            for chunk in stream:
-                if getattr(app.state, "shutdown", False):
-                    break
-                if runtime_status["phase"] == "prompt_eval":
-                    runtime_status["phase"] = "generating"
-                    runtime_status["started_at"] = time.perf_counter()
-                    print("\033[90mPrompt evaluated. Generating:\033[0m\n", end="", flush=True)
-
-                choices = chunk.get("choices")
-                if not choices:
-                    continue
-                choice = choices[0]
-                if not isinstance(choice, dict):
-                    continue
-                delta = choice.get("delta")
-                if not isinstance(delta, dict):
-                    delta = {}
-                    choice["delta"] = delta
-                token = delta.get("content") or ""
-                if token:
-                    if "<think>" in token:
-                        is_thinking = True
-                        print("\n\033[93m[THINKING]\033[0m ", end="", flush=True)
-                    print(f"\033[90m{token}\033[0m" if is_thinking else token, end="", flush=True)
-                    if "</think>" in token:
-                        is_thinking = False
-                        print("\n\033[92m[RESPONSE]\033[0m ", end="", flush=True)
-
-                    full_content += token
-                    runtime_status["tokens_generated"] += 1
-                    runtime_status["last_token_at"] = time.perf_counter()
-                    runtime_status["last_content"] = full_content[-100:]
-
-                if raw_response is None:
-                    raw_response = chunk
-
-            elapsed = time.perf_counter() - started_at
-            tokens = runtime_status["tokens_generated"]
-            speed = tokens / elapsed if elapsed > 0 else 0
-            print(f"\n\033[92m[Inference complete] Generated {tokens} tokens in {elapsed:.2f}s ({speed:.1f} tokens/s)\033[0m\n", flush=True)
-
-            if raw_response:
-                raw_response["choices"][0]["message"] = {"role": "assistant", "content": full_content}
-                raw_response["usage"] = {
-                    "prompt_tokens": 0,
-                    "completion_tokens": runtime_status["tokens_generated"],
-                    "total_tokens": runtime_status["tokens_generated"],
-                }
-
-            finished_at = time.perf_counter()
-            if raw_response is None:
-                raw_response = {
-                    "id": "chatcmpl-local-empty",
-                    "object": "chat.completion",
-                    "created": int(time.time()),
-                    "model": cfg["model_id"],
-                    "choices": [{"index": 0, "message": {"role": "assistant", "content": full_content}, "finish_reason": "stop"}],
-                }
-
-            response = _build_response(
+            raw_response = runtime.engine.complete(kwargs)
+            return _build_response(
                 raw_response,
                 model_id=cfg["model_id"],
                 backend=getattr(runtime.engine, "backend", cfg.get("backend", "unknown")),
                 started_at=started_at,
-                finished_at=finished_at,
+                finished_at=time.perf_counter(),
                 show_thinking=show_thinking,
             )
-            return response
 
         except Exception as exc:
             import traceback
             logger.error("Inference error:\n%s", traceback.format_exc())
             raise HTTPException(status_code=500, detail=f"Inference failed: {exc}")
         finally:
-            runtime_status["active"] = False
-            runtime_status["active_requests"] = 0
-            runtime_status["phase"] = "idle"
+            runtime.mark_idle()
 
 
 # ── Public entry point ──────────────────────────────────────────────────────────
+
+def create_app(
+    manager: ModelRuntimeManager | None = None,
+    *,
+    settings: ServerSettings | None = None,
+) -> FastAPI:
+    """Create an isolated FastAPI application for one runtime manager."""
+    resolved_settings = settings or ServerSettings()
+    application = FastAPI(
+        title="Local LLM Server API",
+        description="OpenAI-compatible API serving local LLMs (Llama-cpp, MLX, llama-server multimodal).",
+        version="0.3.0",
+        docs_url="/docs",
+        redoc_url="/redoc",
+        lifespan=_app_lifespan,
+    )
+    if resolved_settings.cors_origins:
+        origins = list(resolved_settings.cors_origins)
+        application.add_middleware(
+            CORSMiddleware,
+            allow_origins=origins,
+            allow_credentials="*" not in origins,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    application.include_router(router)
+    if resolved_settings.enable_admin_api:
+        application.include_router(admin_router)
+    application.state.settings = resolved_settings
+    application.state.shutdown = False
+    application.state.log_buffer = LogStreamBuffer(limit=2000)
+    application.state.log_handler = _new_log_handler(application.state.log_buffer)
+    if manager is not None:
+        default_runtime = manager.resolve()
+        application.state.runtime_manager = manager
+        application.state.cfg = default_runtime.cfg
+        application.state.llm = default_runtime.engine
+    return application
+
+
+app = create_app()
 
 def configure_runtime(
     cfg: dict[str, Any],
     llm: Any,
     manager: ModelRuntimeManager | None = None,
+    *,
+    target_app: FastAPI | None = None,
 ) -> ModelRuntimeManager:
     """Attach a single- or multi-model runtime manager to the FastAPI app."""
+    application = target_app or app
     if manager is None:
         manager = ModelRuntimeManager(default_model=str(cfg["model"]))
         manager.add(cfg, llm)
     default_runtime = manager.resolve()
-    app.state.runtime_manager = manager
-    app.state.cfg = default_runtime.cfg
-    app.state.llm = default_runtime.engine
-    app.state.shutdown = False
-    app.state.terminal_cwd = os.getcwd()
+    application.state.runtime_manager = manager
+    application.state.cfg = default_runtime.cfg
+    application.state.llm = default_runtime.engine
+    application.state.shutdown = False
+    _install_log_handler(application)
     return manager
 
 
@@ -1444,12 +1309,20 @@ def run_server(
     cfg: dict[str, Any],
     llm: Any,
     manager: ModelRuntimeManager | None = None,
+    *,
+    enable_admin_api: bool = False,
+    cors_origins: list[str] | tuple[str, ...] | None = None,
 ) -> None:
     """Start the FastAPI uvicorn server."""
-    import os
     import uvicorn
     
-    manager = configure_runtime(cfg, llm, manager)
+    application = create_app(
+        settings=ServerSettings(
+            enable_admin_api=enable_admin_api,
+            cors_origins=tuple(cors_origins or ()),
+        )
+    )
+    manager = configure_runtime(cfg, llm, manager, target_app=application)
     cfg = manager.resolve().cfg
 
     class CustomUvicornServer(uvicorn.Server):
@@ -1470,24 +1343,16 @@ def run_server(
     print(f"[*] 👉 API usage examples at:  http://{cfg['host']}:{cfg['port']}/example\n", flush=True)
 
     try:
-        config = uvicorn.Config(
-            app,
-            host=cfg["host"],
-            port=cfg["port"],
-            log_level="warning" if not cfg.get("verbose", False) else "info",
-        )
-        server = CustomUvicornServer(config)
-        server.run()
-    except KeyboardInterrupt:
-        logger.info("Server uvicorn process interrupted by keyboard event.")
-
-    try:
-        if manager is not None:
-            manager.shutdown()
-    except Exception:
-        pass
-    if hasattr(sys.stdout, "original"):
-        sys.stdout = sys.stdout.original
-    if hasattr(sys.stderr, "original"):
-        sys.stderr = sys.stderr.original
-    os._exit(0)
+        try:
+            config = uvicorn.Config(
+                application,
+                host=cfg["host"],
+                port=cfg["port"],
+                log_level="warning" if not cfg.get("verbose", False) else "info",
+            )
+            server = CustomUvicornServer(config)
+            server.run()
+        except KeyboardInterrupt:
+            logger.info("Server uvicorn process interrupted by keyboard event.")
+    finally:
+        manager.shutdown()

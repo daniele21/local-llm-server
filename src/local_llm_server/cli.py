@@ -68,6 +68,7 @@ def main() -> None:
     p_serve.add_argument("--mlx-vlm-server-port", type=int, default=None, dest="mlx_vlm_server_port")
     p_serve.add_argument("--mmproj-path", default=None, dest="mmproj_path")
     p_serve.add_argument("--startup-timeout", type=int, default=None, dest="startup_timeout")
+    p_serve.add_argument("--max-concurrent-requests", type=int, default=None, dest="max_concurrent_requests")
     p_serve.add_argument("--chat-format", default=None, dest="chat_format")
     p_serve.add_argument("--force-json", action=argparse.BooleanOptionalAction, default=None)
     p_serve.add_argument("--show-thinking", action=argparse.BooleanOptionalAction, default=None, dest="show_thinking")
@@ -75,6 +76,18 @@ def main() -> None:
     p_serve.add_argument("--no-download", action="store_true", default=False, dest="no_download",
                          help="Fail if the model is not already downloaded.")
     p_serve.add_argument("--verbose", action="store_true", default=False)
+    p_serve.add_argument(
+        "--enable-admin-api",
+        action="store_true",
+        default=False,
+        help="Enable model management, registry, and log-stream endpoints.",
+    )
+    p_serve.add_argument(
+        "--cors-origin",
+        action="append",
+        default=[],
+        help="Allowed browser origin; repeat for multiple origins. CORS is disabled by default.",
+    )
 
     # ── models ────────────────────────────────────────────────────────────────
     sub.add_parser("models", help="List available models from the registry.")
@@ -104,6 +117,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
     explicit: dict = {}
     for key in ("backend", "host", "port", "ctx_size", "n_gpu_layers", "n_threads",
                 "llama_server_port", "llama_server_bin", "mlx_vlm_server_port", "mmproj_path", "startup_timeout",
+                "max_concurrent_requests",
                 "chat_format", "force_json", "show_thinking", "enable_thinking",
                 "no_download", "verbose"):
         val = getattr(args, key, None)
@@ -126,18 +140,6 @@ def _cmd_serve(args: argparse.Namespace) -> None:
                 manager.load(model_key, **per_model_explicit)
         except Exception:
             manager.shutdown()
-            try:
-                from .server import log_buffer
-                with log_buffer.lock:
-                    logs = list(log_buffer.buffer)
-                if logs:
-                    sys.stderr.write("\n--- Captured logs during startup ---\n")
-                    for line in logs:
-                        sys.stderr.write(line + "\n")
-                    sys.stderr.write("-------------------------------------\n\n")
-                    sys.stderr.flush()
-            except Exception:
-                pass
             raise
         default_runtime = manager.resolve()
         cfg = default_runtime.cfg
@@ -154,10 +156,17 @@ def _cmd_serve(args: argparse.Namespace) -> None:
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    run_server(cfg, llm, manager=manager)
+    run_server(
+        cfg,
+        llm,
+        manager=manager,
+        enable_admin_api=args.enable_admin_api,
+        cors_origins=args.cors_origin,
+    )
 
 
 def _cmd_models() -> None:
+    from .downloader import is_huggingface_snapshot_cached
     from .registry import load_registry
 
     registry = load_registry()
@@ -179,13 +188,17 @@ def _cmd_models() -> None:
         tags = ", ".join(entry.get("tags") or [])
         if entry.get("path"):
             path = Path(str(entry["path"])).expanduser()
-        else:
+            model_ready = path.exists()
+        elif entry.get("filename"):
             path = models_dir / entry["filename"]
+            model_ready = path.exists()
+        else:
+            path = Path(str(model_id))
+            model_ready = is_huggingface_snapshot_cached(str(model_id))
         if entry.get("lmstudio_path"):
             lmstudio_path = Path.home() / ".lmstudio" / "models" / str(entry["lmstudio_path"]) / str(entry["filename"])
             if lmstudio_path.exists():
                 path = lmstudio_path
-        model_ready = path.exists()
         mmproj_filename = entry.get("mmproj_filename")
         if mmproj_filename:
             mmproj_path = models_dir / str(mmproj_filename)
@@ -204,7 +217,7 @@ def _cmd_models() -> None:
 
 def _cmd_download(model: str) -> None:
     from .registry import load_registry
-    from .downloader import download_model
+    from .downloader import download_huggingface_snapshot, download_model
 
     registry = load_registry()
     entry = registry["models"].get(model)
@@ -221,6 +234,11 @@ def _cmd_download(model: str) -> None:
             return
         print(f"Error: local model path not found: {path}", file=sys.stderr)
         sys.exit(1)
+
+    if not entry.get("filename") and entry.get("model_id"):
+        path = download_huggingface_snapshot(str(entry["model_id"]))
+        print(f"Model '{model}' downloaded successfully: {path}")
+        return
 
     artifacts = [
         ("model", entry.get("url"), entry.get("filename")),
