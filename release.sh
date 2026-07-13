@@ -13,7 +13,7 @@
 #      and build the package wheels (retaining previous builds in dist/).
 #   4. Commits the version bump files locally.
 #   5. Creates an annotated git tag corresponding to the new version (e.g., v0.3.1).
-#   6. Prompts to push the commit and tag to GitHub to trigger the release workflow.
+#   6. Pushes the commit and tag to GitHub automatically to trigger the release workflow.
 #
 set -euo pipefail
 
@@ -51,27 +51,15 @@ tag_name="v$new_version"
 
 echo "[*] Creating git commit for version $new_version..."
 git add pyproject.toml uv.lock src/local_llm_server/server.py
-git commit -m "chore: release version $new_version"
+git commit -m "chore: release version $new_version" || echo "[*] No changes to commit"
 
 echo "[*] Creating Git tag $tag_name..."
-git tag -a "$tag_name" -m "Release $tag_name"
+git tag -f -a "$tag_name" -m "Release $tag_name"
 
-echo ""
-echo "=========================================================="
-echo "Release $tag_name has been prepared locally!"
-echo "To push changes and trigger the deploy on GitHub, run:"
-echo "  git push origin main && git push origin $tag_name"
-echo "=========================================================="
-echo ""
+echo "[*] Pushing commit to main..."
+git push origin main
 
-read -p "Would you like to push to origin now? (y/N) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-  echo "[*] Pushing commit to main..."
-  git push origin main
-  echo "[*] Pushing tag $tag_name..."
-  git push origin "$tag_name"
-  echo "[*] Pushed successfully! GitHub Actions will now build and deploy the release."
-else
-  echo "[*] Done. Remember to push manually when ready."
-fi
+echo "[*] Pushing tag $tag_name..."
+git push origin "$tag_name" --force
+
+echo "[*] Release $tag_name successfully pushed! GitHub Actions will now build and deploy the release."
