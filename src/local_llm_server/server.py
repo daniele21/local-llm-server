@@ -5,12 +5,15 @@ Provides automatically generated interactive OpenAPI documentation at /docs.
 from __future__ import annotations
 
 import asyncio
+import copy
+import hashlib
 import json
 import logging
 import threading
 import time
 import queue
 import collections
+from collections import OrderedDict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +27,69 @@ from pydantic import BaseModel, Field
 from .runtime import ModelRuntimeManager
 
 logger = logging.getLogger("local-llm.server")
+
+
+@dataclass
+class _CacheEntry:
+    value: dict[str, Any]
+    stored_at: float
+
+
+class InferenceResponseCache:
+    """Thread-safe, bounded LRU cache for completed inference responses."""
+
+    def __init__(self, max_entries: int = 256, ttl_seconds: float = 600.0) -> None:
+        self.max_entries = max(0, int(max_entries))
+        self.ttl_seconds = max(0.0, float(ttl_seconds))
+        self._entries: OrderedDict[str, _CacheEntry] = OrderedDict()
+        self._lock = threading.Lock()
+
+    @property
+    def enabled(self) -> bool:
+        return self.max_entries > 0 and self.ttl_seconds > 0
+
+    def get(self, key: str) -> tuple[dict[str, Any] | None, float]:
+        if not self.enabled:
+            return None, 0.0
+        now = time.monotonic()
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return None, 0.0
+            age = now - entry.stored_at
+            if age >= self.ttl_seconds:
+                del self._entries[key]
+                return None, age
+            self._entries.move_to_end(key)
+            return copy.deepcopy(entry.value), age
+
+    def put(self, key: str, value: dict[str, Any]) -> None:
+        if not self.enabled:
+            return
+        with self._lock:
+            self._entries[key] = _CacheEntry(copy.deepcopy(value), time.monotonic())
+            self._entries.move_to_end(key)
+            while len(self._entries) > self.max_entries:
+                self._entries.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
+
+def _inference_cache_key(runtime: Any, kwargs: dict[str, Any]) -> str:
+    canonical = json.dumps(
+        {
+            "runtime_key": runtime.key,
+            "runtime_loaded_at": runtime.loaded_at,
+            "backend": getattr(runtime.engine, "backend", runtime.cfg.get("backend")),
+            "request": kwargs,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 # ── Log capturing infrastructure ───────────────────────────────────────────────
 
@@ -303,6 +369,8 @@ def _build_response(
 class ServerSettings:
     enable_admin_api: bool = False
     cors_origins: tuple[str, ...] = ()
+    inference_cache_max_entries: int = 256
+    inference_cache_ttl_seconds: float = 600.0
 
 @asynccontextmanager
 async def _app_lifespan(current_app: FastAPI):
@@ -1219,11 +1287,40 @@ def chat_completions(request: Request, req: ChatCompletionRequest):
         return StreamingResponse(generate_chat_completions_stream(), media_type="text/event-stream")
 
     # Non-streaming request uses the engine's explicit completion contract.
+    # Only greedy requests are cached: sampled responses are intentionally fresh.
+    response_cache: InferenceResponseCache = app_state.inference_response_cache
+    cache_key: str | None = None
+    if response_cache.enabled and kwargs["temperature"] == 0.0:
+        cache_key = _inference_cache_key(runtime, kwargs)
+        cached_response, cache_age = response_cache.get(cache_key)
+        if cached_response is not None:
+            logger.info(
+                "Inference cache hit | model=%s key=%s age=%.2fs",
+                runtime.key,
+                cache_key[:12],
+                cache_age,
+            )
+            return _build_response(
+                cached_response,
+                model_id=cfg["model_id"],
+                backend=getattr(runtime.engine, "backend", cfg.get("backend", "unknown")),
+                started_at=started_at,
+                finished_at=time.perf_counter(),
+                show_thinking=show_thinking,
+            )
+        logger.debug(
+            "Inference cache miss | model=%s key=%s",
+            runtime.key,
+            cache_key[:12],
+        )
+
     with manager.lease_runtime(runtime):
         runtime.mark_started(int(max_tokens) if max_tokens else 0)
 
         try:
             raw_response = runtime.engine.complete(kwargs)
+            if cache_key is not None:
+                response_cache.put(cache_key, raw_response)
             return _build_response(
                 raw_response,
                 model_id=cfg["model_id"],
@@ -1274,6 +1371,10 @@ def create_app(
     application.state.shutdown = False
     application.state.log_buffer = LogStreamBuffer(limit=2000)
     application.state.log_handler = _new_log_handler(application.state.log_buffer)
+    application.state.inference_response_cache = InferenceResponseCache(
+        max_entries=resolved_settings.inference_cache_max_entries,
+        ttl_seconds=resolved_settings.inference_cache_ttl_seconds,
+    )
     if manager is not None:
         default_runtime = manager.resolve()
         application.state.runtime_manager = manager
@@ -1301,6 +1402,7 @@ def configure_runtime(
     application.state.cfg = default_runtime.cfg
     application.state.llm = default_runtime.engine
     application.state.shutdown = False
+    application.state.inference_response_cache.clear()
     _install_log_handler(application)
     return manager
 

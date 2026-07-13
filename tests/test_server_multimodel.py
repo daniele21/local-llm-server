@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import threading
 
 import pytest
@@ -21,8 +22,10 @@ class _Engine:
         self.content = content
         self.barrier = barrier
         self.received_model = None
+        self.complete_calls = 0
 
     def complete(self, payload):
+        self.complete_calls += 1
         self.received_model = payload["model"]
         if self.barrier:
             self.barrier.wait(timeout=2)
@@ -103,6 +106,39 @@ def test_chat_without_model_uses_default_runtime():
 
     assert response["content"] == "default response"
     assert text.received_model == "org/text"
+
+
+def test_deterministic_non_streaming_response_uses_lru_cache(caplog):
+    text = _Engine("cached response")
+    _install_manager(text, _Engine("vision"))
+    req = ChatCompletionRequest(
+        messages=[{"role": "user", "content": "same prompt"}],
+        temperature=0.0,
+        stream=False,
+    )
+
+    first = chat_completions(_request(), req)
+    with caplog.at_level(logging.INFO, logger="local-llm.server"):
+        second = chat_completions(_request(), req)
+
+    assert first["content"] == second["content"] == "cached response"
+    assert text.complete_calls == 1
+    assert "Inference cache hit | model=text" in caplog.text
+
+
+def test_sampled_response_is_not_cached():
+    text = _Engine("fresh response")
+    _install_manager(text, _Engine("vision"))
+    req = ChatCompletionRequest(
+        messages=[{"role": "user", "content": "same prompt"}],
+        temperature=0.7,
+        stream=False,
+    )
+
+    chat_completions(_request(), req)
+    chat_completions(_request(), req)
+
+    assert text.complete_calls == 2
 
 
 def test_chat_rejects_model_that_is_not_resident():
