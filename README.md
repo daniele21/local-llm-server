@@ -145,6 +145,9 @@ lifecycle leases and backend concurrency are therefore independent.
 External backends compose a shared `ManagedProcess` for immediate log draining,
 readiness checks, bounded log tails, and process-group terminate/kill cleanup. Engine adapters
 expose separate `complete(payload)`, `stream(payload)`, and `close()` operations.
+`model_sources.py` is the single owner of artifact discovery and completeness:
+configuration, CLI listing, explicit downloads, and MLX engines all use the same
+LM Studio → Hugging Face cache → download resolution rules.
 `create_app()` builds isolated FastAPI instances, so embedding two servers does
 not share runtime state.
 
@@ -259,19 +262,20 @@ Start the inference server.
 | `--host <host>` | `127.0.0.1` | Bind address |
 | `--port <port>` | `1235` | Public HTTP port |
 | `--ctx-size <n>` | model default | Context window size |
+| `--max-kv-size <n>` | model default | Maximum MLX KV-cache size in tokens |
 | `--n-gpu-layers <n>` | model default | GPU-offloaded layers |
 | `--n-threads <n>` | `8` | CPU inference threads |
 | `--llama-server-port <n>` | `8091` | Internal subprocess port for `llama_server` backend |
 | `--llama-server-bin <path>` | auto-detect | Path to `llama-server` executable |
 | `--mlx-vlm-server-port <n>` | `8092` | Internal subprocess port for `mlx_vlm.server` |
 | `--mmproj-path <path>` | registry/auto-detect | Multimodal projector GGUF |
-| `--startup-timeout <s>` | `60` | `llama-server` readiness timeout |
+| `--startup-timeout <s>` | model default (`60`) | Backend subprocess readiness timeout |
 | `--max-concurrent-requests <n>` | model default (`1`) | Same-model requests admitted concurrently |
 | `--chat-format <fmt>` | model default | llama.cpp chat format override |
 | `--force-json / --no-force-json` | `false` | Request JSON output by default |
-| `--enable-thinking / --no-enable-thinking` | model default | Enable thinking mode |
-| `--show-thinking / --no-show-thinking` | `false` | Include `<think>` blocks in output |
-| `--no-download` | `false` | Fail if model is not already downloaded |
+| `--enable-thinking / --no-enable-thinking` | model default | Override thinking only for models declared `switchable` |
+| `--show-thinking / --no-show-thinking` | `false` | Include `<think>` blocks when the model can produce them |
+| `--no-download` | `false` | Fail before backend startup unless all model artifacts are local and complete |
 | `--verbose` | `false` | Verbose logging |
 | `--enable-admin-api` | `false` | Enable model management, registry, and log-stream endpoints |
 | `--cors-origin <origin>` | disabled | Allow one browser origin; repeat for multiple origins |
@@ -328,8 +332,9 @@ Requests select a runtime using the registry key or model ID:
 
 ### `local-llm download <key>`
 Pre-download all artifacts for a registry model without starting the server.
-GGUF multimodal models download the language model and `mmproj`; MLX repositories
-are downloaded into the standard Hugging Face cache.
+An already complete LM Studio installation is reused. GGUF multimodal models
+download the language model and `mmproj`; otherwise MLX repositories are
+downloaded into the standard Hugging Face cache.
 ```bash
 local-llm download qwen3-vl-4b
 ```
@@ -349,10 +354,21 @@ local-llm download qwen3-vl-4b
 | `voxtral-mini-3b` | `llama_server` | 3B | ~3.8 GB | multimodal, audio, small | Audio/text multimodal processing |
 
 > [!NOTE]
-> `qwen3-vl-4b` defaults to `mlx-community/Qwen3-VL-4B-Instruct-4bit` and is
-> resolved through the Hugging Face cache, independently of LM Studio. This MLX
-> package includes the vision encoder and projector, so it does not use a
-> separate `mmproj` file. GGUF multimodal models still require both artifacts.
+> `qwen3-vl-4b` first reuses the complete LM Studio installation at
+> `lmstudio-community/Qwen3-VL-4B-Instruct-MLX-4bit`, then a complete Hugging
+> Face cache entry, and finally downloads
+> `mlx-community/Qwen3-VL-4B-Instruct-4bit`. Downloading is completed before the
+> backend startup timeout begins. This MLX package includes the vision encoder
+> and projector, so it does not use a separate `mmproj` file.
+
+Model completeness is checked centrally. MLX directories require configuration,
+tokenizer/processor metadata, and either consolidated weights or every shard
+listed by `model.safetensors.index.json`. An incomplete Hugging Face cache is not
+reported as downloaded.
+
+Thinking is a model capability, not merely a backend option. Registry entries use
+`thinking_mode: none`, `switchable`, or `always`. Qwen3-VL-4B-Instruct is `none`;
+the separate Qwen3-VL Thinking weights should be registered as another model.
 
 The merged built-in/user registry is validated before startup. Invalid aliases,
 unsupported backends, invalid ports or concurrency, inconsistent modalities, and
@@ -371,6 +387,7 @@ All major CLI flags have matching environment variables:
 | `LOCAL_LLM_PORT` | Public HTTP port |
 | `LOCAL_LLM_BACKEND` | Backend override |
 | `LOCAL_LLM_CTX_SIZE` | Context window size |
+| `LOCAL_LLM_MAX_KV_SIZE` | Maximum MLX KV-cache size in tokens |
 | `LOCAL_LLM_N_GPU_LAYERS` | GPU layers |
 | `LOCAL_LLM_N_THREADS` | CPU threads |
 | `LOCAL_LLM_N_BATCH` | Batch size |
@@ -384,7 +401,7 @@ All major CLI flags have matching environment variables:
 | `LOCAL_LLM_SERVER_PORT` | Internal `llama-server` port |
 | `LOCAL_LLM_SERVER_BIN` | `llama-server` executable path |
 | `LOCAL_LLM_MLX_VLM_SERVER_PORT` | Internal `mlx_vlm.server` port |
-| `LOCAL_LLM_STARTUP_TIMEOUT` | `llama-server` startup timeout |
+| `LOCAL_LLM_STARTUP_TIMEOUT` | Backend subprocess startup timeout |
 
 ### Custom Model Registry
 Add or override models in `~/.local-llm/models.yaml`:
@@ -397,6 +414,7 @@ models:
     model_id: "org/my-model"
     size_gb: 3.0
     backend: llama_cpp
+    thinking_mode: switchable
     params:
       ctx_size: 8192
       n_gpu_layers: 35
@@ -626,6 +644,19 @@ subprocess behavior:
 The VLM readiness check confirms that `/health` reports the exact preloaded
 model, preventing a healthy process on a reused port from being mistaken for the
 requested runtime.
+
+Also verify the source-resolution contract:
+
+1. With a complete LM Studio model, start with `--no-download` and confirm no
+   Hugging Face request is made.
+2. With only a complete Hugging Face cache, confirm the subprocess receives its
+   local snapshot path.
+3. With an incomplete cache, confirm `--no-download` fails before spawning the
+   backend; without it, confirm the download finishes before readiness polling.
+
+Finally, keep the Web UI open on the live server-log view and press `Ctrl+C`.
+The SSE connection must close and the server must exit promptly; graceful
+shutdown is bounded to 10 seconds if another HTTP connection does not drain.
 
 ### Build & Deploy Packaged Assets
 Run the deploy script to increment patch version, run tests, and build wheel files:

@@ -43,9 +43,17 @@ class _Process:
         return 0
 
 
+def _write_complete_vlm(path):
+    path.mkdir()
+    (path / "config.json").write_text("{}")
+    (path / "tokenizer_config.json").write_text("{}")
+    (path / "preprocessor_config.json").write_text("{}")
+    (path / "model.safetensors").write_bytes(b"weights")
+
+
 def test_mlx_vlm_server_uses_local_model_and_openai_endpoint(monkeypatch, tmp_path):
     model = tmp_path / "Qwen3-VL-4B-Instruct-MLX-4bit"
-    model.mkdir()
+    _write_complete_vlm(model)
     commands = []
 
     monkeypatch.setattr("subprocess.Popen", lambda command, **_kwargs: commands.append(command) or _Process())
@@ -66,15 +74,38 @@ def test_mlx_vlm_server_uses_local_model_and_openai_endpoint(monkeypatch, tmp_pa
             "mlx_vlm_server_port": 19092,
             "startup_timeout": 1,
             "timeout": 5,
+            "max_kv_size": 8192,
+            "thinking_mode": "none",
         }
     )
 
     assert isinstance(engine, MLXVLMServerEngine)
     assert commands[0][1:4] == ["-m", "mlx_vlm.server", "--model"]
     assert commands[0][4] == str(model)
-    assert engine.complete({"messages": []})["choices"][0]["message"]["content"] == "ok"
+    assert commands[0][-2:] == ["--max-kv-size", "8192"]
+    assert engine.complete({"messages": [], "repeat_penalty": 1.2})["choices"][0]["message"]["content"] == "ok"
     assert requests[0]["model"] == str(model)
+    assert requests[0]["repetition_penalty"] == 1.2
+    assert "repeat_penalty" not in requests[0]
+    assert "enable_thinking" not in requests[0]
     engine.close()
+
+
+def test_mlx_vlm_switchable_thinking_is_forwarded(monkeypatch):
+    engine = object.__new__(MLXVLMServerEngine)
+    engine.base_url = "http://127.0.0.1:19092"
+    engine.model_path = "/models/qwen-vl-thinking"
+    engine.cfg = {"timeout": 5, "thinking_mode": "switchable"}
+    requests = []
+
+    def urlopen(request, timeout=0):
+        requests.append(json.loads(request.data.decode("utf-8")))
+        return _CompletionResponse()
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    engine.complete({"messages": [], "enable_thinking": False})
+
+    assert requests[0]["enable_thinking"] is False
 
 
 def test_mlx_vlm_server_exposes_backend_http_error(monkeypatch):

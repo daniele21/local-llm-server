@@ -157,6 +157,24 @@ def test_chat_rejects_model_that_is_not_resident():
     assert exc_info.value.status_code == 404
 
 
+def test_chat_rejects_thinking_for_non_thinking_model():
+    _install_manager(_Engine("text"), _Engine("vision"))
+
+    with pytest.raises(HTTPException) as exc_info:
+        chat_completions(
+            _request(),
+            ChatCompletionRequest(
+                model="vision",
+                messages=[{"role": "user", "content": "hello"}],
+                enable_thinking=True,
+                stream=False,
+            ),
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail["code"] == "unsupported_thinking_mode"
+
+
 def test_text_model_rejects_image_before_calling_backend():
     text = _Engine("text")
     _install_manager(text, _Engine("vision"))

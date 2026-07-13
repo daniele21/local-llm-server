@@ -192,6 +192,7 @@ class ModelActivateRequest(BaseModel):
     model: str = Field(..., description="Registry key of the model to activate.")
     backend: Optional[str] = Field(None, description="Inference backend override (llama_cpp, mlx, llama_server, or mlx_vlm_server).")
     ctx_size: Optional[int] = Field(None, description="Context size override.")
+    max_kv_size: Optional[int] = Field(None, ge=1, description="Maximum MLX KV-cache size in tokens.")
     n_gpu_layers: Optional[int] = Field(None, description="Number of GPU layers override.")
     n_threads: Optional[int] = Field(None, description="Number of CPU threads override.")
     n_batch: Optional[int] = Field(None, description="Batch size override.")
@@ -204,7 +205,7 @@ class ModelActivateRequest(BaseModel):
     llama_server_bin: Optional[str] = Field(None, description="Path to llama-server executable.")
     mlx_vlm_server_port: Optional[int] = Field(None, description="Internal mlx_vlm.server subprocess port.")
     mmproj_path: Optional[str] = Field(None, description="Path to multimodal projector GGUF.")
-    startup_timeout: Optional[int] = Field(None, description="llama-server startup timeout in seconds.")
+    startup_timeout: Optional[int] = Field(None, description="Backend subprocess startup timeout in seconds.")
     max_concurrent_requests: Optional[int] = Field(None, ge=1, description="Maximum admitted requests for this runtime.")
     enable_thinking: Optional[bool] = Field(None, description="Enable thinking mode globally.")
     show_thinking: Optional[bool] = Field(None, description="Show thinking globally.")
@@ -372,13 +373,19 @@ class ServerSettings:
     inference_cache_max_entries: int = 256
     inference_cache_ttl_seconds: float = 600.0
 
+
+def begin_app_shutdown(application: FastAPI) -> None:
+    """Notify long-lived responses before Uvicorn waits for them to drain."""
+    application.state.shutdown = True
+
+
 @asynccontextmanager
 async def _app_lifespan(current_app: FastAPI):
     current_app.state.shutdown = False
     try:
         yield
     finally:
-        current_app.state.shutdown = True
+        begin_app_shutdown(current_app)
         _remove_log_handler(current_app)
 
 router = APIRouter()
@@ -414,6 +421,7 @@ def get_health(request: Request):
         "host": cfg.get("host"),
         "port": cfg.get("port"),
         "ctx_size": cfg.get("ctx_size"),
+        "max_kv_size": cfg.get("max_kv_size"),
         "n_gpu_layers": cfg.get("n_gpu_layers"),
         "n_threads": cfg.get("n_threads"),
         "n_batch": cfg.get("n_batch"),
@@ -424,6 +432,7 @@ def get_health(request: Request):
         "timeout": cfg.get("timeout"),
         "enable_thinking": cfg.get("enable_thinking"),
         "show_thinking": cfg.get("show_thinking"),
+        "thinking_mode": cfg.get("thinking_mode", "none"),
         "verbose": cfg.get("verbose"),
         "multimodal": cfg.get("multimodal"),
         "modalities": cfg.get("modalities"),
@@ -434,7 +443,8 @@ def get_health(request: Request):
         "loaded_models": [runtime.key for runtime in manager.list()],
         "admin_api_enabled": admin_enabled,
         "config_capabilities": config_capabilities_for_backend(
-            str(cfg.get("backend", "unknown"))
+            str(cfg.get("backend", "unknown")),
+            thinking_mode=str(cfg.get("thinking_mode", "none")),
         ),
         "endpoints": endpoints,
     }
@@ -489,12 +499,13 @@ def get_models_registry(request: Request):
             model["runtime_status"] = runtime.snapshot_status() if runtime is not None else None
             if runtime is not None:
                 model["config_capabilities"] = config_capabilities_for_backend(
-                    str(runtime.cfg.get("backend", ""))
+                    str(runtime.cfg.get("backend", "")),
+                    thinking_mode=str(runtime.cfg.get("thinking_mode", "none")),
                 )
                 model["runtime_config"] = {
                     key: runtime.cfg.get(key)
                     for key in (
-                        "backend", "model_path", "ctx_size", "n_gpu_layers", "n_threads",
+                        "backend", "model_path", "ctx_size", "max_kv_size", "n_gpu_layers", "n_threads",
                         "n_batch", "n_ubatch", "timeout", "offload_kqv", "flash_attn",
                         "use_mmap", "enable_thinking", "show_thinking", "verbose",
                     )
@@ -1036,7 +1047,7 @@ def _load_or_activate_model(
     manager: ModelRuntimeManager = app_state.runtime_manager
     explicit = {}
     for field_name in [
-        "backend", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch",
+        "backend", "ctx_size", "max_kv_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch",
         "timeout", "offload_kqv", "flash_attn", "use_mmap", "enable_thinking",
         "show_thinking", "verbose", "llama_server_port", "llama_server_bin",
         "mlx_vlm_server_port", "mmproj_path", "startup_timeout",
@@ -1074,6 +1085,8 @@ def _load_or_activate_model(
                 "mlx_vlm_server_port": runtime.cfg.get("mlx_vlm_server_port"),
             },
         }
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Failed to load model %s", req.model)
         raise HTTPException(status_code=500, detail=f"Impossibile caricare il modello '{req.model}': {exc}") from exc
@@ -1155,6 +1168,25 @@ def chat_completions(request: Request, req: ChatCompletionRequest):
     req_enable_thinking = request_payload.get("enable_thinking")
     if req_enable_thinking is None:
         req_enable_thinking = request_payload.get("enable_reasoning")
+    thinking_mode = str(cfg.get("thinking_mode", "none"))
+    if req_enable_thinking is True and thinking_mode == "none":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "unsupported_thinking_mode",
+                "model": runtime.key,
+                "thinking_mode": thinking_mode,
+            },
+        )
+    if req_enable_thinking is False and thinking_mode == "always":
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "thinking_cannot_be_disabled",
+                "model": runtime.key,
+                "thinking_mode": thinking_mode,
+            },
+        )
     enable_thinking = req_enable_thinking if req_enable_thinking is not None else cfg.get("enable_thinking", False)
 
     req_show_thinking = request_payload.get("show_thinking")
@@ -1172,8 +1204,9 @@ def chat_completions(request: Request, req: ChatCompletionRequest):
         "presence_penalty": float(request_payload.get("presence_penalty", 0.0)),
         "frequency_penalty": float(request_payload.get("frequency_penalty", 0.0)),
         "model": runtime.model_id,
-        "enable_thinking": enable_thinking,
     }
+    if thinking_mode == "switchable":
+        kwargs["enable_thinking"] = bool(enable_thinking)
 
     if max_tokens is not None:
         kwargs["max_tokens"] = int(max_tokens)
@@ -1430,6 +1463,7 @@ def run_server(
     class CustomUvicornServer(uvicorn.Server):
         def handle_exit(self, sig: int, frame) -> None:
             print("\n[*] Stopping local-llm-server...", flush=True)
+            begin_app_shutdown(application)
             super().handle_exit(sig, frame)
 
     logger.info(
@@ -1451,10 +1485,12 @@ def run_server(
                 host=cfg["host"],
                 port=cfg["port"],
                 log_level="warning" if not cfg.get("verbose", False) else "info",
+                timeout_graceful_shutdown=10,
             )
             server = CustomUvicornServer(config)
             server.run()
         except KeyboardInterrupt:
             logger.info("Server uvicorn process interrupted by keyboard event.")
     finally:
+        begin_app_shutdown(application)
         manager.shutdown()

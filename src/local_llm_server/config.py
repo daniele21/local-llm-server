@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from .model_sources import resolve_registry_model
 from .registry import load_registry
 
 # ── Hardcoded fallbacks ────────────────────────────────────────────────────────
@@ -49,6 +50,8 @@ _FALLBACKS: dict[str, Any] = {
     "modalities": [],
     "startup_timeout": 60,
     "max_concurrent_requests": 1,
+    "max_kv_size": None,
+    "thinking_mode": "none",
 }
 
 # ── Env-var names ──────────────────────────────────────────────────────────────
@@ -72,6 +75,7 @@ _ENV_MAP: dict[str, str] = {
     "mlx_vlm_server_port": "LOCAL_LLM_MLX_VLM_SERVER_PORT",
     "startup_timeout": "LOCAL_LLM_STARTUP_TIMEOUT",
     "max_concurrent_requests": "LOCAL_LLM_MAX_CONCURRENT_REQUESTS",
+    "max_kv_size": "LOCAL_LLM_MAX_KV_SIZE",
     "default_temperature": "LOCAL_LLM_DEFAULT_TEMPERATURE",
     "default_top_p": "LOCAL_LLM_DEFAULT_TOP_P",
     "default_top_k": "LOCAL_LLM_DEFAULT_TOP_K",
@@ -84,30 +88,12 @@ _INT_ENV = {
     "port", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch", "timeout",
     "llama_server_port", "mlx_vlm_server_port", "startup_timeout", "default_top_k",
     "max_concurrent_requests",
+    "max_kv_size",
 }
 _FLOAT_ENV = {
     "default_temperature", "default_top_p", "default_min_p",
     "default_repeat_penalty",
 }
-
-
-def _lmstudio_model_path(entry: dict[str, Any], filename_key: str = "filename") -> Path | None:
-    lmstudio_path = entry.get("lmstudio_path")
-    filename = entry.get(filename_key)
-    if not lmstudio_path or not filename:
-        return None
-    return Path.home() / ".lmstudio" / "models" / str(lmstudio_path) / str(filename)
-
-
-def _lmstudio_model_directory(entry: dict[str, Any]) -> Path | None:
-    """Return a complete MLX model directory managed by LM Studio, if present."""
-    lmstudio_path = entry.get("lmstudio_path")
-    if not lmstudio_path:
-        return None
-    candidate = Path.home() / ".lmstudio" / "models" / str(lmstudio_path)
-    if (candidate / "config.json").is_file() and any(candidate.glob("*.safetensors")):
-        return candidate
-    return None
 
 
 def build_config(
@@ -139,24 +125,6 @@ def build_config(
 
     # Resolve backend
     backend = explicit.get("backend") or os.getenv("LOCAL_LLM_BACKEND") or entry.get("backend") or reg_params.get("backend") or "llama_cpp"
-
-    # Resolve model_path
-    if model_path is None:
-        if backend in {"mlx", "mlx_vlm_server"}:
-            lmstudio_directory = _lmstudio_model_directory(entry)
-            model_path = (
-                entry.get("path")
-                or (str(lmstudio_directory) if lmstudio_directory else None)
-                or entry.get("model_id")
-                or model
-            )
-        else:
-            filename = entry.get("filename", f"{model}.gguf")
-            lmstudio_path = _lmstudio_model_path(entry, "filename")
-            if lmstudio_path and lmstudio_path.exists():
-                model_path = str(lmstudio_path)
-            else:
-                model_path = str(models_dir / filename)
 
     model_id: str = entry.get("model_id", model)
     download_url: str = entry.get("url", "")
@@ -193,7 +161,6 @@ def build_config(
 
     cfg["model"] = model
     cfg["model_id"] = model_id
-    cfg["model_path"] = model_path
     cfg["download_url"] = download_url
     cfg["models_dir"] = models_dir
     cfg["backend"] = backend
@@ -201,12 +168,46 @@ def build_config(
     cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")
 
+    # Older entries used enable_thinking as both default and capability. Keep
+    # them compatible while making the model-level contract explicit.
+    if "thinking_mode" in entry:
+        cfg["thinking_mode"] = str(entry["thinking_mode"])
+    elif "enable_thinking" in entry.get("params", {}):
+        cfg["thinking_mode"] = "switchable"
+    if cfg["thinking_mode"] == "none":
+        if explicit.get("enable_thinking") is True:
+            raise ValueError(
+                f"Model '{model}' does not support thinking mode."
+            )
+        if explicit.get("show_thinking") is True:
+            raise ValueError(
+                f"Model '{model}' cannot expose thinking output."
+            )
+        cfg["enable_thinking"] = False
+        cfg["show_thinking"] = False
+    elif cfg["thinking_mode"] == "always":
+        if explicit.get("enable_thinking") is False:
+            raise ValueError(
+                f"Thinking cannot be disabled for model '{model}'."
+            )
+        cfg["enable_thinking"] = True
+
+    resolved_source = resolve_registry_model(
+        str(model),
+        entry,
+        models_dir,
+        backend=backend,
+        explicit_path=model_path,
+    )
+    cfg["model_path"] = resolved_source.model_path
+    cfg["model_source"] = resolved_source.source_type
+    cfg["model_downloaded"] = resolved_source.downloaded
+
     if not cfg.get("mmproj_path") and entry.get("mmproj_filename"):
-        lmstudio_mmproj = _lmstudio_model_path(entry, "mmproj_filename")
-        if lmstudio_mmproj and lmstudio_mmproj.exists():
-            cfg["mmproj_path"] = str(lmstudio_mmproj)
-        else:
-            cfg["mmproj_path"] = str(models_dir / str(entry["mmproj_filename"]))
+        cfg["mmproj_path"] = str(
+            resolved_source.mmproj_path
+            or (models_dir / str(entry["mmproj_filename"]))
+        )
 
     if "multimodal" in entry and "multimodal" not in explicit:
         cfg["multimodal"] = bool(entry["multimodal"])

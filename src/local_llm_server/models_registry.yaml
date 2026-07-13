@@ -23,6 +23,7 @@ models:
     model_id: "nvidia/nemotron-3-nano-4b"
     size_gb: 2.5
     lmstudio_path: "lmstudio-community/NVIDIA-Nemotron-3-Nano-4B-GGUF"
+    thinking_mode: switchable
     params:
       ctx_size: 36466
       n_gpu_layers: 42
@@ -35,6 +36,7 @@ models:
     model_id: "nvidia/nemotron-3-nano-4b-q8"
     size_gb: 4.3
     lmstudio_path: "lmstudio-community/NVIDIA-Nemotron-3-Nano-4B-GGUF"
+    thinking_mode: switchable
     params:
       ctx_size: 36466
       n_gpu_layers: 42
@@ -48,9 +50,10 @@ models:
     backend: mlx_vlm_server
     multimodal: true
     modalities: [text, image]
+    thinking_mode: none
     params:
-      ctx_size: 8192
-      enable_thinking: false
+      max_kv_size: 8192
+      startup_timeout: 300
       max_concurrent_requests: 2
     tags: [multimodal, vision, qwen, small, 4b]
 

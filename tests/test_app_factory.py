@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from local_llm_server.runtime import ModelRuntimeManager
-from local_llm_server.server import ServerSettings, create_app
+from local_llm_server.server import (
+    ServerSettings,
+    begin_app_shutdown,
+    create_app,
+    stream_logs,
+)
 
 
 class _Engine:
@@ -88,3 +96,19 @@ def test_cors_is_disabled_by_default_and_explicit_when_enabled():
         assert enabled_client.options(
             "/v1/chat/completions", headers=headers
         ).headers["access-control-allow-origin"] == "https://app.example"
+
+
+def test_shutdown_notification_stops_log_sse_before_lifespan_teardown():
+    application = create_app(
+        _manager("logs"),
+        settings=ServerSettings(enable_admin_api=True),
+    )
+    request = Request({"type": "http", "app": application})
+    response = stream_logs(request)
+
+    begin_app_shutdown(application)
+
+    async def consume():
+        return [chunk async for chunk in response.body_iterator]
+
+    assert asyncio.run(consume()) == []

@@ -61,3 +61,15 @@ def test_registry_validation_accepts_huggingface_vlm_model():
             "params": {"max_concurrent_requests": 2},
         },
     }, default_model="vision"))
+
+
+def test_registry_validation_rejects_unknown_thinking_mode():
+    registry = _registry({
+        "one": {
+            "filename": "one.gguf",
+            "thinking_mode": "sometimes",
+        },
+    })
+
+    with pytest.raises(ValueError, match="thinking_mode"):
+        validate_registry(registry)

@@ -2,8 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from local_llm_server.config import build_config
 from local_llm_server import list_models
+
+
+def _write_complete_vlm(path: Path) -> None:
+    path.mkdir(parents=True)
+    (path / "config.json").write_text("{}")
+    (path / "tokenizer_config.json").write_text("{}")
+    (path / "preprocessor_config.json").write_text("{}")
+    (path / "model.safetensors").write_bytes(b"weights")
 
 
 def test_multimodal_config_prefers_complete_lmstudio_model(monkeypatch, tmp_path):
@@ -12,16 +22,16 @@ def test_multimodal_config_prefers_complete_lmstudio_model(monkeypatch, tmp_path
         tmp_path / ".lmstudio" / "models" / "lmstudio-community"
         / "Qwen3-VL-4B-Instruct-MLX-4bit"
     )
-    local_model.mkdir(parents=True)
-    (local_model / "config.json").write_text("{}")
-    (local_model / "model.safetensors").write_bytes(b"weights")
+    _write_complete_vlm(local_model)
 
     cfg = build_config(model="qwen3-vl-4b")
 
     assert cfg["backend"] == "mlx_vlm_server"
     assert cfg["multimodal"] is True
     assert "image" in cfg["modalities"]
-    assert cfg["ctx_size"] == 8192
+    assert cfg["max_kv_size"] == 8192
+    assert cfg["startup_timeout"] == 300
+    assert cfg["thinking_mode"] == "none"
     assert cfg["max_concurrent_requests"] == 2
     assert cfg["model_path"] == str(local_model)
     assert cfg["mmproj_path"] is None
@@ -33,6 +43,29 @@ def test_multimodal_config_falls_back_to_huggingface(monkeypatch, tmp_path):
     cfg = build_config(model="qwen3-vl-4b")
 
     assert cfg["model_path"] == "mlx-community/Qwen3-VL-4B-Instruct-4bit"
+
+
+def test_multimodal_config_uses_complete_huggingface_cache(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    snapshot = tmp_path / "hf-snapshot"
+    _write_complete_vlm(snapshot)
+    monkeypatch.setattr(
+        "huggingface_hub.snapshot_download",
+        lambda **kwargs: str(snapshot) if kwargs.get("local_files_only") else None,
+    )
+
+    cfg = build_config(model="qwen3-vl-4b")
+
+    assert cfg["model_path"] == str(snapshot)
+    assert cfg["model_source"] == "huggingface"
+    assert cfg["model_downloaded"] is True
+
+
+def test_qwen_instruct_rejects_thinking_override(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    with pytest.raises(ValueError, match="does not support thinking"):
+        build_config(model="qwen3-vl-4b", enable_thinking=True)
 
 
 def test_environment_backend_overrides_registry(monkeypatch):
@@ -52,8 +85,16 @@ def test_float_environment_values_are_parsed(monkeypatch):
     assert isinstance(cfg["default_temperature"], float)
 
 
-def test_lmstudio_model_can_be_listed_as_downloaded():
+def test_lmstudio_model_can_be_listed_as_downloaded(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    local_model = (
+        tmp_path / ".lmstudio" / "models" / "lmstudio-community"
+        / "Qwen3-VL-4B-Instruct-MLX-4bit"
+    )
+    _write_complete_vlm(local_model)
+
     qwen = next(model for model in list_models() if model["key"] == "qwen3-vl-4b")
 
-    assert qwen["path"].endswith("Qwen3-VL-4B-Instruct-MLX-4bit")
+    assert qwen["path"] == str(local_model)
     assert qwen["downloaded"] is True
+    assert qwen["source"] == "lmstudio"

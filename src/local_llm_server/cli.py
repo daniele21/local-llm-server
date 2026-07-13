@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from pathlib import Path
 
 
 def main() -> None:
@@ -61,6 +60,10 @@ def main() -> None:
     p_serve.add_argument("--host", default=None)
     p_serve.add_argument("--port", type=int, default=None)
     p_serve.add_argument("--ctx-size", type=int, default=None, dest="ctx_size")
+    p_serve.add_argument(
+        "--max-kv-size", type=int, default=None, dest="max_kv_size",
+        help="Maximum MLX KV-cache size in tokens.",
+    )
     p_serve.add_argument("--n-gpu-layers", type=int, default=None, dest="n_gpu_layers")
     p_serve.add_argument("--n-threads", type=int, default=None, dest="n_threads")
     p_serve.add_argument("--llama-server-port", type=int, default=None, dest="llama_server_port")
@@ -115,7 +118,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
 
     # Collect only explicitly set flags (skip None so config resolution works)
     explicit: dict = {}
-    for key in ("backend", "host", "port", "ctx_size", "n_gpu_layers", "n_threads",
+    for key in ("backend", "host", "port", "ctx_size", "max_kv_size", "n_gpu_layers", "n_threads",
                 "llama_server_port", "llama_server_bin", "mlx_vlm_server_port", "mmproj_path", "startup_timeout",
                 "max_concurrent_requests",
                 "chat_format", "force_json", "show_thinking", "enable_thinking",
@@ -166,47 +169,28 @@ def _cmd_serve(args: argparse.Namespace) -> None:
 
 
 def _cmd_models() -> None:
-    from .downloader import is_huggingface_snapshot_cached
+    from . import list_models
     from .registry import load_registry
 
     registry = load_registry()
     models_dir = registry["models_dir"]
     default = registry["default_model"]
-    models = registry["models"]
+    models = list_models()
 
     if not models:
         print("No models found in registry.")
         return
 
     print(f"\nAvailable models  (dir: {models_dir})\n")
-    col_key = max(len(k) for k in models) + 2
-    col_id = max(len(v.get("model_id", k)) for k, v in models.items()) + 2
+    col_key = max(len(entry["key"]) for entry in models) + 2
+    col_id = max(len(entry["model_id"]) for entry in models) + 2
 
-    for key, entry in models.items():
-        model_id = entry.get("model_id", key)
+    for entry in models:
+        key = entry["key"]
+        model_id = entry["model_id"]
         size = f"{entry['size_gb']:.1f} GB" if entry.get("size_gb") else "? GB"
         tags = ", ".join(entry.get("tags") or [])
-        if entry.get("path"):
-            path = Path(str(entry["path"])).expanduser()
-            model_ready = path.exists()
-        elif entry.get("filename"):
-            path = models_dir / entry["filename"]
-            model_ready = path.exists()
-        else:
-            path = Path(str(model_id))
-            model_ready = is_huggingface_snapshot_cached(str(model_id))
-        if entry.get("lmstudio_path"):
-            lmstudio_path = Path.home() / ".lmstudio" / "models" / str(entry["lmstudio_path"]) / str(entry["filename"])
-            if lmstudio_path.exists():
-                path = lmstudio_path
-        mmproj_filename = entry.get("mmproj_filename")
-        if mmproj_filename:
-            mmproj_path = models_dir / str(mmproj_filename)
-            if entry.get("lmstudio_path"):
-                lmstudio_mmproj = Path.home() / ".lmstudio" / "models" / str(entry["lmstudio_path"]) / str(mmproj_filename)
-                if lmstudio_mmproj.exists():
-                    mmproj_path = lmstudio_mmproj
-            model_ready = model_ready and mmproj_path.exists()
+        model_ready = bool(entry["downloaded"])
         status = "\033[92m✅ downloaded\033[0m" if model_ready else "\033[90m❌ not downloaded\033[0m"
         marker = " (default)" if key == default else ""
         backend = entry.get("backend", "llama_cpp")
@@ -216,48 +200,11 @@ def _cmd_models() -> None:
 
 
 def _cmd_download(model: str) -> None:
-    from .registry import load_registry
-    from .downloader import download_huggingface_snapshot, download_model
+    from . import download_model
 
-    registry = load_registry()
-    entry = registry["models"].get(model)
-    if entry is None:
-        print(f"Error: model '{model}' not found in registry.", file=sys.stderr)
-        print("Run 'local-llm models' to see available models.", file=sys.stderr)
+    try:
+        download_model(model)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-
-    local_path = entry.get("path")
-    if local_path:
-        path = Path(str(local_path)).expanduser()
-        if path.exists():
-            print(f"Model already available locally: {path}")
-            return
-        print(f"Error: local model path not found: {path}", file=sys.stderr)
-        sys.exit(1)
-
-    if not entry.get("filename") and entry.get("model_id"):
-        path = download_huggingface_snapshot(str(entry["model_id"]))
-        print(f"Model '{model}' downloaded successfully: {path}")
-        return
-
-    artifacts = [
-        ("model", entry.get("url"), entry.get("filename")),
-        ("multimodal projector", entry.get("mmproj_url"), entry.get("mmproj_filename")),
-    ]
-    downloaded_any = False
-    for label, url, filename in artifacts:
-        if not filename:
-            continue
-        if not url:
-            print(f"Error: no URL configured for {label} '{filename}'.", file=sys.stderr)
-            sys.exit(1)
-        dest = registry["models_dir"] / str(filename)
-        if dest.exists():
-            print(f"{label.capitalize()} already downloaded: {dest}")
-            continue
-        print(f"Downloading {label}: {filename}")
-        download_model(url=str(url), dest=dest)
-        downloaded_any = True
-
-    if downloaded_any:
-        print(f"Model '{model}' downloaded successfully.")
+    print(f"Model '{model}' is available locally.")

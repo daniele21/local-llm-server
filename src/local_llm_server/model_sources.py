@@ -1,0 +1,198 @@
+"""Resolve model artifacts consistently across config, CLI, downloads, and engines."""
+from __future__ import annotations
+
+import json
+import logging
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Literal
+
+
+SourceType = Literal["explicit", "lmstudio", "managed", "huggingface", "unresolved"]
+_MLX_BACKENDS = {"mlx", "mlx_vlm_server"}
+logger = logging.getLogger("local-llm.model_sources")
+
+
+@dataclass(frozen=True)
+class ResolvedModel:
+    """One model source resolved without performing network access."""
+
+    model_path: str
+    local_path: Path | None
+    source_type: SourceType
+    downloaded: bool
+    mmproj_path: Path | None = None
+
+
+def is_complete_mlx_model(path: Path, *, multimodal: bool = False) -> bool:
+    """Return whether *path* contains a complete, loadable MLX model snapshot."""
+    if not path.is_dir() or not (path / "config.json").is_file():
+        return False
+    if not (path / "tokenizer_config.json").is_file():
+        return False
+    if multimodal and not any(
+        (path / name).is_file()
+        for name in ("preprocessor_config.json", "processor_config.json")
+    ):
+        return False
+
+    # LM Studio can consolidate a sharded repository into model.safetensors
+    # while retaining the upstream index, so the consolidated file wins.
+    if (path / "model.safetensors").is_file():
+        return True
+
+    index_path = path / "model.safetensors.index.json"
+    if not index_path.is_file():
+        return False
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        shards = set((index.get("weight_map") or {}).values())
+    except (OSError, ValueError, TypeError):
+        return False
+    return bool(shards) and all((path / str(shard)).is_file() for shard in shards)
+
+
+def _looks_like_local_path(reference: str) -> bool:
+    expanded = Path(reference).expanduser()
+    return (
+        expanded.exists()
+        or reference.startswith(("/", "./", "../", "~"))
+        or expanded.suffix.lower() in {".gguf", ".safetensors"}
+    )
+
+
+def _is_complete_local(path: Path, backend: str, *, multimodal: bool) -> bool:
+    if backend in _MLX_BACKENDS:
+        return is_complete_mlx_model(path, multimodal=multimodal)
+    return path.is_file()
+
+
+def _cached_huggingface_snapshot(
+    repo_id: str,
+    *,
+    backend: str,
+    multimodal: bool,
+) -> Path | None:
+    try:
+        from huggingface_hub import snapshot_download
+        snapshot = Path(snapshot_download(repo_id=repo_id, local_files_only=True))
+    except Exception:
+        # Cache inspection is deliberately best-effort and offline. Missing
+        # optional dependencies and incomplete cache entries both mean absent.
+        return None
+    return snapshot if _is_complete_local(snapshot, backend, multimodal=multimodal) else None
+
+
+def resolve_registry_model(
+    key: str,
+    entry: dict[str, Any],
+    models_dir: Path,
+    *,
+    backend: str | None = None,
+    explicit_path: str | None = None,
+) -> ResolvedModel:
+    """Resolve a registry entry locally without downloading or contacting the network."""
+    resolved_backend = str(backend or entry.get("backend") or "llama_cpp")
+    multimodal = bool(entry.get("multimodal", False))
+
+    if explicit_path is not None:
+        reference = str(explicit_path)
+        if _looks_like_local_path(reference):
+            path = Path(reference).expanduser().resolve()
+            return ResolvedModel(
+                str(path), path, "explicit",
+                _is_complete_local(path, resolved_backend, multimodal=multimodal),
+            )
+        cached = _cached_huggingface_snapshot(
+            reference, backend=resolved_backend, multimodal=multimodal
+        )
+        return ResolvedModel(
+            str(cached) if cached else reference,
+            cached,
+            "huggingface",
+            cached is not None,
+        )
+
+    configured_path = entry.get("path")
+    if configured_path:
+        path = Path(str(configured_path)).expanduser().resolve()
+        return ResolvedModel(
+            str(path), path, "explicit",
+            _is_complete_local(path, resolved_backend, multimodal=multimodal),
+        )
+
+    lmstudio_key = entry.get("lmstudio_path")
+    if lmstudio_key:
+        root = Path.home() / ".lmstudio" / "models" / str(lmstudio_key)
+        candidate = root / str(entry["filename"]) if entry.get("filename") else root
+        if _is_complete_local(candidate, resolved_backend, multimodal=multimodal):
+            mmproj = root / str(entry["mmproj_filename"]) if entry.get("mmproj_filename") else None
+            mmproj_ready = mmproj is None or mmproj.is_file()
+            if mmproj_ready:
+                return ResolvedModel(str(candidate), candidate, "lmstudio", True, mmproj)
+
+    filename = entry.get("filename")
+    if filename:
+        candidate = models_dir / str(filename)
+        mmproj = models_dir / str(entry["mmproj_filename"]) if entry.get("mmproj_filename") else None
+        downloaded = _is_complete_local(
+            candidate, resolved_backend, multimodal=multimodal
+        ) and (mmproj is None or mmproj.is_file())
+        return ResolvedModel(str(candidate), candidate, "managed", downloaded, mmproj)
+
+    reference = str(entry.get("model_id") or key)
+    cached = _cached_huggingface_snapshot(
+        reference, backend=resolved_backend, multimodal=multimodal
+    )
+    return ResolvedModel(
+        str(cached) if cached else reference,
+        cached,
+        "huggingface" if entry.get("model_id") else "unresolved",
+        cached is not None,
+    )
+
+
+def resolve_mlx_runtime_path(
+    reference: str,
+    *,
+    no_download: bool,
+    multimodal: bool,
+) -> Path:
+    """Resolve/download an MLX reference before starting its backend process."""
+    if _looks_like_local_path(reference):
+        path = Path(reference).expanduser().resolve()
+        if is_complete_mlx_model(path, multimodal=multimodal):
+            return path
+        raise FileNotFoundError(f"MLX model directory is missing or incomplete: {path}")
+
+    cached = _cached_huggingface_snapshot(
+        reference,
+        backend="mlx_vlm_server" if multimodal else "mlx",
+        multimodal=multimodal,
+    )
+    if cached is not None:
+        logger.info("Using complete Hugging Face cache for %s: %s", reference, cached)
+        return cached
+    if no_download:
+        raise FileNotFoundError(
+            f"Model '{reference}' is not fully cached and --no-download is set. "
+            "Run 'local-llm download <model>' first."
+        )
+
+    try:
+        from huggingface_hub import snapshot_download
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Hugging Face downloads require the vision/MLX dependencies. "
+            'Install with: pip install "local-llm-server[vision]"'
+        ) from exc
+    logger.info("Downloading Hugging Face model before backend startup: %s", reference)
+    try:
+        path = Path(snapshot_download(repo_id=reference))
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to download Hugging Face model '{reference}': {exc}"
+        ) from exc
+    if not is_complete_mlx_model(path, multimodal=multimodal):
+        raise RuntimeError(f"Downloaded MLX snapshot is incomplete: {path}")
+    return path

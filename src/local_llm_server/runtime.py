@@ -19,18 +19,24 @@ def _close_engine(engine: Any) -> None:
 _BACKEND_CONFIG_CAPABILITIES: dict[str, tuple[str, ...]] = {
     "llama_cpp": (
         "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch",
-        "timeout", "offload_kqv", "flash_attn", "use_mmap", "enable_thinking",
-        "show_thinking",
+        "timeout", "offload_kqv", "flash_attn", "use_mmap",
     ),
-    "llama_server": ("ctx_size", "timeout", "max_concurrent_requests", "enable_thinking", "show_thinking"),
-    "mlx": ("enable_thinking", "show_thinking"),
-    "mlx_vlm_server": ("timeout", "max_concurrent_requests"),
+    "llama_server": ("ctx_size", "timeout", "max_concurrent_requests"),
+    "mlx": ("max_kv_size",),
+    "mlx_vlm_server": ("timeout", "max_concurrent_requests", "max_kv_size"),
 }
 
 
-def config_capabilities_for_backend(backend: str) -> list[str]:
-    """Return only settings that the current engine implementation consumes."""
-    return list(_BACKEND_CONFIG_CAPABILITIES.get(backend, ()))
+def config_capabilities_for_backend(
+    backend: str, *, thinking_mode: str = "none"
+) -> list[str]:
+    """Return settings consumed by both the backend and the selected model."""
+    capabilities = list(_BACKEND_CONFIG_CAPABILITIES.get(backend, ()))
+    if thinking_mode == "switchable":
+        capabilities.extend(("enable_thinking", "show_thinking"))
+    elif thinking_mode == "always":
+        capabilities.append("show_thinking")
+    return capabilities
 
 
 def new_runtime_status(model_id: str) -> dict[str, Any]:

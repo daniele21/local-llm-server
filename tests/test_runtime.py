@@ -188,4 +188,15 @@ def test_backend_config_capabilities_match_consumed_engine_settings():
     assert "n_batch" in llama_cpp
     assert "n_gpu_layers" not in mlx_vlm
     assert "n_batch" not in mlx_vlm
-    assert mlx_vlm == ["timeout", "max_concurrent_requests"]
+    assert mlx_vlm == ["timeout", "max_concurrent_requests", "max_kv_size"]
+
+    switchable = config_capabilities_for_backend(
+        "mlx_vlm_server", thinking_mode="switchable"
+    )
+    always = config_capabilities_for_backend(
+        "mlx_vlm_server", thinking_mode="always"
+    )
+    assert "enable_thinking" in switchable
+    assert "show_thinking" in switchable
+    assert "enable_thinking" not in always
+    assert "show_thinking" in always

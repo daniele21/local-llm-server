@@ -100,11 +100,20 @@ def validate_registry(registry: dict[str, Any]) -> None:
         if not isinstance(params, dict):
             errors.append(f"{label}.params must be a mapping")
             params = {}
-        for field_name in ("ctx_size", "max_concurrent_requests", "llama_server_port", "mlx_vlm_server_port"):
+        for field_name in (
+            "ctx_size", "max_kv_size", "max_concurrent_requests",
+            "llama_server_port", "mlx_vlm_server_port", "startup_timeout",
+        ):
             if field_name in params:
                 value = params[field_name]
                 if not isinstance(value, int) or isinstance(value, bool) or value < 1:
                     errors.append(f"{label}.params.{field_name} must be a positive integer")
+
+        thinking_mode = entry.get("thinking_mode", "none")
+        if thinking_mode not in {"none", "switchable", "always"}:
+            errors.append(
+                f"{label}.thinking_mode must be 'none', 'switchable', or 'always'"
+            )
 
         modalities = entry.get("modalities", ["text"])
         if not isinstance(modalities, list) or not modalities:

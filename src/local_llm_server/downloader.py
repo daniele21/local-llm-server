@@ -13,27 +13,6 @@ from pathlib import Path
 logger = logging.getLogger("local-llm.downloader")
 
 
-def download_huggingface_snapshot(model_id: str) -> Path:
-    """Download a Hugging Face repository through the optional HF cache."""
-    try:
-        from huggingface_hub import snapshot_download
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "Hugging Face downloads require the vision/MLX dependencies. "
-            'Install with: pip install "local-llm-server[vision]"'
-        ) from exc
-    return Path(snapshot_download(repo_id=model_id))
-
-
-def is_huggingface_snapshot_cached(model_id: str) -> bool:
-    try:
-        from huggingface_hub import try_to_load_from_cache
-    except ModuleNotFoundError:
-        return False
-    cached = try_to_load_from_cache(model_id, "config.json")
-    return isinstance(cached, str)
-
-
 def ensure_model(url: str, dest: Path, *, resume: bool = True, no_download: bool = False) -> None:
     """
     Ensure the model file exists at *dest*.

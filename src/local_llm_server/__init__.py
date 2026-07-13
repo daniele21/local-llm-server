@@ -64,7 +64,12 @@ def serve(
     import uvicorn
     from .config import build_config
     from .engine import load_llm
-    from .server import ServerSettings, configure_runtime, create_app
+    from .server import (
+        ServerSettings,
+        begin_app_shutdown,
+        configure_runtime,
+        create_app,
+    )
     from .runtime import ModelRuntimeManager
 
     startup_models = list(models or [])
@@ -112,17 +117,21 @@ def serve(
         host=cfg["host"],
         port=cfg["port"],
         log_level="warning" if not cfg.get("verbose", False) else "info",
+        timeout_graceful_shutdown=10,
     )
     server = uvicorn.Server(config)
 
     if background:
         t = threading.Thread(target=server.run, daemon=True)
         t.start()
-        return ServerHandle(server, thread=t, manager=manager)
+        return ServerHandle(
+            server, thread=t, manager=manager, application=application
+        )
 
     import signal as _signal
 
     def _shutdown(signum, _frame):
+        begin_app_shutdown(application)
         server.should_exit = True
 
     _signal.signal(_signal.SIGINT, _shutdown)
@@ -130,31 +139,38 @@ def serve(
     try:
         server.run()
     finally:
+        begin_app_shutdown(application)
         manager.shutdown()
     return None
 
 
 def download_model(model: str) -> None:
     """Download a model from the registry if not already on disk."""
+    from .model_sources import resolve_mlx_runtime_path, resolve_registry_model
     from .registry import load_registry
-    from .downloader import download_huggingface_snapshot, ensure_model
+    from .downloader import ensure_model
 
     registry = load_registry()
     models_dir = registry["models_dir"]
     entry = registry["models"].get(model)
     if entry is None:
         raise ValueError(f"Model '{model}' not found in registry. Run 'local-llm models' to list available models.")
+    backend = str(entry.get("backend") or "llama_cpp")
+    resolved = resolve_registry_model(model, entry, models_dir, backend=backend)
+    if resolved.downloaded:
+        return
+    if backend in {"mlx", "mlx_vlm_server"}:
+        resolve_mlx_runtime_path(
+            resolved.model_path,
+            no_download=False,
+            multimodal=bool(entry.get("multimodal", False)),
+        )
+        return
     if entry.get("path"):
-        path = Path(str(entry["path"])).expanduser()
-        if not path.exists():
-            raise FileNotFoundError(f"Local model path not found: {path}")
-        return
-    if not entry.get("filename") and entry.get("model_id"):
-        download_huggingface_snapshot(str(entry["model_id"]))
-        return
+        raise FileNotFoundError(f"Local model path not found: {resolved.model_path}")
     ensure_model(
         url=entry.get("url", ""),
-        dest=models_dir / entry["filename"],
+        dest=models_dir / str(entry["filename"]),
     )
     if entry.get("mmproj_filename"):
         ensure_model(
@@ -165,49 +181,17 @@ def download_model(model: str) -> None:
 
 def list_models() -> list[dict]:
     """Return the list of models from the merged registry."""
+    from .model_sources import resolve_registry_model
     from .registry import load_registry
-    from .downloader import is_huggingface_snapshot_cached
 
     registry = load_registry()
     models_dir = registry["models_dir"]
     result = []
     for key, entry in registry["models"].items():
-        if entry.get("path"):
-            path = Path(str(entry["path"])).expanduser()
-            downloaded = path.exists()
-        elif entry.get("filename"):
-            path = models_dir / entry["filename"]
-            downloaded = path.exists()
-        else:
-            path = Path(str(entry.get("model_id", key)))
-            downloaded = is_huggingface_snapshot_cached(str(entry.get("model_id", key)))
-        lmstudio_path = None
-        if entry.get("lmstudio_path"):
-            lmstudio_root = (
-                Path.home() / ".lmstudio" / "models" / str(entry["lmstudio_path"])
-            )
-            if entry.get("filename"):
-                lmstudio_path = lmstudio_root / str(entry["filename"])
-            elif (
-                (lmstudio_root / "config.json").is_file()
-                and any(lmstudio_root.glob("*.safetensors"))
-            ):
-                lmstudio_path = lmstudio_root
-        resolved_path = lmstudio_path if lmstudio_path and lmstudio_path.exists() else path
-        if entry.get("path") or entry.get("filename") or lmstudio_path:
-            downloaded = resolved_path.exists()
-        mmproj_path = None
-        if entry.get("mmproj_filename"):
-            mmproj_path = models_dir / entry["mmproj_filename"]
-            lmstudio_mmproj = None
-            if entry.get("lmstudio_path"):
-                lmstudio_mmproj = (
-                    Path.home() / ".lmstudio" / "models" / str(entry["lmstudio_path"])
-                    / str(entry["mmproj_filename"])
-                )
-            if lmstudio_mmproj and lmstudio_mmproj.exists():
-                mmproj_path = lmstudio_mmproj
-            downloaded = downloaded and mmproj_path.exists()
+        resolved = resolve_registry_model(
+            str(key), entry, models_dir,
+            backend=str(entry.get("backend") or "llama_cpp"),
+        )
         result.append(
             {
                 "key": key,
@@ -217,21 +201,31 @@ def list_models() -> list[dict]:
                 "backend": entry.get("backend", "llama_cpp"),
                 "multimodal": bool(entry.get("multimodal", False)),
                 "modalities": entry.get("modalities", []),
-                "downloaded": downloaded,
-                "path": str(resolved_path),
-                "mmproj_path": str(mmproj_path) if mmproj_path else None,
+                "downloaded": resolved.downloaded,
+                "path": resolved.model_path,
+                "source": resolved.source_type,
+                "mmproj_path": str(resolved.mmproj_path) if resolved.mmproj_path else None,
             }
         )
     return result
 
 
 class ServerHandle:
-    def __init__(self, server: Any, thread: Any | None = None, manager: Any | None = None):
+    def __init__(
+        self,
+        server: Any,
+        thread: Any | None = None,
+        manager: Any | None = None,
+        application: Any | None = None,
+    ):
         self._server = server
         self._thread = thread
         self._manager = manager
+        self._application = application
 
     def shutdown(self) -> None:
+        if self._application is not None:
+            self._application.state.shutdown = True
         self._server.should_exit = True
         if self._thread is not None:
             self._thread.join(timeout=10)

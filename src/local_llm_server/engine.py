@@ -102,7 +102,15 @@ class MLXEngine:
                 'Install it with: pip install "local-llm-server[mlx]"'
             ) from exc
 
-        self.model_ref = str(cfg["model_path"])
+        from .model_sources import resolve_mlx_runtime_path
+
+        resolved_model = resolve_mlx_runtime_path(
+            str(cfg["model_path"]),
+            no_download=bool(cfg.get("no_download", False)),
+            multimodal=False,
+        )
+        self.model_ref = str(resolved_model)
+        cfg["model_path"] = self.model_ref
         self.cfg = cfg
 
         tokenizer_config = cfg.get("tokenizer_config") or {"trust_remote_code": True}
@@ -357,8 +365,16 @@ class MLXVLMServerEngine:
     backend = "mlx_vlm_server"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
+        from .model_sources import resolve_mlx_runtime_path
+
         self.cfg = cfg
-        self.model_path = str(Path(str(cfg["model_path"])).expanduser())
+        resolved_model = resolve_mlx_runtime_path(
+            str(cfg["model_path"]),
+            no_download=bool(cfg.get("no_download", False)),
+            multimodal=True,
+        )
+        self.model_path = str(resolved_model)
+        self.cfg["model_path"] = self.model_path
         self.port = int(cfg.get("mlx_vlm_server_port") or 8092)
         self.host = "127.0.0.1"
         self.base_url = f"http://{self.host}:{self.port}"
@@ -377,6 +393,13 @@ class MLXVLMServerEngine:
             "--port",
             str(self.port),
         ]
+        if self.cfg.get("max_kv_size") is not None:
+            cmd.extend(["--max-kv-size", str(int(self.cfg["max_kv_size"]))])
+        if self.cfg.get("thinking_mode") == "always" or (
+            self.cfg.get("thinking_mode") == "switchable"
+            and self.cfg.get("enable_thinking")
+        ):
+            cmd.append("--enable-thinking")
         logger.info("Starting mlx_vlm.server: %s", " ".join(cmd))
         self.process = ManagedProcess(
             cmd,
@@ -408,9 +431,15 @@ class MLXVLMServerEngine:
 
     def _request(self, payload: dict[str, Any], *, stream: bool) -> Any:
         kwargs = dict(payload)
-        # Pop thinking/reasoning flags so they are not sent to mlx_vlm.server
-        kwargs.pop("enable_thinking", None)
+        enable_thinking = kwargs.pop("enable_thinking", None)
         kwargs.pop("show_thinking", None)
+        if (
+            self.cfg.get("thinking_mode") == "switchable"
+            and enable_thinking is not None
+        ):
+            kwargs["enable_thinking"] = bool(enable_thinking)
+        if "repeat_penalty" in kwargs:
+            kwargs["repetition_penalty"] = kwargs.pop("repeat_penalty")
         # The subprocess is preloaded using ``self.model_path``. Sending the
         # registry/Hugging Face model id here creates a different cache key in
         # mlx_vlm.server and can trigger a second, very expensive model load.
