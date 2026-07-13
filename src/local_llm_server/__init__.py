@@ -1,7 +1,6 @@
 """local_llm_server — public API."""
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 from .audio import audio_to_base64, prepare_audio, prepare_audio_message
