@@ -44,7 +44,7 @@ run_uv() {
 }
 
 if [[ "$bump_patch" == true ]]; then
-  python3 - <<'PY'
+  current_version="$(python3 - <<'PY'
 import re
 from pathlib import Path
 
@@ -62,8 +62,10 @@ if len(parts) != 3 or not all(part.isdigit() for part in parts):
 parts[-1] = str(int(parts[-1]) + 1)
 nv = ".".join(parts)
 p.write_text(c.replace(f'version = "{v}"', f'version = "{nv}"'), encoding="utf-8")
-print(f"[*] Version bumped: {v} -> {nv}")
+print(nv)
 PY
+)"
+  echo "[*] Version bumped to: ${current_version}"
 else
   current_version="$(python3 - <<'PY'
 import re
@@ -81,8 +83,8 @@ if [[ "$skip_tests" != true ]]; then
   run_uv run pytest
 fi
 
-echo "[*] Cleaning previous build artifacts"
-rm -rf build dist src/*.egg-info
+echo "[*] Cleaning previous build artifacts (retaining dist/)"
+rm -rf build src/*.egg-info
 
 echo "[*] Ensuring build backend is available"
 run_uv pip install build setuptools wheel
@@ -91,15 +93,18 @@ echo "[*] Building sdist and wheel"
 run_uv run python -m build --no-isolation
 
 echo "[*] Verifying wheel contents"
-python3 - <<'PY'
+VERSION="${current_version}" python3 - <<'PY'
+import os
 from pathlib import Path
 from zipfile import ZipFile
 
-wheels = sorted(Path("dist").glob("local_llm_server-*.whl"))
-if not wheels:
-    raise SystemExit("No wheel produced in dist/")
+version = os.environ.get("VERSION", "unknown")
+normalized_version = version.replace("-", "_")
+wheel = Path("dist") / f"local_llm_server-{normalized_version}-py3-none-any.whl"
 
-wheel = wheels[-1]
+if not wheel.exists():
+    raise SystemExit(f"No wheel produced in dist/ for version {version} ({wheel})")
+
 required = {
     "local_llm_server/audio.py",
     "local_llm_server/client.py",

@@ -16,6 +16,7 @@ import collections
 from collections import OrderedDict
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+import re
 from pathlib import Path
 from typing import Any, List, Dict, Optional, Union
 
@@ -27,6 +28,24 @@ from pydantic import BaseModel, Field
 from .runtime import ModelRuntimeManager
 
 logger = logging.getLogger("local-llm.server")
+
+
+def _get_version() -> str:
+    try:
+        from importlib.metadata import version as get_version
+        return get_version("local-llm-server")
+    except Exception:
+        try:
+            pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+            if pyproject_path.exists():
+                match = re.search(r'version\s*=\s*"([^"]+)"', pyproject_path.read_text(encoding="utf-8"))
+                if match:
+                    return match.group(1)
+        except Exception:
+            pass
+        return "unknown"
+
+
 
 
 @dataclass
@@ -1383,7 +1402,7 @@ def create_app(
     application = FastAPI(
         title="Local LLM Server API",
         description="OpenAI-compatible API serving local LLMs (Llama-cpp, MLX, llama-server multimodal).",
-        version="0.3.0",
+        version=_get_version(),
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=_app_lifespan,
