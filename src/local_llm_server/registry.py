@@ -19,7 +19,6 @@ from typing import Any
 import yaml
 
 _BUILTIN_REGISTRY = Path(__file__).parent / "models_registry.yaml"
-_USER_REGISTRY = Path.home() / ".local-llm" / "models.yaml"
 _SUPPORTED_BACKENDS = {"llama_cpp", "gguf", "mlx", "llama_server", "mlx_vlm_server"}
 _VALID_MODALITIES = {"text", "image", "audio"}
 
@@ -27,10 +26,40 @@ _VALID_MODALITIES = {"text", "image", "audio"}
 def load_registry() -> dict[str, Any]:
     """Return the merged registry as a plain dict."""
     builtin = _load_yaml(_BUILTIN_REGISTRY)
-    user = _load_yaml(_USER_REGISTRY) if _USER_REGISTRY.exists() else {}
+    user_registry_path = Path.home() / ".local-llm" / "models.yaml"
+    user = _load_yaml(user_registry_path) if user_registry_path.exists() else {}
 
-    # Merge models: user entries override or extend built-in ones
+    # Load ClosedRoom local_llm_params.json config
+    closedroom_params_path = Path.home() / "Library" / "Application Support" / "ClosedRoom" / "local_llm_params.json"
+    closedroom_models = {}
+    if closedroom_params_path.exists():
+        try:
+            import json
+            with open(closedroom_params_path, "r", encoding="utf-8") as f:
+                config_data = json.load(f)
+            if isinstance(config_data, dict) and "models" in config_data:
+                closedroom_models = config_data["models"]
+        except Exception:
+            pass
+
+    # Merge models: ClosedRoom and User registry entries override or extend built-in ones
     models: dict[str, Any] = dict(builtin.get("models") or {})
+    
+    # Merge ClosedRoom models
+    for key, entry in closedroom_models.items():
+        if not isinstance(entry, dict):
+            continue
+        if key in models:
+            merged = dict(models[key])
+            merged["params"] = {**merged.get("params", {}), **entry.get("params", {})}
+            for k, v in entry.items():
+                if k != "params":
+                    merged[k] = v
+            models[key] = merged
+        else:
+            models[key] = entry
+
+    # Merge User models (highest priority)
     for key, entry in (user.get("models") or {}).items():
         if key in models:
             # Deep-merge params
@@ -51,16 +80,21 @@ def load_registry() -> dict[str, Any]:
 
     default_model: str = (
         user.get("default_model")
+        or (next(iter(closedroom_models)) if closedroom_models else None)
         or builtin.get("default_model")
         or (next(iter(models)) if models else "")
     )
+
+    startup_models = list(user.get("startup_models") or builtin.get("startup_models") or [])
+    if not startup_models and closedroom_models:
+        startup_models = list(closedroom_models.keys())
 
     registry = {
         "models_dir": models_dir,
         "defaults": defaults,
         "models": models,
         "default_model": default_model,
-        "startup_models": list(user.get("startup_models") or builtin.get("startup_models") or []),
+        "startup_models": startup_models,
     }
     validate_registry(registry)
     return registry
