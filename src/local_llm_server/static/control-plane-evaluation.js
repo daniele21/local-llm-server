@@ -1,5 +1,6 @@
 (() => {
     let running = false;
+    let importNotice = null;
 
     async function fetchJson(path, options = {}) {
         const response = await fetch(path, {
@@ -88,10 +89,21 @@
             <option value="${escapeHtml(model.key || model.id)}">
                 ${escapeHtml(model.id || model.key)} · ${escapeHtml(model.backend || 'backend unavailable')}
             </option>`).join('');
-        const testOptions = usableTestSets.map((item) => `
-            <option value="${escapeHtml(item.id)}" data-count="${Number(item.sample_count)}">
-                ${escapeHtml(item.id)} v${escapeHtml(item.version)} · ${Number(item.sample_count)} samples
-            </option>`).join('');
+        const testOptions = usableTestSets.map((item) => {
+            const source = item.source === 'custom' ? 'Custom' : 'Built-in';
+            return `
+                <option
+                    value="${escapeHtml(`${item.id}::${item.version}`)}"
+                    data-id="${escapeHtml(item.id)}"
+                    data-version="${escapeHtml(item.version)}"
+                    data-count="${Number(item.sample_count)}"
+                    data-source="${escapeHtml(item.source || 'built-in')}"
+                >
+                    ${escapeHtml(item.id)} v${escapeHtml(item.version)} · ${source} · ${Number(item.sample_count)} samples
+                </option>`;
+        }).join('');
+        const notice = importNotice;
+        importNotice = null;
 
         view.innerHTML = `
             <div class="control-plane-header">
@@ -120,6 +132,7 @@
                             ${testOptions || '<option value="">No test sets available</option>'}
                         </select>
                     </label>
+                    <div class="evaluation-selected-dataset" data-evaluation-dataset-meta></div>
                     <div class="evaluation-field-grid">
                         <label class="ds-field">
                             <span>Samples</span>
@@ -131,7 +144,7 @@
                         </label>
                     </div>
                     <div class="evaluation-note">
-                        Sample counts use valid multiples of 10 only. The current built-in general-purpose set contains deterministic objective checks; no LLM judge is used.
+                        Sample counts use valid multiples of 10 only. Objective expectations are evaluated by the server; the browser does not execute scorers or dataset code.
                     </div>
                     <button class="ds-button ds-button--primary" type="submit" data-evaluation-start ${models.length && selectedTest ? '' : 'disabled'}>
                         Run evaluation
@@ -139,19 +152,35 @@
                 </form>
 
                 <aside class="ds-card evaluation-context">
-                    <span class="evaluation-eyebrow">Evidence contract</span>
-                    <h3>How to read a run</h3>
-                    <dl class="evaluation-definition-list">
-                        <div><dt>Quality</dt><dd>Mean deterministic scorer value across scored samples.</dd></div>
-                        <div><dt>Success</dt><dd>Samples that completed inference, independently from whether the answer scored well.</dd></div>
-                        <div><dt>Evidence-grade</dt><dd>Runtime fingerprint attached to the exact run.</dd></div>
-                        <div><dt>Exploratory</dt><dd>Run executed successfully but exact runtime identity is incomplete.</dd></div>
-                    </dl>
+                    <span class="evaluation-eyebrow">Dataset library</span>
+                    <h3>Import a custom test set</h3>
+                    <p class="evaluation-context-copy">Import a validated JSON test set. Files are treated as data only; executable scorers, templates and plugins are not accepted.</p>
+                    <label class="ds-field">
+                        <span>JSON test set</span>
+                        <input data-evaluation-import-file type="file" accept="application/json,.json">
+                    </label>
+                    <button class="ds-button" type="button" data-evaluation-import>Import test set</button>
+                    <div class="evaluation-import-status" data-evaluation-import-status aria-live="polite">
+                        ${notice ? escapeHtml(notice) : 'Duplicate id/version imports are rejected; existing datasets are never silently replaced.'}
+                    </div>
+                    <div class="evaluation-library-summary">
+                        <strong>${usableTestSets.length}</strong> available test-set version${usableTestSets.length === 1 ? '' : 's'}
+                    </div>
                     <div class="evaluation-history-summary">
                         <strong>${runIds.length}</strong> persisted run${runIds.length === 1 ? '' : 's'} on this machine
                     </div>
                 </aside>
             </div>
+
+            <section class="ds-card evaluation-context evaluation-contract-card">
+                <span class="evaluation-eyebrow">Evidence contract</span>
+                <dl class="evaluation-definition-list">
+                    <div><dt>Quality</dt><dd>Mean deterministic scorer value across scored samples.</dd></div>
+                    <div><dt>Success</dt><dd>Samples that completed inference, independently from whether the answer scored well.</dd></div>
+                    <div><dt>Evidence-grade</dt><dd>Runtime fingerprint attached to the exact run.</dd></div>
+                    <div><dt>Exploratory</dt><dd>Run executed successfully but exact runtime identity is incomplete.</dd></div>
+                </dl>
+            </section>
 
             <section data-evaluation-result>
                 <div class="ds-empty">No run executed in this session yet.</div>
@@ -161,8 +190,41 @@
         const testSelect = view.querySelector('[data-evaluation-test-set]');
         const sampleSelect = view.querySelector('[data-evaluation-samples]');
         const startButton = view.querySelector('[data-evaluation-start]');
-        syncSampleOptions(testSelect, sampleSelect);
-        testSelect?.addEventListener('change', () => syncSampleOptions(testSelect, sampleSelect));
+        const importButton = view.querySelector('[data-evaluation-import]');
+        const importFile = view.querySelector('[data-evaluation-import-file]');
+        const importStatus = view.querySelector('[data-evaluation-import-status]');
+
+        syncSelectedTestSet(testSelect, sampleSelect, view);
+        testSelect?.addEventListener('change', () => syncSelectedTestSet(testSelect, sampleSelect, view));
+
+        importButton?.addEventListener('click', async () => {
+            const file = importFile?.files?.[0];
+            if (!file) {
+                importStatus.textContent = 'Choose a JSON test-set file before importing.';
+                return;
+            }
+            importButton.disabled = true;
+            importFile.disabled = true;
+            importStatus.textContent = 'Importing and validating dataset…';
+            try {
+                const body = new FormData();
+                body.append('file', file);
+                const payload = await fetchJson('/api/v1/evaluation/test-sets/import', {
+                    method: 'POST',
+                    body,
+                });
+                const imported = payload?.test_set || {};
+                importNotice = `Imported ${imported.id || 'test set'} v${imported.version || '?'} with ${Number(imported.sample_count || 0)} samples.`;
+                await boot();
+            } catch (error) {
+                const prefix = error?.status === 409 ? 'Dataset already exists' : 'Import failed';
+                importStatus.textContent = `${prefix}: ${error?.message || 'unknown error'}`;
+            } finally {
+                importButton.disabled = false;
+                importFile.disabled = false;
+            }
+        });
+
         form?.addEventListener('submit', async (event) => {
             event.preventDefault();
             if (running) return;
@@ -178,12 +240,14 @@
                     </div>
                 </div>`;
             try {
+                const selectedOption = testSelect.selectedOptions?.[0];
                 const payload = await fetchJson('/api/v1/evaluation/runs', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         model: view.querySelector('[data-evaluation-model]').value,
-                        test_set_id: testSelect.value,
+                        test_set_id: selectedOption?.dataset?.id || '',
+                        test_set_version: selectedOption?.dataset?.version || null,
                         sample_count: Number(sampleSelect.value),
                         seed: Number(view.querySelector('[data-evaluation-seed]').value || 0),
                     }),
@@ -199,6 +263,21 @@
                 startButton.disabled = false;
             }
         });
+    }
+
+    function syncSelectedTestSet(testSelect, sampleSelect, view) {
+        syncSampleOptions(testSelect, sampleSelect);
+        const option = testSelect?.selectedOptions?.[0];
+        const host = view.querySelector('[data-evaluation-dataset-meta]');
+        if (!host) return;
+        if (!option) {
+            host.textContent = 'Dataset metadata unavailable.';
+            return;
+        }
+        const source = option.dataset.source === 'custom' ? 'Custom dataset' : 'Built-in dataset';
+        host.innerHTML = `
+            <span class="ds-status" data-status="${option.dataset.source === 'custom' ? 'warning' : 'ready'}">${escapeHtml(source)}</span>
+            <span>${escapeHtml(option.dataset.id || '')} v${escapeHtml(option.dataset.version || '')}</span>`;
     }
 
     function syncSampleOptions(testSelect, sampleSelect) {
@@ -240,7 +319,7 @@
             <div class="evaluation-metrics">
                 ${metricCard('Objective quality', quality === null ? 'Unavailable' : `${(quality * 100).toFixed(1)}%`, `${scores.length} scored checks`)}
                 ${metricCard('Inference success', results.length ? `${succeeded}/${results.length}` : 'Unavailable', 'Completed samples')}
-                ${metricCard('Avg. wall time', avgWall === null ? 'Unavailable' : `${avgWall.toFixed(3)} s`, 'Per sample, client-side report metric')}
+                ${metricCard('Avg. wall time', avgWall === null ? 'Unavailable' : `${avgWall.toFixed(3)} s`, 'Per sample, report metric')}
                 ${metricCard('Token usage', inputTokens === null && outputTokens === null ? 'Unavailable' : `${formatMaybe(inputTokens)} in / ${formatMaybe(outputTokens)} out`, 'Only when backend usage exists')}
             </div>
             <div class="ds-card evaluation-manifest">

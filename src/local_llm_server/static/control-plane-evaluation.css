@@ -1,8 +1,8 @@
 .evaluation-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(260px, .75fr);
+    grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr);
     gap: var(--ds-space-5, 20px);
-    margin-bottom: var(--ds-space-6, 24px);
+    margin-bottom: var(--ds-space-5, 20px);
 }
 
 .evaluation-setup,
@@ -28,7 +28,9 @@
     gap: var(--ds-space-3, 12px);
 }
 
-.evaluation-note {
+.evaluation-note,
+.evaluation-import-status,
+.evaluation-selected-dataset {
     padding: 12px 14px;
     border: 1px solid var(--ds-border, rgba(148, 163, 184, .2));
     border-radius: var(--ds-radius-md, 10px);
@@ -37,8 +39,50 @@
     line-height: 1.55;
 }
 
+.evaluation-selected-dataset {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-block: 9px;
+}
+
+.evaluation-context-copy {
+    margin: 0;
+    color: var(--ds-text-muted, #94a3b8);
+    font-size: .84rem;
+    line-height: 1.55;
+}
+
+.evaluation-import-status {
+    min-height: 46px;
+}
+
+.evaluation-library-summary,
+.evaluation-history-summary {
+    padding-top: 14px;
+    border-top: 1px solid var(--ds-border, rgba(148, 163, 184, .16));
+    color: var(--ds-text-muted, #94a3b8);
+    font-size: .82rem;
+}
+
+.evaluation-history-summary {
+    margin-top: auto;
+}
+
+.evaluation-library-summary strong,
+.evaluation-history-summary strong {
+    color: var(--ds-text, #f8fafc);
+    font-size: 1rem;
+}
+
+.evaluation-contract-card {
+    display: block;
+    margin-bottom: var(--ds-space-6, 24px);
+}
+
 .evaluation-definition-list {
     display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 12px;
     margin: 0;
 }
@@ -58,19 +102,6 @@
     color: var(--ds-text-muted, #94a3b8);
     font-size: .82rem;
     line-height: 1.45;
-}
-
-.evaluation-history-summary {
-    margin-top: auto;
-    padding-top: 14px;
-    border-top: 1px solid var(--ds-border, rgba(148, 163, 184, .16));
-    color: var(--ds-text-muted, #94a3b8);
-    font-size: .82rem;
-}
-
-.evaluation-history-summary strong {
-    color: var(--ds-text, #f8fafc);
-    font-size: 1rem;
 }
 
 .evaluation-running {
@@ -153,7 +184,8 @@
         grid-template-columns: 1fr 1fr;
     }
 
-    .evaluation-metrics {
+    .evaluation-metrics,
+    .evaluation-definition-list {
         grid-template-columns: 1fr 1fr;
     }
 }
@@ -162,7 +194,13 @@
     .evaluation-layout,
     .evaluation-manifest,
     .evaluation-metrics,
-    .evaluation-field-grid {
+    .evaluation-field-grid,
+    .evaluation-definition-list {
         grid-template-columns: 1fr;
+    }
+
+    .evaluation-selected-dataset {
+        align-items: flex-start;
+        flex-direction: column;
     }
 }
