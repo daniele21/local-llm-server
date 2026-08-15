@@ -21,20 +21,20 @@ Integrated:
 
 - blocking pytest on Python 3.10/3.11/3.12 plus Ruff correctness checks;
 - backend-neutral task/request/result/error contracts and OpenAI/legacy compatibility translation;
-- supported public Python/CLI entrypoints install canonical request policy before inference;
-- remote HTTP(S) media is fail-closed by default and policy rejection occurs before backend invocation;
-- full runtime capability descriptors are consulted before supported chat execution;
-- `trust_remote_code` and remote-media opt-in remain explicit runtime configuration;
+- supported product entrypoints install canonical request/media/capability policy before inference;
+- remote HTTP(S) media is fail-closed by default; `trust_remote_code` and remote-media opt-in remain explicit;
+- canonical request preparation now also produces one tested `PreparedBackendRequest` with the existing engine kwargs/default semantics, including aliases, structured output and switchable thinking;
+- the exact resident model ID can be separated from the public request alias during backend preparation;
 - owned temporary audio cleanup is deterministic;
-- read-only admin `/api/v1/policies` exposes bounded effective policy flags without local paths, prompt/output content or secret values;
+- read-only admin `/api/v1/policies` exposes bounded effective policy flags without paths, prompt/output content or secrets;
 - external registry integration is consumer-agnostic.
 
 Compatibility boundary:
 
-- the historical chat route still rebuilds backend kwargs after canonical middleware validation;
-- direct use of the legacy module-level `local_llm_server.server:app` remains a compatibility/deprecation path rather than the supported product entrypoint.
+- `server.py` still reconstructs historical backend kwargs after middleware validation instead of consuming `prepared.backend`; the translation owner is ready but the route switch is not yet merged;
+- direct use of legacy module-level `local_llm_server.server:app` remains a compatibility/deprecation path rather than the supported product entrypoint.
 
-### Resources, runtime lifecycle and scheduling
+### Resources, runtime lifecycle, workers and scheduling
 
 Integrated:
 
@@ -42,27 +42,29 @@ Integrated:
 - `ResourceManager` reservation, admission and accounting with `ADMIT`, `REJECT`, `UNKNOWN`;
 - supported product bootstrap can configure resource policy before initial expensive model load;
 - admin `/api/v1/resources` exposes configured/disabled policy, usable budget, committed/reserved bytes and remaining capacity;
-- load/reload/unload accounting is wired, including rollback and replacement-overlap checks;
-- zero-resident server state is valid: configured default identity is distinct from current resident default route;
-- the last idle runtime can unload without making the server unhealthy;
-- bounded scheduler contracts plus async FIFO runtime admission are integrated;
-- opt-in request queueing is wired with bounded capacity, queue timeout, per-runtime gates and streaming slot lifetime;
-- admin scheduler evidence exposes aggregate queue/running state without request content;
-- explicit runtime pin/unpin policy is integrated and exposed through admin residency APIs;
-- `evictable` is a current eligibility state only: pinned, non-ready and active-leased runtimes are excluded;
-- deterministic LRU/TTL candidate selection is integrated with resident-default protection enabled by default;
-- eviction preview and execution are explicit admin actions; no pressure-triggered automatic eviction is enabled by default;
-- a state/lease change between selection and unload causes the candidate to be skipped rather than forced;
-- worker protocol and bounded JSON-line subprocess transport exist for health/generate/drain/cancel/stop ownership;
-- reclamation evidence contracts record before/ready/peak/after-stop snapshots;
-- a repeated lifecycle experiment harness now orchestrates those checkpoints, attempts cleanup on partial failures and aggregates `recovery_observed`, `no_recovery_observed` and `inconclusive` without emitting a PASS/FAIL claim.
+- load/reload/unload accounting, zero-resident state, default/residency separation and bounded request leases are integrated;
+- bounded FIFO request scheduling exposes aggregate queue/running evidence without request content;
+- explicit runtime pin/unpin, current `evictable` eligibility and deterministic LRU/TTL selection are integrated;
+- resident default protection is enabled by default; selection is revalidated at unload and stale candidates are skipped;
+- explicit eviction preview/execution remains administrative; automatic pressure eviction is disabled;
+- deterministic pressure policy evaluation now uses hysteresis: repeated high-pressure samples trigger at most one bounded candidate attempt per episode, and clearing requires repeated lower-pressure samples;
+- `UNKNOWN` pressure never triggers eviction and never clears an already-triggered episode;
+- worker protocol + bounded JSON-line subprocess transport are integrated;
+- `WorkerBackedEngine` provides real isolated **non-streaming** completed-response inference with private runtime config sent over stdin after process start;
+- worker streaming and in-flight cancellation are explicitly unsupported in this first adapter rather than emulated;
+- worker prepare/generation errors expose bounded codes instead of backend exception text/private paths;
+- repeated reclamation orchestration records before-start/after-ready/peak/after-stop windows and preserves `recovery_observed`, `no_recovery_observed` and `inconclusive` without PASS/FAIL promotion;
+- worker reclamation cycles now bind real isolated start/ready/infer/stop operations to that harness;
+- `local-llm evidence-reclamation` produces atomic privacy-safe JSON reports on local hardware, with prompt/output and local model paths excluded;
+- the hardware runner records artifact/config/backend/hardware identity, resolves backend versions where possible and can measure bound child-process RSS during READY/PEAK on Linux/macOS;
+- child RSS is `Unavailable` before start and after stop rather than fabricated as zero; host available-memory remains the before/after recovery source.
 
 Remaining boundary:
 
-- existing inference engines are not yet broadly routed through process-isolated worker ownership;
-- automatic eviction under real resource pressure is intentionally not enabled;
-- estimated residency remains distinct from representative measured footprint;
-- real host-memory reclamation, repeated lifecycle stability and safe pressure eviction still require representative hardware evidence.
+- worker isolation is not yet the default/general streaming runtime path;
+- automatic pressure eviction remains disabled pending representative evidence review;
+- actual host/unified-memory reclamation, repeated lifecycle stability and safe pressure behavior require hardware reports produced outside CI;
+- worker cancellation and true incremental streaming need protocol extensions before they can be claimed.
 
 ### Multi-task capabilities and audio
 
@@ -70,138 +72,136 @@ Integrated:
 
 - task/input/output/feature capability descriptors with explicit vs `legacy_conservative` provenance;
 - capability descriptors are public in model/admin catalog sources;
-- supported chat requests reject unsupported canonical capability combinations before backend execution;
-- first-class resident transcription service exists independently from audio-language chat;
-- modular `/v1/audio/transcriptions` accepts bounded multipart upload and requires explicit transcription capability;
+- unsupported canonical chat combinations fail before backend execution;
+- first-class resident transcription service and bounded multipart `/v1/audio/transcriptions` require explicit ASR capability;
 - legacy audio modality alone never implies ASR support;
-- Endpoints now derives chat, vision-language, structured-generation and transcription compatibility from server-owned descriptors;
-- Playground controls are filtered from declared tasks/modalities/features rather than named-model allowlists;
-- the Playground includes a first-class multipart audio -> text transcription flow for compatible resident runtimes;
-- if capability metadata becomes unavailable, legacy controls are restored rather than left in a stale disabled state.
+- Endpoints derives chat, vision-language, structured-generation and transcription compatibility from server-owned descriptors;
+- Playground controls follow declared modalities/features and include a real audio -> text flow;
+- capability-source loss restores legacy controls rather than leaving stale disabled state.
 
 Remaining boundary:
 
 - broader specialist runtime coverage remains backend-dependent;
-- text/vision/audio hardware behavior still needs representative evidence and regression coverage.
+- text/vision/audio device behavior still needs representative smoke/evidence coverage.
 
 ### Observability and runtime identity
 
 Integrated:
 
 - canonical token/chunk/duration/throughput vocabulary with no chunk-as-token aliasing;
-- non-streaming completions record explicit OpenAI usage and backend timing fields when supplied;
-- streaming chat records true first non-empty model-content TTFT from request receipt;
-- queue wait, prompt/output tokens, prefill/decode duration, decode throughput and total duration are exposed only when sourced;
-- malformed/oversized completion capture degrades conservatively instead of inventing timing/token values;
-- privacy-safe `/api/v1/evidence` exposes request/runtime evidence without generated content;
-- path-free artifact identity, backend/config/hardware fingerprint contracts and immutable residency snapshots are integrated;
-- automatic runtime identity capture occurs only when artifact SHA-256 and backend version are strong enough; otherwise the runtime remains exploratory;
-- System / Diagnostics consumes the canonical `durations_ms` / `throughput` schema directly and preserves missing values as `Unavailable`.
+- non-streaming completions map explicit OpenAI usage and backend timings when supplied;
+- streaming chat measures first non-empty model-content TTFT at the HTTP boundary;
+- streaming SSE events now retain explicit cumulative `usage`/`timings` evidence instead of discarding it after TTFT observation;
+- HTTP-boundary TTFT/total sources remain distinct from backend timing sources;
+- an explicit MLX generation adapter maps prompt/generation token counts and processing rates only when supplied by the backend, deriving durations only from valid count/rate pairs;
+- malformed/missing measurements remain unavailable;
+- privacy-safe `/api/v1/evidence` exposes runtime evidence without generated content;
+- path-free artifact/backend/config/hardware fingerprint contracts and immutable residency snapshots are integrated;
+- automatic identity capture requires strong artifact SHA + backend version; otherwise runs remain exploratory;
+- generic/specialist backends may supply an explicit backend version, and llama-server build+commit can be probed conservatively without publishing its executable path;
+- System / Diagnostics consumes canonical `durations_ms` / `throughput` fields and preserves missing values as `Unavailable`.
 
 Remaining boundary:
 
-- backend-specific metric coverage is still incomplete across all MLX/VLM/ASR combinations;
+- wider VLM/ASR metric and termination/cancellation coverage is still incomplete;
 - device-specific throughput, TTFT and thermal claims remain evidence-pending.
 
 ### Evaluation harness
 
 Integrated:
 
-- versioned test-set/sample/scorer/run/report contracts;
-- built-in `general-purpose` v1 deterministic set and objective scorer;
-- seeded sample selection and per-sample failure isolation;
-- resident-runtime evaluation service, run API and local immutable report persistence;
-- history loading and compatibility-aware comparison API/UI;
-- comparison distinguishes `not comparable`, `exploratory`, `descriptive only` and attribution-safe states and emits no automatic better/worse verdict;
-- runtime fingerprint controls evidence-grade comparison status;
-- test-set identity is content-sensitive, so prompt/expectation/task changes alter identity even under stable sample IDs;
-- validated custom JSON test-set import uses atomic local persistence, version coexistence, reserved built-in IDs and no executable code/templates/plugins;
-- custom sets currently support deterministic `chat` and `structured_generation` samples with allowlisted objective expectations;
-- Benchmark & Evaluation now provides JSON import, built-in/custom source labeling, explicit version identity and `test_set_version` propagation into runs;
-- duplicate id/version import conflicts are surfaced explicitly and the UI never silently opts into replace.
+- versioned test-set/sample/scorer/run/report contracts, deterministic built-in general-purpose set and seeded selection;
+- resident-runtime evaluation, per-sample failure isolation, immutable local persistence, history and compatibility-aware comparison;
+- comparisons distinguish incompatible/exploratory/descriptive/attribution-safe states and never auto-declare better/worse;
+- verified runtime fingerprint controls evidence-grade comparison status;
+- validated custom JSON import uses atomic local persistence, explicit versions, reserved built-in IDs and no executable scorer/template/plugin definitions;
+- custom deterministic `chat` and `structured_generation` samples execute through the same service;
+- Benchmark & Evaluation provides JSON import, built-in/custom labels, explicit version propagation and duplicate-conflict feedback.
 
 Remaining boundary:
 
-- cancellation/progress is limited by the current synchronous evaluation execution model;
-- broader benchmark families and explicit cold/warm experiment orchestration remain later extensions;
-- evidence-grade cross-runtime comparisons remain constrained by verified identity/backend coverage.
+- cancellation/progress remains limited by synchronous evaluation execution;
+- broader workload families and explicit cold/warm orchestration remain later extensions;
+- evidence-grade comparisons remain constrained by runtime/backend identity coverage.
 
 ### UX/UI
 
 Integrated:
 
-- shared design system and seven-destination control-plane shell;
-- Overview consumes live health/status/models plus resource, runtime-evidence and scheduler sources;
-- Models & Runtimes consumes resident/status/catalog plus resource, runtime identity and residency policy sources;
-- Models & Runtimes exposes real pin/unpin controls while keeping reclamation claims separate;
-- Endpoints and Playground are capability-driven and include first-class transcription UX;
-- Benchmark & Evaluation supports real setup/run/results, persisted history/comparison and custom dataset import/version selection;
-- System / Diagnostics prepends source-backed runtime/resource/scheduler/identity summaries to the existing operational logs rather than replacing them;
-- Settings is source-backed and read-only, showing effective request-privacy, resource, residency and scheduler state without inventing configuration mutations;
-- shell fallback content no longer repeats obsolete milestone/blocker claims;
-- missing values remain `Unavailable`, not zero;
-- configured default identity, resident default route and cold state are distinct in product UI.
+- shared design system and seven-destination source-backed control-plane shell;
+- Overview, Models & Runtimes, Endpoints/Playground, Benchmark & Evaluation, System / Diagnostics and Settings consume real server-owned sources;
+- Models exposes real pin/unpin while keeping eviction policy separate from reclamation evidence;
+- Settings remains read-only rather than inventing undefined mutation contracts;
+- control-plane navigation now uses a dedicated ARIA tablist/tabpanel model with roving tabindex, Arrow/Home/End keyboard navigation and a skip link;
+- inactive panels are removed from the accessibility tree;
+- visible focus styling covers design-system plus retained legacy native controls;
+- decorative tab icons are hidden from assistive technology;
+- responsive grid/action/table contracts are hardened for narrow effective viewports and high browser zoom; tables retain horizontal access;
+- reduced-motion handling is broadened;
+- status components retain visible text in addition to color indicators;
+- missing values remain `Unavailable`, not zero.
 
 Remaining boundary:
 
-- full keyboard/focus/contrast/200%-zoom verification;
-- responsive evidence at representative widths;
-- stable visual-regression coverage for loading/empty/unavailable/warning/error/success states;
+- manual light/dark contrast review;
+- real end-to-end traversal at 200% zoom and representative device widths;
+- stable visual-regression fixtures/screenshots for loading/empty/unavailable/warning/error/success states;
+- destructive-action confirmation/feedback audit;
 - representative runtime screenshots for public documentation;
-- final cleanup/migration of legacy view internals where overlays still preserve old working surfaces.
+- final cleanup of legacy view internals where overlays still preserve working surfaces.
 
 ## Program status
 
 | Task | Status | Integrated outcome | Remaining gate |
 | --- | --- | --- | --- |
 | A1 truthful CI | DONE | blocking deterministic matrix | broader quality debt later |
-| A2/C1 canonical policy | PARTIAL | supported entrypoints validate canonical request/media/capability policy | retire duplicate parser + legacy direct-app path |
+| A2/C1 canonical policy | PARTIAL | canonical validation + canonical backend-kwargs adapter | switch historical route to prepared backend + legacy direct-app decision |
 | A3 consumer decoupling | DONE | generic registry sources | — |
-| B1 resource observation | EVIDENCE | Linux/macOS source contracts | representative device validation |
+| B1 resource observation | EVIDENCE | Linux/macOS source contracts + worker PID RSS evidence path | representative device validation |
 | B2 resource admission | PARTIAL | product policy + shared accounting/API | measured reconciliation/hardware evidence |
-| B3 worker/reclamation | PARTIAL | protocol/transport + conservative evidence recorder + repeated experiment harness | engine integration + hardware proof |
+| B3 worker/reclamation | PARTIAL | isolated batch worker + repeated worker reclamation procedure + CLI | representative reports + streaming/cancellation adoption |
 | B4 zero resident | DONE | healthy cold state + default/residency separation | automatic cold-load remains later policy |
-| B5 scheduler | PARTIAL | bounded FIFO request admission + evidence | wider runtime/cancellation evidence |
-| B6 pin/LRU/TTL | PARTIAL | pinning + deterministic explicit LRU/TTL preview/execution | pressure trigger + representative safety/reclamation evidence |
-| C2 capabilities | PARTIAL | descriptors + pre-backend enforcement + capability-driven UX | broader task/backend evidence |
+| B5 scheduler | PARTIAL | bounded FIFO request admission + evidence | wider cancellation/runtime evidence |
+| B6 pin/LRU/TTL/pressure | PARTIAL | pinning + LRU/TTL + hysteretic pressure evaluator | real pressure/hardware review before automation |
+| C2 capabilities | PARTIAL | descriptors + pre-backend enforcement + capability-driven UX | broader backend evidence |
 | C3 transcription | PARTIAL | first-class service/API/UI | specialist backend/hardware evidence |
 | D1 metrics vocabulary | DONE | truthful canonical schema | — |
-| D2 live metrics | PARTIAL | streaming TTFT + nonstreaming token/timing evidence | wider backend coverage/hardware validation |
-| D3 runtime identity | PARTIAL | verified auto-capture + public evidence | stronger artifact/backend coverage |
-| D4 evaluation | PARTIAL | resident runs, persistence and custom dataset backend/UI | richer workload families/cold-warm orchestration |
-| D5 history/comparison | PARTIAL | persisted compatibility-aware comparison | baseline management/report UX later |
-| E1/E2 design system + shell | PARTIAL | shared primitives and seven-destination IA | accessibility/visual evidence |
-| E3 Models & Runtimes | PARTIAL | runtime/catalog/resource/identity/residency sources + pin UX | lifecycle/hardware evidence + legacy cleanup |
+| D2 live metrics | PARTIAL | HTTP TTFT + nonstream/stream explicit usage/timing + MLX adapter | wider VLM/ASR/device validation |
+| D3 runtime identity | PARTIAL | verified auto-capture + explicit/specialist version paths | stronger artifact/backend coverage |
+| D4 evaluation | PARTIAL | resident runs, persistence and custom dataset backend/UI | richer workloads/cold-warm orchestration |
+| D5 history/comparison | PARTIAL | persisted compatibility-aware comparison | baseline/report UX later |
+| E1/E2 design system + shell | EVIDENCE | shared primitives + ARIA keyboard/focus/responsive contracts | manual contrast/zoom/visual evidence |
+| E3 Models & Runtimes | PARTIAL | source-backed state + pin UX | lifecycle/hardware evidence + legacy cleanup |
 | E4 Overview | PARTIAL | resource/runtime/metric/scheduler evidence | hardware evidence |
-| E5 Playground/Endpoints | PARTIAL | capability-driven task composition + transcription UX | accessibility/regression/backend evidence |
-| E6 Evaluation UI | PARTIAL | run/results/history/comparison + custom upload/version UX | richer experiments/accessibility evidence |
-| E7 System/Settings | PARTIAL | source-backed diagnostics + effective policy presentation | accessibility/visual evidence + future mutation semantics if required |
-| H hardware/release evidence | PENDING | deterministic CI and experiment harness only | representative hardware matrix |
+| E5 Playground/Endpoints | PARTIAL | capability-driven tasks + transcription UX | regression/backend evidence |
+| E6 Evaluation UI | PARTIAL | run/results/history/comparison + custom upload/version UX | richer experiments/visual evidence |
+| E7 System/Settings | PARTIAL | source-backed diagnostics + policy presentation | visual/manual evidence + future mutation semantics if required |
+| H hardware/release evidence | PARTIAL | repeatable worker hardware CLI + evidence schema | execute/review representative device matrix |
 
 ## Immediate next parallel wave
 
-The dominant work is now hardening/evidence rather than source wiring:
+The highest-value remaining work is now validation/consolidation rather than basic source wiring:
 
-1. **B3e worker adoption + hardware evidence** — bind selected dynamic runtimes to explicit process ownership where useful, then run repeated before/ready/peak/after-stop experiments on representative hardware.
-2. **B6c pressure-policy validation** — define deterministic pressure trigger semantics and test candidate selection under concurrency; keep automatic eviction disabled until hardware evidence supports the claim.
-3. **D2e/D3e backend coverage** — expand truthful metrics and verified artifact/backend version capture across MLX text/VLM/ASR without fabricating unavailable fields.
-4. **A2 final canonical-route migration** — remove the historical duplicate backend-kwargs parser boundary and formalize/deprecate direct `server:app` usage without breaking supported entrypoints.
-5. **H1/H2 UX hardening** — keyboard/focus/status/contrast/200%-zoom checks, responsive reference widths and stable visual-regression states.
-6. **H3/H4 release evidence/documentation** — representative screenshots, hardware evidence records, README/API examples and explicit experimental-claim labels.
-7. **Integration consolidation** — cumulative CI/release-gate review, then promote the control-plane program toward `main` only when the agreed release boundary is satisfied.
+1. **H3 representative hardware execution** — run `local-llm evidence-reclamation` across agreed Mac/Linux devices/backends/artifacts, retain exact identity and review repeated recovery/stability results.
+2. **A2 route cutover** — make `server.py` consume `prepared.backend`, remove duplicate request/kwargs construction, then decide/formalize the legacy direct `server:app` deprecation boundary.
+3. **B6 pressure integration review** — feed real pressure observations into the hysteretic evaluator only after hardware results establish a defensible safety envelope; keep automatic unload off by default until then.
+4. **D2/D3 specialist coverage** — add explicit VLM/ASR timing/token/termination evidence and stronger version/artifact capture without substituting estimates for unavailable values.
+5. **B3 worker protocol expansion** — design real incremental worker streaming/cancellation if process-isolated interactive inference is required; do not emulate it with buffered completed output.
+6. **H1/H2 manual + visual hardening** — contrast, real 200% zoom, reference widths, destructive-action review and stable visual-regression state fixtures.
+7. **H4 release/docs consolidation** — README/API examples, representative screenshots, evidence matrix and experimental-claim labels, followed by cumulative integration-to-main review.
 
 ### Parallelization constraints
 
-- B6 pressure automation must not convert deterministic policy correctness into a memory-reclamation claim.
-- B3/hardware evidence owns reclamation proof; B6 owns candidate/admission policy.
-- D2/D3 may progress per backend independently of UX hardening.
-- A2 route migration must preserve the canonical pre-backend policy already installed on supported product entrypoints.
-- H1/H2 may use deterministic fixtures, but hardware/runtime claims require real source-backed evidence.
-- documentation status changes only after corresponding code/evidence is integrated.
+- pressure-policy correctness is not reclamation proof; B6 automation remains gated by H3 evidence;
+- child PID RSS may describe READY/PEAK footprint, but after-stop recovery remains a host-memory observation rather than an invented zero;
+- A2 route cutover must preserve the already-tested canonical request and backend translation contract;
+- specialist metric adapters may map only explicit backend evidence;
+- deterministic UX tests do not replace manual contrast/zoom or real runtime screenshots;
+- documentation status changes only after code/evidence is integrated.
 
 ## Evidence boundary
 
-Automated tests establish contract and deterministic workflow correctness. They do **not** prove Apple unified-memory reclamation, actual unload recovery, thermal behavior, device-specific token throughput or safe auto-eviction under pressure. Representative hardware evidence remains mandatory before those claims become DONE.
+Automated tests establish deterministic contract/workflow correctness and the hardware runner makes representative testing reproducible. CI still does **not** prove unified-memory reclamation, actual unload recovery, thermal behavior, device-specific throughput or safe automatic eviction under pressure. Those claims require retained reports from representative hardware.
 
 ## Update rule
 
