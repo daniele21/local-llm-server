@@ -63,12 +63,16 @@ class EvaluationRunner:
     scorers: Sequence[Scorer]
 
     def run(self, *, manifest: EvaluationRunManifest, test_set: TestSet) -> EvaluationReport:
+        # Dataset identity is the outer reproducibility boundary. Reject a
+        # manifest for a different dataset/version before interpreting its
+        # sample IDs against the supplied set.
+        if manifest.test_set_identity != test_set.identity:
+            raise ValueError("manifest test-set identity does not match supplied test set")
+
         by_id = {sample.sample_id: sample for sample in test_set.samples}
         missing = [sample_id for sample_id in manifest.sample_ids if sample_id not in by_id]
         if missing:
             raise ValueError(f"manifest references unknown samples: {', '.join(missing)}")
-        if manifest.test_set_identity != test_set.identity:
-            raise ValueError("manifest test-set identity does not match supplied test set")
 
         results = tuple(
             self._run_sample(sample=by_id[sample_id], manifest=manifest)
