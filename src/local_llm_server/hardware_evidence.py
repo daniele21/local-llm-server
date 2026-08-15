@@ -104,6 +104,16 @@ def default_worker_resource_observer() -> ResourceObserver:
     return WorkerSystemResourceObserver(base)
 
 
+def local_environment_metadata() -> dict[str, str]:
+    """Return bounded host-environment metadata without hostname or user identity."""
+    return {
+        "system": platform.system().lower() or "unknown",
+        "release": platform.release() or "unknown",
+        "machine": platform.machine().lower() or "unknown",
+        "python_version": platform.python_version(),
+    }
+
+
 def execute_hardware_reclamation_evidence(
     options: HardwareEvidenceOptions,
     *,
@@ -164,6 +174,7 @@ def execute_hardware_reclamation_evidence(
     return {
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "environment": local_environment_metadata(),
         "procedure": {
             "name": "worker_reclamation_v1",
             "cycles": options.cycles,
