@@ -10,22 +10,28 @@ import pytest
 STATIC = Path(__file__).resolve().parents[1] / "src" / "local_llm_server" / "static"
 
 
-def test_overview_consumes_resource_and_evidence_product_sources():
+def test_overview_consumes_resource_evidence_and_scheduler_product_sources():
     script = (STATIC / "control-plane-live.js").read_text(encoding="utf-8")
     assert "/api/v1/resources" in script
     assert "/api/v1/evidence" in script
+    assert "/api/v1/scheduler" in script
     assert "configured_default_model" in script
-    assert "runtime_fingerprint" not in script  # identity uses the canonical fingerprint field
+    assert "runtime_fingerprint" not in script
     assert "identity?.fingerprint" in script
+    assert "Queued requests" in script
+    assert "Inflight admissions" in script
 
 
 def test_overview_preserves_unavailable_semantics_for_unsourced_metrics():
     script = (STATIC / "control-plane-live.js").read_text(encoding="utf-8")
+    assert "Queue wait" in script
     assert "TTFT" in script
     assert "Unavailable" in script
     assert "decode_tokens_per_second" in script
     assert "output_tokens" in script
     assert "no fallback values are fabricated" in script
+    assert "value === null || value === undefined || value === ''" in script
+    assert "const number = finiteNumber(value)" in script
 
 
 def test_overview_javascript_is_syntactically_valid_when_node_is_available():
