@@ -7,6 +7,9 @@ allowed but evidence remains exploratory.
 """
 from __future__ import annotations
 
+import re
+import subprocess
+from pathlib import Path
 from typing import Any, Mapping
 
 from .artifact_identity import (
@@ -15,7 +18,7 @@ from .artifact_identity import (
     VerificationState,
 )
 from .runtime_evidence import RuntimeIdentitySnapshot, build_and_attach_runtime_identity
-from .runtime_identity import backend_identity, local_hardware_profile
+from .runtime_identity import BackendIdentity, backend_identity, local_hardware_profile
 
 
 _BACKEND_PACKAGES: dict[str, str] = {
@@ -23,6 +26,9 @@ _BACKEND_PACKAGES: dict[str, str] = {
     "mlx": "mlx-lm",
     "mlx_vlm_server": "mlx-vlm",
 }
+_LLAMA_SERVER_VERSION = re.compile(
+    r"version:\s*(?P<build>\d+)\s*\(`?(?P<commit>[0-9a-fA-F]{7,40})`?\)"
+)
 
 
 def capture_verified_runtime_identity(
@@ -38,18 +44,8 @@ def capture_verified_runtime_identity(
         return None
 
     backend_name = str(cfg.get("backend") or getattr(runtime.engine, "backend", "unknown"))
-    package_name = _BACKEND_PACKAGES.get(backend_name)
-    if package_name is None:
-        # Managed llama-server binaries and unknown engines need an explicit
-        # binary/version probe before they qualify for automatic evidence-grade identity.
-        return None
-
-    backend = backend_identity(
-        backend_name,
-        package_name=package_name,
-        implementation=runtime.engine.__class__.__name__,
-    )
-    if backend.version is None:
+    backend = _resolved_backend_identity(runtime, backend_name, cfg)
+    if backend is None or backend.version is None:
         return None
 
     source_kind = _source_kind(cfg.get("model_source"))
@@ -77,6 +73,62 @@ def capture_verified_runtime_identity(
         ),
         resolved_config=cfg,
     )
+
+
+def _resolved_backend_identity(
+    runtime: Any,
+    backend_name: str,
+    cfg: Mapping[str, Any],
+) -> BackendIdentity | None:
+    implementation = runtime.engine.__class__.__name__
+    package_name = _BACKEND_PACKAGES.get(backend_name)
+    if package_name is not None:
+        resolved = backend_identity(
+            backend_name,
+            package_name=package_name,
+            implementation=implementation,
+        )
+        if resolved.version is not None:
+            return resolved
+
+    explicit = cfg.get("backend_version") or getattr(runtime.engine, "backend_version", None)
+    if isinstance(explicit, str) and explicit.strip():
+        return BackendIdentity(
+            name=backend_name,
+            version=explicit.strip(),
+            implementation=implementation,
+        )
+
+    if backend_name == "llama_server":
+        version = _probe_llama_server_version(getattr(runtime.engine, "binary", None))
+        if version is not None:
+            return BackendIdentity(
+                name=backend_name,
+                version=version,
+                implementation=implementation,
+            )
+    return None
+
+
+def _probe_llama_server_version(binary: Any) -> str | None:
+    if binary is None:
+        return None
+    path = Path(str(binary)).expanduser()
+    try:
+        completed = subprocess.run(
+            [str(path), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    text = "\n".join(part for part in (completed.stdout, completed.stderr) if part)
+    match = _LLAMA_SERVER_VERSION.search(text)
+    if match is None:
+        return None
+    return f"build-{match.group('build')}@{match.group('commit').lower()}"
 
 
 def _source_kind(value: Any) -> ArtifactSourceKind:
