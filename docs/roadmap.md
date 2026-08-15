@@ -7,327 +7,195 @@ Canonical scope: roadmap.repository
 Read when: selecting the next capability milestone, understanding dependencies or parallelizing implementation
 Last reviewed: 2026-08-15
 
-Integrated truth belongs in [`current-state.md`](current-state.md). This file owns sequencing, dependency release points and parallel work.
+Integrated truth belongs in [`current-state.md`](current-state.md). This file owns sequencing and dependency release points.
 
-## Delivery objective
+## Objective
 
 Evolve Local LLM Server into a **resource-aware, observable local AI control plane and evaluation harness** while specialist runtimes retain backend execution ownership.
 
-| Lane | Scope |
-| --- | --- |
-| A | reliability/security |
-| B | resources/runtime/workers/scheduling |
-| C | tasks/capabilities/APIs |
-| D | observability/identity/evaluation |
-| E | UX/UI |
-| F | positioning/docs |
-
-## Status legend
-
-`READY` dependency-complete · `PARTIAL` useful implementation/incomplete acceptance · `BLOCKED` hard dependency · `DONE` complete · `EVIDENCE` code complete/representative evidence pending.
-
-## Milestones
+## Milestone summary
 
 | Milestone | Status | Remaining outcome |
 | --- | --- | --- |
-| M0 documentation governance | DONE | keep state synchronized |
-| M1 trustworthy foundation | PARTIAL | AC1b route wiring + screen evidence |
-| M2 resource-aware runtime | PARTIAL | load wiring, reclamation, zero-resident, scheduler, eviction |
-| M3 multi-task control plane | PARTIAL | public capabilities + ASR/task routing |
-| M4 evidence-grade observability | PARTIAL | richer adapters + runtime fingerprint |
-| M5 redesigned control-plane UX | PARTIAL | Models/Playground/Diagnostics/data panels |
-| M6 evaluation harness | PARTIAL | built-in dataset/scorers + execution/history |
-| M7 product-grade candidate | BLOCKED | hardening + representative hardware evidence |
+| M0 documentation governance | DONE | keep plan synchronized |
+| M1 trustworthy foundation | PARTIAL | AC1b route wiring + UX evidence |
+| M2 resource-aware runtime | PARTIAL | admission wiring, concrete worker/reclamation, zero-resident, scheduler, eviction |
+| M3 multi-task control plane | PARTIAL | public capability exposure, ASR/task routing |
+| M4 evidence-grade observability | PARTIAL | richer metrics + fingerprint attachment/evidence |
+| M5 control-plane UX | PARTIAL | Models/Playground/Diagnostics/data panels |
+| M6 evaluation harness | PARTIAL | execution engine + history/regression |
+| M7 product-grade candidate | BLOCKED | representative hardware/release evidence |
 
-## Completed foundations
+## Done foundations
 
-### A1 truthful CI — DONE
+- **A1 CI** — blocking deterministic Python 3.10/3.11/3.12 tests and Ruff correctness gate.
+- **A3 decoupling** — no ClosedRoom-specific core registry dependency.
+- **F1 positioning** — control-plane product language with current-vs-target separation.
+- **D1 metrics vocabulary** — truthful token/chunk/duration/throughput semantics.
+- **D3a artifact identity** — path-free artifact source/verification identity.
+- **D4a evaluation schema** — versioned test sets, deterministic selection, scorer/run/report contracts.
+- **D4b built-in dataset** — 20-sample deterministic general-purpose v1 set and objective scorer.
 
-Blocking deterministic pytest on Python 3.10/3.11/3.12 plus Ruff correctness gate.
+## Active foundations
 
-### A3 consumer decoupling — DONE
+### A2/C1/AC1 — PARTIAL
 
-Core registry no longer reads ClosedRoom-specific state; external registry layers are generic.
+Fail-closed policy, canonical request contracts, compatibility translator and tested request pipeline exist. **AC1b** must make the live FastAPI route use them.
 
-### F1 positioning — DONE
+### B1 resources — PARTIAL
 
-README/package language reflects control-plane positioning and separates current from target behavior.
-
-### D1 metric vocabulary — DONE
-
-Canonical lifecycle/duration/token/chunk/throughput vocabulary with unavailable semantics.
-
-### D3a artifact identity — DONE
-
-Path-free source/verification identity, stable key and explicit optional SHA-256.
-
-### D4a evaluation schema — DONE
-
-Versioned test sets, stable sample IDs, deterministic seeded selection, scorer protocol and run/report contracts.
-
-## Active foundation work
-
-### A2 + C1 + AC1 — PARTIAL
-
-Integrated:
-
-- fail-closed remote-code/media policy;
-- backend-neutral request contracts;
-- compatibility translator;
-- tested `request_pipeline.py`.
-
-Remaining AC1b:
-
-- make the FastAPI route call the canonical pipeline;
-- enforce remote-media policy before backend invocation;
-- preserve streaming/non-streaming compatibility.
-
-### B1 resource observation — PARTIAL
-
-Integrated:
-
-- source-aware resource contracts;
-- budget/headroom/pressure vocabulary;
-- Linux observer;
-- macOS total/reclaimable-memory adapter;
-- Apple unified memory is not represented as separate VRAM.
-
-Remaining:
-
-- runtime/API exposure;
-- representative hardware evidence.
+Linux and macOS observation contracts exist. Apple unified memory is not represented as separate VRAM. Runtime/API exposure and hardware evidence remain.
 
 ### B2 ResourceManager — PARTIAL
 
-Integrated reservation/admission ledger:
+Reservation/admission accounting exists. **B2b** must wire real load/reload/unload lifecycle.
 
-- `ADMIT`, `REJECT`, `UNKNOWN`;
-- reserved/committed accounting;
-- observed-footprint reconciliation;
-- rollback/release;
-- no false approval when no enforceable budget exists.
+### B3 worker/reclamation — PARTIAL
 
-Remaining B2b: connect load/reload to reservations without conflating accounting with memory reclamation.
+Worker commands/states, deterministic lifecycle and pre/peak/post-stop evidence slots exist. **B3b** must bind them to concrete managed worker ownership and real reclamation evidence.
 
 ### C2 capabilities — PARTIAL
 
-Integrated:
+Descriptor, conservative migration, `supports(request)` and catalog projection exist. **C2c** must expose them publicly; request enforcement follows AC1b.
 
-- task/input/output/feature descriptor;
-- conservative legacy migration;
-- `supports(request)`;
-- catalog projection with explicit vs legacy provenance.
+### D2 metrics — PARTIAL
 
-Remaining C2c:
+Current trustworthy chunk metrics map to D1 without masquerading as tokens. Real backend token/timing adapters and API exposure remain.
 
-- expose capability projection from model listing/admin source;
-- pre-backend capability rejection after AC1b.
+### D3 runtime identity — PARTIAL
 
-### D2 metric normalization — PARTIAL
-
-Integrated D2a:
-
-- runtime `output_chunks` -> canonical `output_chunks`;
-- `chunks_per_second` -> chunk throughput;
-- misleading historical `tokens_generated/tokens_per_second` ignored.
-
-Remaining:
-
-- real token/TTFT/prefill/decode adapters where backend evidence exists;
-- API/UI exposure.
+Artifact + backend + allowlisted config digest + hostname-free hardware profile compose a stable privacy-safe fingerprint. **D3c** must attach it to runtime/evaluation evidence.
 
 ### E1/E2/E4a UX — PARTIAL
 
-Integrated:
+Design system, seven-destination shell and live source-backed Overview exist. Models/Playground/Diagnostics and richer data panels remain.
 
-- design-system foundation;
-- control-plane shell and navigation;
-- real Overview polling `/health`, `/status`, `/v1/models`;
-- unavailable states instead of invented resource/performance values.
+## Immediate parallel wave 4
 
-Remaining:
+### AC1b — Live request-path wiring
+Status: `READY`
+Ownership: exclusive broad `server.py` request edits
 
-- E3a Models & Runtimes redesign;
-- capability/resource/metric/fingerprint panels;
-- Playground/Diagnostics modular migration;
-- accessibility/visual evidence.
-
-## Active parallel wave 3
+- replace historical duplicate normalization with `prepare_chat_request()`;
+- reject remote HTTP(S) media before backend invocation by default;
+- preserve explicit opt-in, streaming, sampling and thinking behavior;
+- map typed policy/request errors to bounded HTTP details;
+- keep OpenAI compatibility tests green.
 
 ### B2b — Runtime admission wiring
 Status: `READY`
-Dependencies: B1, B2
 Ownership: runtime load lifecycle
 
-Deliverables:
-
-- derive/receive estimated load footprint;
-- reserve before load;
-- commit on success, rollback on failure;
+- reserve before expensive load;
+- commit after successful load;
+- rollback failed load/reload;
 - release accounting on unload;
-- typed rejection before expensive load;
 - preserve current reload rollback semantics;
-- no claim that accounting proves memory reclamation.
+- keep accounting distinct from reclamation proof.
 
-### B3 — Worker/reclamation protocol
+### B3b — Concrete worker transport
 Status: `READY`
-Dependencies: B1 measurement types; B2 useful but not hard for protocol
-Ownership: new worker/lifecycle boundary
+Ownership: worker/process lifecycle
 
-Deliverables:
-
-- worker commands/states;
+- bind B3 protocol to managed process transport where isolation is justified;
 - bounded startup/health/drain/terminate;
-- deterministic shutdown ownership;
-- evidence hook for pre-load/peak/post-stop resource snapshots;
-- process isolation only where needed for provable reclaimability.
+- no orphan processes;
+- capture before-ready/peak/after-stop evidence;
+- do not promote reclaimability until representative evidence exists.
 
 ### C2c — Public capability exposure
 Status: `READY`
-Dependencies: C2 catalog projection
 Ownership: model/catalog presentation
 
-Deliverables:
+- include capability object and provenance in list/catalog sources;
+- preserve backward-compatible fields;
+- no backend load/inference required;
+- expose unsupported/unknown honestly.
 
-- add capability object and provenance to model-list/catalog data;
-- keep backward-compatible existing fields;
-- no backend invocation;
-- request capability enforcement waits for AC1b.
-
-### D3b — Execution identity contracts
+### D2b — Backend metric adapters
 Status: `READY`
-Dependencies: D3a
-Ownership: identity module
+Ownership: backend -> canonical metrics
 
-Deliverables:
+Parallelize by backend after adapter interface:
 
-- backend implementation/version identity;
-- resolved-config canonical digest;
-- hardware profile identity;
-- stable runtime fingerprint composition;
-- no private paths/prompts/output in identity;
-- probes/costly hashes remain explicit or cached, never per-token.
+- llama.cpp / llama-server;
+- MLX text;
+- MLX-VLM;
+- ASR after C3.
 
-### D4b — Built-in general-purpose evaluation set
+Only map token counts, TTFT, prefill/decode durations and token throughput when the backend source is semantically trustworthy.
+
+### D3c — Fingerprint attachment
 Status: `READY`
-Dependencies: D4a
-Ownership: harness dataset/scorers
+Ownership: runtime/evidence integration
 
-Deliverables:
+- compute/cache identity at controlled model/runtime preparation points;
+- attach fingerprint to evaluation/run evidence;
+- never hash/probe per token;
+- no prompts, output, private paths or signed URLs.
 
-- curated starter test set spanning instruction following, extraction, classification, structured output and simple reasoning;
-- deterministic sample IDs/version/provenance;
-- baseline deterministic scorers where objective scoring is valid;
-- no LLM-as-judge requirement for the initial deterministic core;
-- configurable sample selection remains D4a-owned.
-
-### E3a — Models & Runtimes source-backed redesign
+### D4c — Evaluation runner
 Status: `READY`
-Dependencies: E2
+Dependencies: D4a/D4b; evidence-grade comparisons also need D2/D3 identity
+
+- executor protocol;
+- execute selected samples;
+- deterministic objective scoring;
+- collect per-sample result/error/metrics;
+- produce complete report tied to explicit runtime fingerprint;
+- do not compare incompatible/missing execution identity as evidence-grade runs.
+
+### E3a — Models & Runtimes redesign
+Status: `READY`
 Ownership: frontend Models module
 
-Show only current real state:
+Show current real facts only:
 
-- configured identity;
-- resident/non-resident;
-- default-route distinction;
-- backend/runtime state/active requests;
-- existing load/activate/unload actions.
-
-Capability/resource/fingerprint sections remain unavailable until corresponding public sources land.
-
-### AC1b — FastAPI request-path wiring
-Status: `READY`
-Dependencies: AC1 adapter
-Ownership: exclusive broad `server.py` changes
-
-Must:
-
-- replace duplicate request normalization with `prepare_chat_request()`;
-- enforce fail-closed remote media before backend work;
-- map typed errors to bounded HTTP detail;
-- retain OpenAI compatibility and current thinking/sampling behavior;
-- keep this as the only wave-3 branch making broad request-route edits.
+- configured model identity;
+- resident vs non-resident;
+- default route separately;
+- backend/runtime state/active work;
+- current load/activate/unload controls;
+- unavailable capability/resource/fingerprint sections until their sources are public.
 
 ## Dependency release points
 
 | Completion | Unlocks |
 | --- | --- |
-| AC1b | route-level privacy completion; C3/C4 request integration |
-| B2b | resource-aware load policy; later B5/B6 |
-| B3 | credible unload/reclamation evidence; stronger B4/B6 |
-| C2c | E3/E5 capability UI; C3 model eligibility |
-| D3b | execution-compatible benchmark identity; E3/E4 fingerprint UI |
-| D4b | D4 engine can execute a real built-in dataset once D2/D3 are stable |
-| E3a | screen-level accessibility/visual regression can begin |
+| AC1b | route-level privacy completion; C3/C4 execution integration |
+| B2b | resource-aware load policy; scheduler/residency work |
+| B3b + evidence | credible reclaimability; stronger zero-resident/eviction guarantees |
+| C2c | capability UI and C3 eligibility |
+| D2b + D3c | evidence-grade evaluation metrics/fingerprint |
+| D4c | Evaluation UI run/progress/results |
+| E3a | screen-level accessibility/visual-regression work |
 
 ## Later runtime work
 
-### B4 zero-resident semantics — PENDING
-
-Server remains healthy with zero resident runtimes; artifact/default/resident state are separate.
-
-### B5 scheduler/deadline/cancellation — BLOCKED by B2b + stable lifecycle
-
-Bounded queue, queue wait, deadlines, cancellation and explicit overload behavior.
-
-### B6 pin/LRU/TTL — BLOCKED by B2b/B3/B4/B5
-
-No active-runtime eviction; deterministic pin/TTL/LRU semantics and typed no-candidate rejection.
+- **B4 zero-resident semantics** — healthy server with zero resident runtimes; configured/default/resident states separate.
+- **B5 scheduler/deadlines/cancellation** — bounded queue, deadline expiry, cancellation, overload semantics.
+- **B6 pin/LRU/TTL** — deterministic residency policy with no active-runtime eviction.
 
 ## Multi-task work
 
-### C3 first-class transcription — BLOCKED by AC1b + C2c
+- **C3 transcription** — blocked by AC1b + C2c; ASR remains distinct from audio-language chat.
+- **C4 task-aware routing** — no silent incompatible model substitution.
 
-Add ASR-specific API/contracts; audio-language chat remains a different task.
+## Evaluation/UX completion
 
-### C4 task-aware routing — BLOCKED by capability + resource/scheduler policy
+- D4 execution -> D5 immutable history/matched-fingerprint regression.
+- E4 Overview/Diagnostics gains resource, exact performance and fingerprint panels only from canonical sources.
+- E5 Playground becomes capability-aware; ASR after C3.
+- E6 Benchmark & Evaluation connects D4c, then D5 history.
 
-No silent incompatible substitution.
+## Evidence boundary
 
-## Observability/evaluation work
-
-### D2 richer backend adapters — IN_PROGRESS
-
-Split per backend after D2a; unsupported metrics stay unavailable.
-
-### D3 runtime fingerprint — IN_PROGRESS
-
-D3a artifact identity done; D3b completes backend/config/hardware identity.
-
-### D4 benchmark engine — BLOCKED by D2 + D3, dataset can precede execution
-
-Deterministic manifest, cold/warm identity, performance/resource/quality results and incompatible-run rejection.
-
-### D5 history/regression — BLOCKED by D4
-
-Immutable history and matched-fingerprint baseline comparison.
-
-## UX completion
-
-- E3 Models & Runtimes: current lifecycle -> capabilities -> resources -> residency -> fingerprint.
-- E4 Overview/Diagnostics: health -> resources -> truthful metrics -> evidence.
-- E5 Endpoints/Playground: capability-aware task controls; ASR after C3.
-- E6 Benchmark & Evaluation: real runs after D4; history after D5.
-
-## Evidence/hardening
-
-Accessibility/responsive validation, cross-platform runtime matrix, memory lifecycle evidence and screenshot/documentation promotion remain release gates. Unit tests do not establish real unified-memory reclamation, TTFT or token throughput.
+Automated tests prove contract behavior, not real unified-memory reclamation, unload recovery, TTFT or token throughput. Representative hardware evidence remains a release gate.
 
 ## Active concurrency plan
 
-Run concurrently:
-
-1. B2b runtime admission wiring.
-2. B3 worker/reclamation protocol.
-3. C2c public capability exposure.
-4. D3b runtime fingerprint contracts.
-5. D4b built-in general-purpose test set/scorers.
-6. E3a Models & Runtimes redesign.
-7. AC1b request-route wiring with exclusive `server.py` ownership.
-
-Merge narrow contract branches before their consumers and run a cumulative living-plan validation PR after the wave.
+Run AC1b, B2b, B3b, C2c, D2b, D3c, D4c and E3a in parallel **only where ownership does not overlap**. AC1b retains exclusive broad `server.py` request ownership. Merge narrow producer contracts before consumers and finish each wave with a cumulative living-plan validation PR.
 
 ## Plan maintenance
 
-After every coherent merge wave update this roadmap, [`current-state.md`](current-state.md) and the affected progress tracker. Target specifications change only when intended behavior changes.
+After every coherent merge wave update this roadmap, [`current-state.md`](current-state.md) and affected progress trackers. Target specifications change only when intended behavior changes.
