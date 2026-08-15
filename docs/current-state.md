@@ -17,13 +17,29 @@ The positioning target is:
 
 > One trustworthy local control plane that knows what can run, what is resident, what resources it consumes, how requests are scheduled, how it performed, and which exact runtime/artifact produced each result.
 
-The server should orchestrate specialized inference runtimes rather than reimplement their tensor execution.
+The server orchestrates specialized inference runtimes rather than reimplementing their tensor execution.
 
 ## Integrated baseline
 
+### Repository reliability and delivery
+
+Integrated:
+
+- pytest failures are blocking rather than suppressed;
+- deterministic CI runs on Python 3.10, 3.11 and 3.12;
+- CI installs the deterministic Hugging Face test dependency required by existing source-resolution tests;
+- Ruff is blocking for syntax and high-confidence correctness rules (`E9,F63,F7,F82`);
+- the program integration line can be validated cumulatively;
+- pre-existing broad Ruff style/modernization debt is intentionally not hidden, but is not part of the current correctness gate.
+
+Current evidence boundary:
+
+- deterministic CI is merge evidence only;
+- real runtime, memory, throughput and hardware claims still require representative physical hardware.
+
 ### Public product boundary
 
-Integrated today:
+Integrated:
 
 - OpenAI-compatible `/v1/chat/completions` API;
 - streaming and non-streaming chat completions;
@@ -34,9 +50,19 @@ Integrated today:
 - bundled Local LLM Studio web UI;
 - Python client helpers for text, image and audio-oriented calls.
 
+New Batch 1 foundation:
+
+- backend-neutral core types now define `TaskType`, `InferenceRequest`, `InferenceResult`, generation options, output constraints, terminal reasons and typed errors;
+- a compatibility translator can map current OpenAI/legacy chat payloads into canonical requests;
+- canonical task vocabulary currently covers chat, structured generation, vision-language and transcription.
+
+Remaining boundary gap:
+
+- the existing HTTP request path does not yet execute through the canonical request translator; until that wiring lands, the new types are a stable foundation rather than the sole execution path.
+
 ### Runtime lifecycle
 
-Integrated today:
+Integrated:
 
 - `ModelRuntimeManager` owns loaded runtimes;
 - `READY`, `DRAINING`, `STOPPED` and `FAILED` state vocabulary exists;
@@ -53,9 +79,12 @@ Known limitation:
 
 ### Model sources and registry
 
-Integrated today:
+Integrated:
 
 - built-in plus user YAML registry;
+- generic opt-in external YAML/JSON registry layers through explicit paths or `LOCAL_LLM_REGISTRY_PATHS`;
+- precedence is built-in < external layers < user registry;
+- core infrastructure no longer reads or names ClosedRoom-specific Application Support state;
 - LM Studio model discovery;
 - Hugging Face cache discovery for supported MLX paths;
 - managed GGUF download with `.part`, resume, retry and atomic rename;
@@ -66,29 +95,43 @@ Integrated today:
 Known limitations:
 
 - artifact identity is not yet cryptographically pinned as a first-class runtime contract;
-- `size_gb` metadata is descriptive and not used for resource admission;
-- the registry currently imports ClosedRoom-specific configuration directly, coupling infrastructure to one consumer application.
+- `size_gb` metadata is descriptive and not used for resource admission.
 
-### Modalities
+### Privacy and media lifecycle
 
-Integrated today:
+Integrated:
+
+- `trust_remote_code` is fail-closed by default and requires explicit config/environment opt-in;
+- the trust decision is propagated explicitly into MLX tokenizer configuration rather than relying on backend defaults;
+- `allow_remote_media` is fail-closed by default;
+- a pure media-policy validator rejects HTTP(S) image/audio references unless explicitly allowed;
+- generated temporary WAV files owned by audio-message preparation are removed deterministically;
+- tests cover fail-closed defaults, opt-in behavior and temporary-file cleanup.
+
+Remaining privacy gap:
+
+- the HTTP inference path has not yet wired the media-policy validator before backend execution. The policy exists and is tested, but server enforcement is not complete until that integration lands.
+
+### Modalities and capabilities
+
+Integrated:
 
 - text generation through `llama-cpp-python` and MLX-LM;
 - GGUF multimodal execution through managed `llama-server`;
 - MLX vision-language execution through managed `mlx_vlm.server`;
 - image helpers with local data-URL encoding and size/type validation;
-- audio preprocessing and OpenAI-style `input_audio` message construction.
+- audio preprocessing and OpenAI-style `input_audio` message construction;
+- canonical task vocabulary distinguishes transcription from audio-language/chat intent.
 
 Known limitations:
 
-- current capability representation is primarily `modalities`, not task + input/output capability contracts;
-- audio transcription is currently modeled through multimodal chat helpers rather than a canonical ASR task endpoint;
-- audio preprocessing creates a temporary WAV with no deterministic cleanup in the helper path;
+- registry capability representation is still primarily `modalities` plus thinking/backend metadata rather than task + input/output + feature contracts;
+- audio transcription is not yet exposed as a first-class canonical ASR API;
 - large audio paths may incur redundant decoded/WAV/base64/JSON memory copies.
 
 ### Observability
 
-Integrated today:
+Integrated:
 
 - `/health` and `/status` surfaces;
 - per-runtime active-request state;
@@ -103,68 +146,61 @@ Known limitations:
 - queue wait, prompt/prefill, TTFT, decode, memory peak, cache reuse and termination reason are not normalized across backends;
 - there is no stable runtime fingerprint tying result to artifact hash, backend version, resolved config and hardware profile.
 
-### Testing and CI
+### UX/UI and positioning
 
-Integrated today:
+Integrated:
 
-- unit/regression coverage for runtime routing, lifecycle, reload/unload races, multi-model requests, modality checks, image/audio helpers, config, model sources and backend adapters;
-- CI matrix across Python 3.10, 3.11 and 3.12;
-- Ruff lint job.
+- Local LLM Studio web surface with chat, model/runtime configuration, logs, examples and Swagger;
+- shared `design-system.css` with brand/surface/status tokens, dark/light semantics, typography, spacing, radius and focus/reduced-motion foundations;
+- reusable card, button, field, metric, status, empty-state and table primitives;
+- positioning now describes Local LLM Server as a **resource-aware local AI control plane for product-grade inference**;
+- README explicitly states that the product orchestrates specialist runtimes rather than replacing them;
+- README distinguishes current integrated capability from roadmap targets.
 
-Critical gap:
+Known UX limitations:
 
-- the CI test command currently ends in `|| true`, so a failing pytest suite can still produce a green job. This must be removed before later reliability claims are meaningful.
+- existing product screens have not yet migrated to the new information architecture or shared primitives;
+- memory budget, capability, benchmark and fingerprint UI remain dependency-gated by source contracts;
+- there is no formal visual-regression/accessibility matrix yet.
 
-### UX/UI
+## Batch 1 completion state
 
-Integrated today:
-
-- Local LLM Studio web surface;
-- Chat Studio;
-- model/runtime configuration controls;
-- live logs;
-- integration examples;
-- Swagger/OpenAPI access.
-
-Target UX has been redesigned conceptually around four primary product questions:
-
-1. **Overview** — is local AI healthy, what is resident and what is under resource pressure?
-2. **Models & Runtimes** — what is installed, resident/cold/loading/stopped, and why?
-3. **Playground / Endpoints** — can this task run through this capability contract?
-4. **Benchmark & Evaluation** — which model/runtime is actually best for this workload on this hardware?
-
-The detailed target belongs in [`ux-ui-implementation-plan.md`](ux-ui-implementation-plan.md). Current implementation progress belongs in [`ux-ui-implementation-progress.md`](ux-ui-implementation-progress.md).
-
-## Open P0 blocks
-
-1. **CI truthfulness** — remove test failure suppression and establish deterministic blocking gates.
-2. **Resource ownership foundation** — introduce global resource accounting/admission before automatic residency/eviction work.
-3. **Unload semantics** — establish a product-grade memory reclamation boundary, with process-isolated workers as the preferred direction where in-process release cannot be proved.
-4. **Capability model** — separate task, input modalities, output modalities and backend features.
-5. **Privacy hardening** — deterministic temporary media cleanup; remote media disabled by default; remote code trust opt-in only.
-6. **Consumer decoupling** — remove ClosedRoom-specific registry loading from core infrastructure.
-7. **UX design-system foundation** — encode stable visual/product tokens before implementing the redesigned screens.
+| Task | Status | Integrated outcome | Remaining work |
+| --- | --- | --- | --- |
+| A1 — truthful CI | DONE | blocking pytest matrix + correctness Ruff gate | broader historical Ruff debt later |
+| A2 — privacy/security defaults | PARTIAL | remote-code/media fail-closed policy + temp cleanup | enforce media policy in HTTP/canonical request path |
+| A3 — consumer decoupling | DONE | no ClosedRoom-specific core registry read | consumer integration stays external |
+| C1 — canonical request vocabulary | PARTIAL | core contracts + compatibility translator | route existing HTTP path through translator |
+| E1 — design-system foundation | PARTIAL | tokens/primitives loaded by Studio | migrate shell/screens + visual/accessibility evidence |
+| F1 — positioning | DONE | README/package description aligned | future promotion only as capabilities actually ship |
 
 ## Immediate next block
 
-Proceed with the **Foundation Batch** from [`roadmap.md`](roadmap.md):
+Proceed with **Batch 2** from [`roadmap.md`](roadmap.md) using isolated ownership boundaries.
 
-- make CI test failures blocking;
-- establish canonical resource/capability contracts without yet changing routing behavior;
-- remove infrastructure-to-ClosedRoom configuration coupling;
-- implement privacy-safe defaults for remote code/media/temp audio;
-- create the UI design-system shell and navigation structure against explicit placeholder/unavailable states, not invented runtime metrics.
+Parallel streams that can start together:
 
-These tasks are intentionally selected because they can run in parallel with limited contract overlap.
+1. **B1 Resource observation contract** — system/hardware snapshot, runtime resource profile, estimate vs observation, budget/headroom and unavailable semantics.
+2. **C2 Capability descriptor** — tasks, inputs, outputs and feature flags with registry migration/validation.
+3. **D1 Metric vocabulary** — exact lifecycle/latency/token/resource terminology and unavailable semantics.
+4. **E2 Application shell/navigation** — new control-plane information architecture built on the integrated design-system foundation using only current source-backed values.
+5. **D3a Artifact identity foundation** — content hash/revision/source identity contract without waiting for final metric/hardware fingerprint assembly.
+6. **A2/C1 request-path integration** — one exclusive `server.py` stream that translates the current request into the canonical request and applies media policy before backend execution.
+
+### Parallelization constraint
+
+Do **not** run separate A2 and C1 branches against `server.py`. Their remaining work shares the same request normalization/execution boundary, so it is one coherent integration slice. B1, C2, D1, E2 and D3a should avoid `server.py` wherever possible and can progress concurrently.
 
 ## Current blockers and dependencies
 
-- Automatic eviction must not begin until resource accounting and unload semantics are defined.
-- Memory-budget UI must not present authoritative values until the resource observation contract exists.
-- Benchmark comparisons must not claim token throughput until metric semantics are corrected.
-- ASR UX should not be finalized until the canonical transcription task/API ownership is decided.
-- Runtime fingerprint UI depends on artifact identity, backend metadata and hardware-profile contracts.
-- Any cloud-routing/fallback feature is deferred until local execution, capability and privacy boundaries are explicit.
+- B2 ResourceManager waits for B1 resource observation types.
+- Automatic eviction waits for B2 admission plus demonstrated unload/reclamation semantics.
+- Memory-budget UI must not present authoritative values until B1/B2 exist.
+- C3 first-class transcription waits for C2 capability contracts and completion of the canonical request boundary.
+- Final metric labels and benchmark comparisons wait for D1/D2 normalization; chunk counts must not be presented as truthful token throughput.
+- Full runtime fingerprint waits for artifact identity, backend/config identity and hardware-profile contracts.
+- Benchmark execution comparisons wait for stable metric semantics and execution identity.
+- Any cloud-routing/fallback feature remains deferred until local execution, capability and privacy boundaries are explicit.
 
 ## Evidence boundary
 
@@ -172,4 +208,4 @@ Passing unit tests or mock-backed UI tests establishes merge readiness only for 
 
 ## Update rule
 
-When any item above changes in integrated reality, update this file in the same pull request. Do not use this file as a historical changelog: remove resolved blockers, move durable target behavior to the owning specification, and keep only the current baseline plus immediate next block.
+When any item above changes in integrated reality, update this file in the same integration change. Do not use this file as a historical changelog: remove resolved blockers, move durable target behavior to the owning specification, and keep only the current baseline plus immediate next block.

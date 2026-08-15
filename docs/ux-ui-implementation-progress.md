@@ -23,59 +23,78 @@ This tracker records concise implementation status only. Repository-wide integra
 
 | Workstream | Status | Current integrated boundary | Remaining gate / dependency |
 | --- | --- | --- | --- |
-| Existing Local LLM Studio | PARTIAL | Chat, model/runtime configuration, logs, examples and Swagger exist | Reframe shell and navigation around control-plane IA |
-| Brand/design-system target | PENDING | Target mockups/visual direction defined outside implementation | Encode tokens/components from `brand-guidelines.md` |
-| Application shell/navigation | PENDING | Existing UI navigation/product sections | New Overview, Models & Runtimes, Endpoints, Playground, Benchmark, System, Settings shell |
-| Overview | PENDING | Existing status/log information available in separate surfaces | Source-backed resource/scheduler/metric contracts and new composition |
-| Models & Runtimes inventory | PARTIAL | Registry, load/activate/unload and runtime status APIs exist | New lifecycle taxonomy, zero-resident, capabilities and resource data |
+| Existing Local LLM Studio | PARTIAL | Chat, model/runtime configuration, logs, examples and Swagger exist | Reframe shell/navigation around control-plane IA while preserving real workflows |
+| Brand/design-system foundation | PARTIAL | Shared CSS now provides canonical brand/surface/status tokens, light/dark semantics, typography, spacing, radii, focus/reduced-motion and reusable primitives | Migrate real screens; add visual/accessibility regression evidence |
+| Application shell/navigation | PENDING | Existing UI navigation/product sections | E2: new Overview, Models & Runtimes, Endpoints, Playground, Benchmark, System and Settings shell |
+| Overview | PENDING | Existing health/status/model information available in separate sources | New composition; resource and metric panels remain source-contract gated |
+| Models & Runtimes inventory | PARTIAL | Registry, generic external registry layers, load/activate/unload and runtime status APIs exist | New lifecycle taxonomy, zero-resident, capabilities and resource data |
 | Memory budget/pressure UX | BLOCKED | Basic config/runtime fields only | Resource observation + ResourceManager (B1/B2) |
-| Model capability UX | BLOCKED | `modalities` and thinking modes exist | Canonical capability descriptor (C2) |
+| Model capability UX | BLOCKED | Existing `modalities`/thinking plus canonical TaskType vocabulary | Capability descriptor (C2) |
 | Pin / auto-evict UX | BLOCKED | No product policy contract | Residency policy (B6) |
 | Runtime fingerprint UX | BLOCKED | Model/backend metadata partial | Artifact identity + runtime fingerprint (D3) |
-| Endpoints catalog | PARTIAL | OpenAPI and examples exist | Capability-driven endpoint/model compatibility view |
-| Playground text | PARTIAL | Chat Studio supports real prompt execution/configuration | New task state model, exact metric contract and source-backed lifecycle |
-| Playground vision | PARTIAL | Image helper + multimodal backend path exist | Capability-driven control states and real UI acceptance |
-| Playground transcription | BLOCKED | Audio helper/chat pathway exists | First-class transcription task/API (C3) |
+| Endpoints catalog | PARTIAL | OpenAPI and examples exist; canonical task request vocabulary now exists | C2 capability-driven endpoint/model compatibility view |
+| Playground text | PARTIAL | Chat Studio supports real prompt execution/configuration | Canonical request path wiring + D1/D2 exact metric contract |
+| Playground vision | PARTIAL | Image helper + multimodal backend path exist | Canonical request/media-policy wiring + C2 capability states |
+| Playground transcription | BLOCKED | Audio helper exists and temp WAV ownership is now deterministic | First-class transcription task/API (C3) |
 | Benchmark & Evaluation | PENDING | Legacy batch test script only | Benchmark engine v1 + execution identity (D4) |
 | System / Diagnostics | PARTIAL | Health, status and log stream exist | Unified resource/worker/request metrics and evidence composition |
-| Settings/privacy policy | PARTIAL | host/CORS/admin/runtime config exists | Explicit remote media/code/privacy controls and resource policy settings |
-| Responsive behavior | PENDING | Current web UI exists | New shell implemented at reference breakpoints |
-| Accessibility | PENDING | No complete target matrix recorded | Keyboard/focus/contrast/zoom/reduced-motion validation |
-| Visual regression | PENDING | No formal target-state screenshot suite | Stable component/screen fixtures after design-system implementation |
+| Settings/privacy policy | PARTIAL | host/CORS/admin config plus fail-closed remote-code/media config exists | Wire remote-media enforcement into request path; expose policy only when backed by real config |
+| Responsive behavior | PENDING | Current web UI exists | E2 shell implemented at reference breakpoints |
+| Accessibility | PARTIAL | Shared primitives include focus-visible, status text+indicator and reduced-motion foundations | Keyboard/focus/contrast/zoom screen-level validation |
+| Visual regression | PENDING | No formal target-state screenshot suite | Stable component/screen fixtures after E2 migration begins |
 | Representative hardware UX evidence | PENDING | Manual runtime guidance exists | New source-backed screens + hardware validation matrix |
+
+## Integrated design-system slice
+
+The first E1 slice is now in the application bundle through `static/design-system.css` and `static/config.js`.
+
+Integrated primitives/tokens include:
+
+- graphite, slate, electric blue, teal, violet and light-neutral brand tokens;
+- dark-first semantic surfaces plus supported light tokens;
+- `ready`, `resident`, `cold`, `loading`, `warning`, `error` and `unavailable` status semantics;
+- UI/data/monospace font stacks;
+- spacing, radius, control-height and focus tokens;
+- card, button, field, metric, status, empty-state and table primitives;
+- reduced-motion behavior.
+
+This does **not** mean the current pages have completed the redesign. Existing page CSS/layout remains the active product surface until E2 migrates the shell and subsequent screen slices adopt the primitives.
 
 ## Current UX debt
 
-- the current product surface communicates “chat/configuration UI” more strongly than “local AI control plane”;
+- the current product surface still communicates “chat/configuration UI” more strongly than “local AI control plane” even though README/product language has been repositioned;
 - model artifact state, default route and memory residency are not yet first-class separate presentation concepts;
-- memory pressure/budget cannot be shown truthfully until the resource contract exists;
-- current modality vocabulary is insufficient for a clean ASR versus audio-language experience;
+- memory pressure/budget cannot be shown truthfully until B1/B2;
+- current registry modality vocabulary remains insufficient for final task-aware UX until C2;
 - benchmark/evaluation is not yet an integrated product workflow;
-- observability terminology must be corrected before final metric UI labels are frozen;
-- the frontend is currently a large static bundle and should be componentized enough to permit parallel screen implementation without repeated conflicts.
+- observability terminology must be corrected by D1/D2 before final metric labels are frozen;
+- the frontend remains a large static bundle and must be decomposed enough for parallel screen implementation without repeated conflicts;
+- there is no screenshot/visual regression harness yet.
 
 ## Immediate UX block
 
-Proceed with **E1 + E2 foundation** from [`roadmap.md`](roadmap.md):
+Proceed with **E2 shell/navigation** in parallel with B1, C2 and D1.
 
-1. encode brand/design tokens;
-2. build reusable status, metric, lifecycle, table, unavailable and detail components;
-3. establish the new sidebar/application shell and routes;
-4. preserve existing real chat/model/log functionality during migration;
-5. implement static visual fixtures only inside component/demo/test contexts;
-6. do not show future memory/benchmark data as live product values.
+E2 should:
 
-## Parallel UX slices after shell foundation
+1. establish the new control-plane navigation hierarchy;
+2. reuse the integrated design-system tokens/primitives rather than create a second style vocabulary;
+3. preserve existing working Chat/Models/Logs/API flows during incremental migration;
+4. show only current source-backed values or explicit unavailable/coming-later states;
+5. avoid authoritative memory, capability, benchmark or fingerprint values until their source contracts land;
+6. create screen/module boundaries that allow later Overview, Models, Playground and Diagnostics slices to develop independently.
 
-Once E1/E2 land, these can proceed independently with narrow API contracts:
+## Parallel UX slices after E2 foundation
 
-- **Models inventory slice:** current registry/residency facts;
-- **Overview health slice:** current server/loaded-model health;
-- **Endpoint documentation slice:** current routes/examples;
-- **Playground text slice:** current chat execution;
-- **Diagnostics/log slice:** current health/status/log data.
+As soon as the shell/module boundaries exist, these can proceed independently:
 
-The following remain dependency-gated:
+- **E3a Models inventory:** current registry/default/residency facts;
+- **E4a Overview health:** current server and loaded-runtime health;
+- **Endpoints current-state slice:** current routes/examples with canonical task vocabulary where already valid;
+- **Playground text:** existing real chat execution adapted to the new shell;
+- **Diagnostics/logs:** current health/status/log sources.
+
+Dependency-gated slices remain:
 
 - memory budget -> B1/B2;
 - capability UI -> C2;
