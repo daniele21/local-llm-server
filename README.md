@@ -5,11 +5,11 @@
 <h1 align="center">Local LLM Server</h1>
 
 <p align="center">
-  <strong>Product-grade local AI infrastructure for desktop and local-first applications.</strong>
+  <strong>Resource-aware local AI control plane for product-grade inference.</strong>
 </p>
 
 <p align="center">
-  A stable OpenAI-compatible API across GGUF and Apple Silicon MLX runtimes, with explicit model lifecycle, dynamic routing, observability, and a bundled inference console.
+  One application-facing contract for text, vision and audio workloads, with explicit runtime lifecycle, model identity, privacy boundaries, observability and evaluation across specialist local inference backends.
 </p>
 
 <p align="center">
@@ -20,17 +20,23 @@
   <a href="#common-workflows">Quick start</a>
   ·
   <a href="#http-api">HTTP API</a>
+  ·
+  <a href="docs/README.md">Architecture & roadmap</a>
 </p>
 
-`local-llm-server` gives applications a local execution path without coupling product code to model files, inference engines, or backend processes. It runs fully on user-owned hardware and keeps cloud models available as an architectural choice rather than a runtime dependency.
+`local-llm-server` gives applications one stable integration boundary without coupling product code to model files, inference engines, or backend processes. Suitable workloads execute on user-owned hardware by default; external execution remains an explicit architectural choice rather than a hidden runtime dependency.
 
-The server is the infrastructure layer. **Local LLM Studio** is the Web UI shipped with it for chat, runtime configuration, model management, and live diagnostics.
+The product **orchestrates specialist inference runtimes; it does not try to replace them**. `llama.cpp`, MLX and future task-specific engines remain responsible for model execution. Local LLM Server owns the control-plane concerns around them: task contracts, runtime lifecycle, resource admission, routing, privacy policy, observability and reproducible evaluation.
+
+The server is the infrastructure layer. **Local LLM Studio** is the bundled Web control-plane UI for exercising requests, inspecting models/runtimes, viewing diagnostics and progressively managing the same lifecycle exposed through the API.
+
+> **Current vs target:** the repository already provides multi-backend local inference, explicit runtime loading/unloading, OpenAI-compatible chat, multimodal routing and diagnostics. Resource-budget admission, canonical task APIs, evidence-grade runtime fingerprints and the redesigned control-plane UX are active roadmap work, not claims about the current release.
 
 ## Product in practice
 
-### Chat Studio
+### Local LLM Studio
 
-Test real prompts against resident models, tune inference parameters, inspect reasoning controls, and validate structured output from the same interface used to monitor the runtime.
+Exercise real prompts against resident models, tune supported inference parameters and inspect runtime behavior from the same local surface used for model management and diagnostics.
 
 <p align="center">
   <img src="docs/assets/Chat-Studio.png" alt="Local LLM Studio chat running a structured meeting analysis" width="100%">
@@ -45,14 +51,14 @@ Test real prompts against resident models, tune inference parameters, inspect re
     </td>
     <td width="50%" valign="top">
       <strong>Live server diagnostics</strong><br><br>
-      Follow model loading, prompt evaluation, token generation, and runtime status through the administrative log stream.<br><br>
+      Follow model loading, prompt evaluation, generation and runtime status through the administrative diagnostics surface.<br><br>
       <img src="docs/assets/Server-Logs.png" alt="Live local inference server logs" width="100%">
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
       <strong>Copy-ready integration examples</strong><br><br>
-      Move from the console to an application with ready-to-run cURL, Python, JavaScript, and Swift examples.<br><br>
+      Move from the console to an application with ready-to-run cURL, Python, JavaScript and Swift examples.<br><br>
       <img src="docs/assets/Example-Usage.png" alt="OpenAI-compatible API integration examples" width="100%">
     </td>
     <td width="50%" valign="top">
@@ -63,15 +69,17 @@ Test real prompts against resident models, tune inference parameters, inspect re
   </tr>
 </table>
 
-## Core decisions
+## Product principles
 
-- **Local-first, not local-only:** suitable workloads run on private, user-owned hardware; external models remain an optional execution path for workloads that need them.
-- **Stable client contract:** applications integrate through an OpenAI-compatible HTTP API or the Python client, not through backend-specific inference code.
-- **Explicit model routing:** every request resolves a configured model key or model ID to an already resident runtime; the server does not silently substitute another model.
-- **Backend-neutral lifecycle:** GGUF, MLX text, GGUF multimodal, and MLX vision engines share the same load, route, stream, drain, and unload boundary.
-- **Control with observability:** health, runtime state, token timings, model management, and live logs are first-class product surfaces.
-- **Private by default:** the server binds to loopback, CORS is disabled, and administrative endpoints are opt-in.
-- **Reusable infrastructure:** Local LLM Server is a runtime pillar for applications such as ClosedRoom rather than an application-specific inference wrapper.
+- **Local-first, not local-only:** suitable workloads run on private, user-owned hardware; external execution may exist only as an explicit policy and integration choice.
+- **Orchestration, not backend replacement:** specialist engines own inference implementation; the control plane owns stable lifecycle, policy and evidence around them.
+- **Stable application contract:** applications integrate through the public HTTP/Python boundary rather than backend-specific inference code.
+- **Explicit model routing:** every request resolves a configured model key or model ID; the server does not silently substitute another model.
+- **Model artifact ≠ runtime:** downloaded/available, selected/default and resident are deliberately different states.
+- **Source-backed observability:** measured, estimated and configured values must remain distinguishable; unavailable data is not rendered as zero.
+- **Privacy by default:** loopback binding, disabled CORS/admin endpoints and fail-closed remote behavior are preferred defaults.
+- **Evidence before optimization claims:** performance and resource defaults should come from reproducible benchmark evidence on representative hardware.
+- **Reusable infrastructure:** downstream products consume Local LLM Server through explicit integration points rather than application-specific state hidden inside the core package.
 
 ## Repository map
 
@@ -81,17 +89,23 @@ src/local_llm_server/runtime.py         Resident runtime ownership, leases, rout
 src/local_llm_server/engine.py          llama.cpp, MLX, llama-server and MLX-VLM engine adapters
 src/local_llm_server/process.py         Managed subprocess lifecycle and bounded log draining
 src/local_llm_server/model_sources.py   LM Studio, Hugging Face cache and download resolution
-src/local_llm_server/registry.py        Built-in and user model-registry loading and validation
+src/local_llm_server/registry.py        Built-in/user registry loading and validation
 src/local_llm_server/config.py          CLI, environment and per-model configuration resolution
+src/local_llm_server/core/              Backend-neutral task/request/result contracts (migration in progress)
 src/local_llm_server/client.py          High-level Python client for text, image and audio tasks
 src/local_llm_server/static             Local LLM Studio frontend and guided tour
 src/local_llm_server/models_registry.yaml
                                         Built-in model definitions and runtime defaults
+docs                                    Canonical target, current state, roadmap, UX and completion policy
 tests                                   Runtime, API, source-resolution and lifecycle regression tests
 .github/workflows                       Lint, multi-version test and release automation
 ```
 
+The target ownership map and migration boundaries live in [`docs/architecture-evolution-plan.md`](docs/architecture-evolution-plan.md). The repository is intentionally migrating incrementally rather than performing a cosmetic one-shot directory rewrite.
+
 ## Request resolution
+
+Current compatible path:
 
 ```text
 OpenAI-compatible request
@@ -108,12 +122,14 @@ OpenAI-compatible request
      OpenAI-compatible response or SSE
 ```
 
-The runtime lease prevents `unload`, reload, or shutdown from closing an engine while inference is active. Admission is enforced independently per runtime, so requests for different resident models can progress concurrently while each backend retains its own safe concurrency limit.
+Target control-plane path adds a backend-neutral task/request contract and explicit resource/scheduling policy ahead of backend execution while retaining `/v1/chat/completions` as a compatibility adapter.
+
+The runtime lease prevents `unload`, reload or shutdown from closing an engine while inference is active. Admission is enforced independently per runtime, so requests for different resident models can progress concurrently while each backend retains its own safe concurrency limit.
 
 ## Model lifecycle
 
 ```text
-built-in registry + ~/.local-llm/models.yaml
+built-in registry + optional external registries + ~/.local-llm/models.yaml
                   ↓
        validated model definition
                   ↓
@@ -132,7 +148,7 @@ built-in registry + ~/.local-llm/models.yaml
 
 A downloaded model is not automatically resident. A resident model is not automatically the default route. Changing the default route does not unload any other model.
 
-Incomplete MLX snapshots, missing GGUF multimodal projectors, invalid aliases, unsupported backends, and inconsistent modality declarations fail before inference begins. Use `--no-download` when startup must remain strictly offline and fail if required artifacts are absent.
+Incomplete MLX snapshots, missing GGUF multimodal projectors, invalid aliases, unsupported backends and inconsistent modality declarations fail before inference begins. Use `--no-download` when startup must remain strictly offline and fail if required artifacts are absent.
 
 ## Backend matrix
 
@@ -143,32 +159,39 @@ Incomplete MLX snapshots, missing GGUF multimodal projectors, invalid aliases, u
 | `llama_server` | GGUF + optional `mmproj` | Managed `llama-server` subprocess | GGUF multimodal and audio-capable models |
 | `mlx_vlm_server` | Complete MLX VLM package | Managed `mlx_vlm.server` subprocess | Apple Silicon vision-language inference |
 
-All backends remain behind the same public API. Ports assigned to managed subprocesses are private runtime details.
+The control-plane contract is backend-neutral, but backend capabilities remain explicit. Extensibility is not a claim of universal model support.
 
 ## Current integrated baseline
 
 The current baseline includes:
 
 - OpenAI-compatible chat completions with streaming and non-streaming responses;
-- model selection through the request `model` field, registry key, or configured model ID;
+- model selection through the request `model` field, registry key or configured model ID;
 - multiple resident runtimes behind one public HTTP port;
-- independent runtime admission, active-request leases, safe unload, and bounded shutdown;
-- GGUF text, MLX text, GGUF multimodal, and MLX vision engine adapters;
-- centralized local artifact discovery, completeness checks, and explicit downloads;
-- configurable context, GPU, CPU, batch, timeout, thinking, and backend-specific controls;
+- independent runtime admission, active-request leases, safe unload and bounded shutdown;
+- GGUF text, MLX text, GGUF multimodal and MLX vision engine adapters;
+- centralized local artifact discovery, completeness checks and explicit downloads;
+- configurable context, GPU, CPU, batch, timeout, thinking and backend-specific controls;
 - a bounded response cache for deterministic greedy completions;
-- an interactive Web UI with chat, model configuration, live logs, examples, and Swagger docs;
+- an interactive Web UI with chat, model configuration, live logs, examples and Swagger docs;
 - an opt-in administrative surface for model lifecycle and log streaming;
 - isolated FastAPI app instances for safe programmatic embedding;
-- a Python client with structured text, local image, and audio helpers.
+- a Python client with structured text, local image and audio helpers.
 
-## Current priorities
+For the authoritative integrated state, blockers and immediate next implementation block, read [`docs/current-state.md`](docs/current-state.md). Do not infer completed capabilities from roadmap entries.
 
-1. Add desktop-friendly background lifecycle controls, auto-start, and tray integration.
-2. Introduce task-oriented model presets for extraction, summaries, and fast structured output.
-3. Expand the diagnostics surface with latency, throughput, and memory benchmarks.
-4. Add local discovery for downstream applications looking for an available runtime.
-5. Add a simple authentication boundary for deliberately shared local-network deployments.
+## Active roadmap priorities
+
+The current program is sequenced around six parallel lanes. The most important near-term outcomes are:
+
+1. **Trustworthy foundation:** blocking CI, fail-closed privacy defaults and removal of consumer-specific registry coupling.
+2. **Canonical task contract:** backend-neutral chat, structured-generation, vision-language and transcription vocabulary while preserving OpenAI compatibility.
+3. **Resource-aware lifecycle:** truthful resource observation, a central ResourceManager, verifiable reclamation and eventually a zero-resident state.
+4. **Evidence-grade observability:** precise metric vocabulary, artifact/runtime fingerprinting and reproducible benchmark identity.
+5. **Control-plane UX:** redesign around Overview, Models & Runtimes, Endpoints/Playground, Diagnostics and Benchmark & Evaluation using source-backed state only.
+6. **Evaluation harness:** reproducible datasets, run identity, comparisons and regression gates tied to exact artifact/runtime configuration.
+
+The dependency graph and parallel batches are maintained in [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Build prerequisites
 
@@ -204,7 +227,7 @@ pip install -e ".[dev,mlx,vision,audio]"
 
 ## Common workflows
 
-List the merged built-in and user model catalog:
+List the merged model catalog:
 
 ```bash
 local-llm models
@@ -242,7 +265,7 @@ local-llm serve \
   --enable-admin-api
 ```
 
-The Chat Studio selector lists resident models only. The Models and Config view can load another configured model, change the default route, restart one runtime with new settings, or unload an idle model without stopping the server.
+The current Studio selector lists resident models only. The Models/Config view can load another configured model, change the default route, restart one runtime with new settings or unload an idle model without stopping the server. The roadmap separates future artifact, runtime and resource-budget states more explicitly.
 
 ## Client integration
 
@@ -319,6 +342,8 @@ models:
     tags: [instruct, custom]
 ```
 
+Consumer applications that need additional registry data should provide it through the generic external-registry integration point rather than relying on application-specific paths inside the core package.
+
 CLI flags override environment variables, which override model and registry defaults. Run `local-llm serve --help` for the complete configuration surface.
 
 ## HTTP API
@@ -327,7 +352,7 @@ The public runtime surface is available by default:
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/health` | Server, backend, runtime, and readiness metadata |
+| `GET` | `/health` | Server, backend, runtime and readiness metadata |
 | `GET` | `/status` | Current inference status and telemetry |
 | `GET` | `/v1/models` | OpenAI-compatible resident model list |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible chat completion and SSE streaming |
@@ -347,7 +372,7 @@ The following routes exist only when `--enable-admin-api` or `serve(enable_admin
 
 ## Security boundary
 
-The default bind address is `127.0.0.1`, CORS is disabled, and model-management and log endpoints are excluded unless explicitly enabled.
+The default bind address is `127.0.0.1`, CORS is disabled, and model-management/log endpoints are excluded unless explicitly enabled. The hardening direction is fail-closed: model code execution and remote media should require explicit policy rather than being silently enabled by a backend.
 
 Binding to `0.0.0.0` exposes the public inference and status routes to the network:
 
@@ -376,14 +401,17 @@ uv run python test_inference.py \
   --server-url http://127.0.0.1:1235/v1
 ```
 
-Changes to engine or process lifecycle should additionally be checked on representative hardware with one GGUF text model and one VLM resident at the same time. Verify streaming interruption, concurrent cross-model requests, idle unload, offline `--no-download` behavior, and child-process cleanup after `Ctrl+C`.
+Changes to engine, resource or process lifecycle should additionally be checked on representative hardware. Host/unit/emulator-style evidence is useful for merge readiness but must not be represented as physical-hardware performance evidence.
 
 ## Documentation and ecosystem
 
-- The broader architectural position is documented on [daniele21.github.io](https://daniele21.github.io/): local-first means controlling model lifecycle, costs, and data boundaries while retaining cloud models where their capability is valuable.
-- The [Android Local LLM Harness](https://github.com/daniele21/android-local-llm-harness) applies the same explicit model-lifecycle and observability principles to native Android applications.
-- Local LLM Server, Local ASR Server, and Android Local LLM Harness form three reusable infrastructure pillars for product-grade local AI.
-- Reference applications such as ClosedRoom validate the stack against privacy-sensitive product workflows.
+- [`docs/README.md`](docs/README.md) routes the canonical repository documentation.
+- [`docs/current-state.md`](docs/current-state.md) is the operational ledger for what is integrated, blocked and next.
+- [`docs/roadmap.md`](docs/roadmap.md) owns capability sequencing, dependencies and parallel batches.
+- [`docs/architecture-evolution-plan.md`](docs/architecture-evolution-plan.md) owns the target control-plane architecture.
+- [`docs/ux-ui-implementation-plan.md`](docs/ux-ui-implementation-plan.md) owns target product-surface behavior.
+- The [Android Local LLM Harness](https://github.com/daniele21/android-local-llm-harness) provides the documentation-governance and explicit lifecycle precedent used by this repository.
+- Reference applications validate the stack against real product workflows without owning core runtime policy.
 
 ## License
 
