@@ -23,8 +23,8 @@ __all__ = [
 
 
 def run_server(*args: Any, **kwargs: Any) -> None:
-    """Start the HTTP server without importing FastAPI during package import."""
-    from .server import run_server as _run_server
+    """Start the policy-enabled HTTP server without import-time side effects."""
+    from .policy_server import run_server as _run_server
 
     _run_server(*args, **kwargs)
 
@@ -55,7 +55,7 @@ def serve(
                  returns a ServerHandle with a .shutdown() method.
                  If False (default), blocks until SIGINT/SIGTERM.
     no_download: Raise an error instead of auto-downloading a missing model.
-    enable_admin_api: Register model-management and log-stream endpoints.
+    enable_admin_api: Register model management, registry, and log-stream endpoints.
     cors_origins: Browser origins allowed to call the API. Disabled by default.
     **kwargs:    Extra inference params (ctx_size, n_gpu_layers, …).
     """
@@ -63,6 +63,7 @@ def serve(
     import uvicorn
     from .config import build_config
     from .engine import load_llm
+    from .request_middleware import install_request_policy
     from .server import (
         ServerSettings,
         begin_app_shutdown,
@@ -110,6 +111,7 @@ def serve(
         )
     )
     configure_runtime(cfg, llm, manager, target_app=application)
+    install_request_policy(application)
 
     config = uvicorn.Config(
         application,
