@@ -9,7 +9,7 @@ Last reviewed: 2026-08-15
 
 Canonical target specification: [`ux-ui-implementation-plan.md`](ux-ui-implementation-plan.md)
 
-This tracker records concise implementation status only. Repository-wide integrated state and the immediate implementation block belong in [`current-state.md`](current-state.md).
+This tracker records concise implementation status only. Repository-wide truth and the immediate implementation wave belong in [`current-state.md`](current-state.md).
 
 ## Status legend
 
@@ -21,90 +21,95 @@ This tracker records concise implementation status only. Repository-wide integra
 
 ## Current workstreams
 
-| Workstream | Status | Current integrated boundary | Remaining gate / dependency |
+| Workstream | Status | Integrated boundary | Remaining gate / dependency |
 | --- | --- | --- | --- |
-| Existing Local LLM Studio | PARTIAL | Chat, model/runtime configuration, logs, examples and Swagger exist | Reframe shell/navigation around control-plane IA while preserving real workflows |
-| Brand/design-system foundation | PARTIAL | Shared CSS now provides canonical brand/surface/status tokens, light/dark semantics, typography, spacing, radii, focus/reduced-motion and reusable primitives | Migrate real screens; add visual/accessibility regression evidence |
-| Application shell/navigation | PENDING | Existing UI navigation/product sections | E2: new Overview, Models & Runtimes, Endpoints, Playground, Benchmark, System and Settings shell |
-| Overview | PENDING | Existing health/status/model information available in separate sources | New composition; resource and metric panels remain source-contract gated |
-| Models & Runtimes inventory | PARTIAL | Registry, generic external registry layers, load/activate/unload and runtime status APIs exist | New lifecycle taxonomy, zero-resident, capabilities and resource data |
-| Memory budget/pressure UX | BLOCKED | Basic config/runtime fields only | Resource observation + ResourceManager (B1/B2) |
-| Model capability UX | BLOCKED | Existing `modalities`/thinking plus canonical TaskType vocabulary | Capability descriptor (C2) |
-| Pin / auto-evict UX | BLOCKED | No product policy contract | Residency policy (B6) |
-| Runtime fingerprint UX | BLOCKED | Model/backend metadata partial | Artifact identity + runtime fingerprint (D3) |
-| Endpoints catalog | PARTIAL | OpenAPI and examples exist; canonical task request vocabulary now exists | C2 capability-driven endpoint/model compatibility view |
-| Playground text | PARTIAL | Chat Studio supports real prompt execution/configuration | Canonical request path wiring + D1/D2 exact metric contract |
-| Playground vision | PARTIAL | Image helper + multimodal backend path exist | Canonical request/media-policy wiring + C2 capability states |
-| Playground transcription | BLOCKED | Audio helper exists and temp WAV ownership is now deterministic | First-class transcription task/API (C3) |
-| Benchmark & Evaluation | PENDING | Legacy batch test script only | Benchmark engine v1 + execution identity (D4) |
-| System / Diagnostics | PARTIAL | Health, status and log stream exist | Unified resource/worker/request metrics and evidence composition |
-| Settings/privacy policy | PARTIAL | host/CORS/admin config plus fail-closed remote-code/media config exists | Wire remote-media enforcement into request path; expose policy only when backed by real config |
-| Responsive behavior | PENDING | Current web UI exists | E2 shell implemented at reference breakpoints |
-| Accessibility | PARTIAL | Shared primitives include focus-visible, status text+indicator and reduced-motion foundations | Keyboard/focus/contrast/zoom screen-level validation |
-| Visual regression | PENDING | No formal target-state screenshot suite | Stable component/screen fixtures after E2 migration begins |
-| Representative hardware UX evidence | PENDING | Manual runtime guidance exists | New source-backed screens + hardware validation matrix |
+| Existing Local LLM Studio workflows | PARTIAL | Real Chat, model/runtime config, logs, examples and Swagger remain operational | Migrate into dedicated control-plane modules without regression |
+| Brand/design-system foundation | PARTIAL | Shared tokens, primitives, focus/reduced-motion and dark/light semantics | Screen adoption + visual/accessibility regression |
+| Application shell/navigation | PARTIAL | Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System/Diagnostics, Settings are navigable | Migrate real content into each destination and test navigation/responsiveness |
+| Overview | PARTIAL | Explicit shell view; current server/runtime facts remain visible in persistent sidebar | E4a source-backed health/runtime cards; later B1/B2/D2/D3 panels |
+| Models & Runtimes inventory | PARTIAL | Existing real registry/residency view preserved and relabeled in IA | E3a lifecycle composition; C2b capabilities; B1/B2 resources; D3 fingerprint |
+| Memory budget/pressure UX | BLOCKED | B1 resource contract now exists | Wait for B2 admission + connected observations before authoritative values |
+| Model capability UX | BLOCKED | C2 capability descriptor exists | Wait for C2b registry/API exposure |
+| Pin / auto-evict UX | BLOCKED | No residency policy contract | B6 |
+| Runtime fingerprint UX | BLOCKED | D3a artifact identity exists | Full D3 backend/config/hardware fingerprint |
+| Endpoints | PARTIAL | Real Swagger/examples links plus current OpenAI compatibility context | C2b capability-aware model/endpoint compatibility |
+| Playground text | PARTIAL | Existing real chat flow preserved under new IA | AC1b canonical route wiring + D2 truthful metrics |
+| Playground vision | PARTIAL | Existing multimodal flow preserved | AC1b policy enforcement + C2b capabilities |
+| Playground transcription | BLOCKED | Audio helper + canonical TaskType + C2 schema foundations | First-class C3 transcription API |
+| Benchmark & Evaluation | PARTIAL | Navigable shell with explicit no-engine/unavailable state | D4a schema, then D4 engine |
+| System / Diagnostics | PARTIAL | Existing logs/status preserved under new IA | E4a composition + D2/B1 source wiring |
+| Settings/privacy | PARTIAL | Current privacy defaults described without invented controls | AC1b enforcement + future resource policy controls |
+| Responsive behavior | PARTIAL | New shell styles collapse multi-column control-plane grids | Screen-level narrow-width verification |
+| Accessibility | PARTIAL | Focus/status/reduced-motion primitives | Keyboard/focus/contrast/zoom validation across migrated views |
+| Visual regression | PENDING | No formal suite | Stable E3/E4 states |
+| Representative hardware UX evidence | PENDING | No new source-backed hardware panels yet | B1/B2/D2 + hardware validation |
 
-## Integrated design-system slice
+## E2 shell result
 
-The first E1 slice is now in the application bundle through `static/design-system.css` and `static/config.js`.
+The shell was integrated incrementally instead of rewriting the existing ~38 KB `index.html` monolith.
 
-Integrated primitives/tokens include:
+New modules:
 
-- graphite, slate, electric blue, teal, violet and light-neutral brand tokens;
-- dark-first semantic surfaces plus supported light tokens;
-- `ready`, `resident`, `cold`, `loading`, `warning`, `error` and `unavailable` status semantics;
-- UI/data/monospace font stacks;
-- spacing, radius, control-height and focus tokens;
-- card, button, field, metric, status, empty-state and table primitives;
-- reduced-motion behavior.
+- `control-plane-shell.js` — information architecture and placeholder/source-aware destinations;
+- `control-plane-shell.css` — shell-specific responsive layout;
+- `config.js` loads the shell and design-system assets.
 
-This does **not** mean the current pages have completed the redesign. Existing page CSS/layout remains the active product surface until E2 migrates the shell and subsequent screen slices adopt the primitives.
+Important behavior:
 
-## Current UX debt
+- existing Chat/Models/Logs screens remain real operational views;
+- new future-data views display explicit unavailable states;
+- Benchmark does not show synthetic scores;
+- Overview does not invent resource pressure;
+- Settings does not pretend budget/eviction controls exist;
+- Endpoints links to actual Swagger and integration examples.
 
-- the current product surface still communicates “chat/configuration UI” more strongly than “local AI control plane” even though README/product language has been repositioned;
-- model artifact state, default route and memory residency are not yet first-class separate presentation concepts;
-- memory pressure/budget cannot be shown truthfully until B1/B2;
-- current registry modality vocabulary remains insufficient for final task-aware UX until C2;
-- benchmark/evaluation is not yet an integrated product workflow;
-- observability terminology must be corrected by D1/D2 before final metric labels are frozen;
-- the frontend remains a large static bundle and must be decomposed enough for parallel screen implementation without repeated conflicts;
-- there is no screenshot/visual regression harness yet.
+## Newly available UX dependencies
 
-## Immediate UX block
+- B1 resource schema exists, so E3/E4 can begin designing against stable source types while leaving values unavailable until connected.
+- C2 capability schema exists, but capability UI remains blocked until registry/API exposure.
+- D1 metric vocabulary exists, so final labels should use its exact token/chunk/duration terms.
+- D3a artifact identity exists, enabling future model detail identity sections without private path disclosure.
 
-Proceed with **E2 shell/navigation** in parallel with B1, C2 and D1.
+## Immediate UX wave
 
-E2 should:
+Run E3a and E4a in parallel after the shell boundary:
 
-1. establish the new control-plane navigation hierarchy;
-2. reuse the integrated design-system tokens/primitives rather than create a second style vocabulary;
-3. preserve existing working Chat/Models/Logs/API flows during incremental migration;
-4. show only current source-backed values or explicit unavailable/coming-later states;
-5. avoid authoritative memory, capability, benchmark or fingerprint values until their source contracts land;
-6. create screen/module boundaries that allow later Overview, Models, Playground and Diagnostics slices to develop independently.
+### E3a — Models & Runtimes current-source composition
 
-## Parallel UX slices after E2 foundation
+Use only currently real sources to show:
 
-As soon as the shell/module boundaries exist, these can proceed independently:
+- configured model identity;
+- resident vs non-resident distinction;
+- default-route distinction;
+- backend;
+- runtime state/active requests where available;
+- load/activate/unload actions already supported.
 
-- **E3a Models inventory:** current registry/default/residency facts;
-- **E4a Overview health:** current server and loaded-runtime health;
-- **Endpoints current-state slice:** current routes/examples with canonical task vocabulary where already valid;
-- **Playground text:** existing real chat execution adapted to the new shell;
-- **Diagnostics/logs:** current health/status/log sources.
+Do not yet show authoritative memory budget, eviction, runtime fingerprint or capability compatibility until their sources are wired.
 
-Dependency-gated slices remain:
+### E4a — Overview/System current-source composition
 
-- memory budget -> B1/B2;
-- capability UI -> C2;
-- transcription -> C3;
-- queue/deadline UI -> B5/D1;
-- pin/eviction -> B6;
-- truthful cross-backend performance cards -> D2;
-- runtime fingerprint -> D3;
-- benchmark comparison/history -> D4/D5.
+Use existing sources to show:
+
+- server connection/health;
+- default route;
+- resident runtime count/list;
+- runtime state;
+- links into Models and Diagnostics.
+
+Keep resource pressure, TTFT/token throughput and evidence identity unavailable until B1/B2, D2 and D3 are connected.
+
+## Subsequent parallel UX slices
+
+- capability detail -> C2b;
+- resource budget/pressure -> B1 runtime wiring + B2;
+- request lifecycle -> B5/D1;
+- truthful performance -> D2;
+- artifact/runtime identity -> D3;
+- transcription controls -> C3;
+- benchmark selection/results -> D4;
+- pin/LRU/TTL -> B6.
 
 ## Update rule
 
-Update this file in the same integration change whenever a UX workstream status or blocker changes. Keep detailed acceptance criteria in the target specification; this file should remain a concise operational tracker rather than duplicating the full UX plan.
+Update this tracker in the same integration cycle whenever a UX status or blocker changes. Detailed acceptance criteria remain in the target specification.
