@@ -19,9 +19,7 @@ def _load_audio_dependencies() -> tuple[Any, Any]:
 
 
 def prepare_audio(input_path: str | Path) -> Path:
-    """
-    Convert an audio file to temporary 16 kHz mono WAV and return its path.
-    """
+    """Convert an audio file to temporary 16 kHz mono WAV and return its path."""
     np, sf = _load_audio_dependencies()
     source = Path(input_path).expanduser()
     if not source.exists():
@@ -54,10 +52,15 @@ def audio_to_base64(wav_path: str | Path) -> str:
 
 
 def prepare_audio_message(audio_path: str | Path, prompt: str) -> list[dict[str, Any]]:
-    """
-    Build an OpenAI-compatible multimodal message containing WAV audio and text.
-    """
+    """Build a multimodal message while owning and cleaning the generated WAV."""
     wav_path = prepare_audio(audio_path)
+    try:
+        encoded = audio_to_base64(wav_path)
+    finally:
+        # prepare_audio() creates the temporary file for this helper, so this
+        # function owns the lifecycle and must not leave it on disk.
+        wav_path.unlink(missing_ok=True)
+
     return [
         {
             "role": "user",
@@ -65,7 +68,7 @@ def prepare_audio_message(audio_path: str | Path, prompt: str) -> list[dict[str,
                 {
                     "type": "input_audio",
                     "input_audio": {
-                        "data": audio_to_base64(wav_path),
+                        "data": encoded,
                         "format": "wav",
                     },
                 },

@@ -12,7 +12,7 @@ def test_audio_to_base64(tmp_path):
     assert audio_to_base64(wav) == base64.b64encode(b"abc").decode("ascii")
 
 
-def test_prepare_audio_message_uses_prepared_wav(monkeypatch, tmp_path):
+def test_prepare_audio_message_uses_and_removes_prepared_wav(monkeypatch, tmp_path):
     wav = tmp_path / "prepared.wav"
     wav.write_bytes(b"wav")
 
@@ -26,3 +26,4 @@ def test_prepare_audio_message_uses_prepared_wav(monkeypatch, tmp_path):
     assert content[0]["input_audio"]["format"] == "wav"
     assert content[0]["input_audio"]["data"] == base64.b64encode(b"wav").decode("ascii")
     assert content[1] == {"type": "text", "text": "Analizza"}
+    assert not wav.exists()

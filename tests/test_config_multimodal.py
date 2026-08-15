@@ -85,6 +85,33 @@ def test_float_environment_values_are_parsed(monkeypatch):
     assert isinstance(cfg["default_temperature"], float)
 
 
+def test_remote_code_is_disabled_by_default(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    cfg = build_config(model="qwen3-vl-4b")
+
+    assert cfg["trust_remote_code"] is False
+    assert cfg["tokenizer_config"] == {"trust_remote_code": False}
+
+
+def test_remote_code_requires_explicit_opt_in(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setenv("LOCAL_LLM_TRUST_REMOTE_CODE", "true")
+
+    cfg = build_config(model="qwen3-vl-4b")
+
+    assert cfg["trust_remote_code"] is True
+    assert cfg["tokenizer_config"] == {"trust_remote_code": True}
+
+
+def test_remote_media_is_disabled_by_default(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    cfg = build_config(model="qwen3-vl-4b")
+
+    assert cfg["allow_remote_media"] is False
+
+
 def test_lmstudio_model_can_be_listed_as_downloaded(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     local_model = (
