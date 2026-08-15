@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 
 from .core import InferenceError
 from .request_pipeline import prepare_chat_request, public_error_detail
+from .task_policy import enforce_request_capabilities
 
 _INFERENCE_PATHS = frozenset({"/v1/chat/completions", "/api/v1/chat"})
 
@@ -47,6 +48,10 @@ def install_request_policy(application: FastAPI) -> FastAPI:
 
         try:
             prepared = prepare_chat_request(payload, runtime_config=runtime.cfg)
+            descriptor = enforce_request_capabilities(
+                prepared.canonical,
+                runtime_config=runtime.cfg,
+            )
         except InferenceError as exc:
             return JSONResponse(
                 status_code=400,
@@ -57,6 +62,7 @@ def install_request_policy(application: FastAPI) -> FastAPI:
         # downstream integration can consume this canonical object without
         # translating the HTTP body a second time.
         request.state.prepared_inference_request = prepared
+        request.state.runtime_capabilities = descriptor
         return await call_next(request)
 
     return application
