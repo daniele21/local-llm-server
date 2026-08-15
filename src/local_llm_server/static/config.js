@@ -2,15 +2,29 @@
  * config.js — Frontend Configuration for Local LLM Studio
  */
 
-(function ensureDesignSystemStylesheet() {
+(function ensureControlPlaneAssets() {
     if (typeof document === 'undefined') return;
-    if (document.querySelector('link[data-local-llm-design-system]')) return;
 
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = '/static/design-system.css';
-    link.dataset.localLlmDesignSystem = 'true';
-    document.head.appendChild(link);
+    const stylesheets = [
+        ['data-local-llm-design-system', '/static/design-system.css'],
+        ['data-local-llm-control-plane-shell', '/static/control-plane-shell.css'],
+    ];
+    stylesheets.forEach(([marker, href]) => {
+        if (document.querySelector(`link[${marker}]`)) return;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.setAttribute(marker, 'true');
+        document.head.appendChild(link);
+    });
+
+    if (!document.querySelector('script[data-local-llm-control-plane-shell]')) {
+        const script = document.createElement('script');
+        script.src = '/static/control-plane-shell.js';
+        script.defer = true;
+        script.dataset.localLlmControlPlaneShell = 'true';
+        document.head.appendChild(script);
+    }
 })();
 
 const APP_CONFIG = {
