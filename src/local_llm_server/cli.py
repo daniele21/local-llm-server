@@ -26,7 +26,6 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", metavar="<command>")
     sub.required = True
 
-    # ── serve ─────────────────────────────────────────────────────────────────
     p_serve = sub.add_parser("serve", help="Start the LLM server.")
     p_serve.add_argument(
         "--backend",
@@ -83,7 +82,7 @@ def main() -> None:
         "--enable-admin-api",
         action="store_true",
         default=False,
-        help="Enable model management, registry, and log-stream endpoints.",
+        help="Enable control-plane model/resource/evidence/evaluation endpoints.",
     )
     p_serve.add_argument(
         "--cors-origin",
@@ -92,10 +91,8 @@ def main() -> None:
         help="Allowed browser origin; repeat for multiple origins. CORS is disabled by default.",
     )
 
-    # ── models ────────────────────────────────────────────────────────────────
     sub.add_parser("models", help="List available models from the registry.")
 
-    # ── download ──────────────────────────────────────────────────────────────
     p_download = sub.add_parser("download", help="Download a model without starting the server.")
     p_download.add_argument("model", help="Registry key (e.g. qwen3-8b).")
 
@@ -110,61 +107,38 @@ def main() -> None:
 
 
 def _cmd_serve(args: argparse.Namespace) -> None:
-    from .config import build_config
-    from .engine import load_llm
     from .policy_server import run_server
-    from .registry import load_registry
-    from .runtime import ModelRuntimeManager
+    from .product_runtime import bootstrap_product_runtimes
 
-    # Collect only explicitly set flags (skip None so config resolution works)
     explicit: dict = {}
-    for key in ("backend", "host", "port", "ctx_size", "max_kv_size", "n_gpu_layers", "n_threads",
-                "llama_server_port", "llama_server_bin", "mlx_vlm_server_port", "mmproj_path", "startup_timeout",
-                "max_concurrent_requests",
-                "chat_format", "force_json", "show_thinking", "enable_thinking",
-                "no_download", "verbose"):
+    for key in (
+        "backend", "host", "port", "ctx_size", "max_kv_size", "n_gpu_layers", "n_threads",
+        "llama_server_port", "llama_server_bin", "mlx_vlm_server_port", "mmproj_path", "startup_timeout",
+        "max_concurrent_requests", "chat_format", "force_json", "show_thinking", "enable_thinking",
+        "no_download", "verbose",
+    ):
         val = getattr(args, key, None)
         if val is not None:
             explicit[key] = val
 
-    registry = load_registry()
-    startup_models = list(args.models or registry.get("startup_models") or [])
-    if startup_models:
-        default_model = args.default_model or args.model or startup_models[0]
-        if default_model not in startup_models:
-            startup_models.insert(0, default_model)
-        manager = ModelRuntimeManager(default_model=default_model)
-        try:
-            for model_key in startup_models:
-                per_model_explicit = dict(explicit)
-                if model_key != default_model:
-                    per_model_explicit.pop("llama_server_port", None)
-                    per_model_explicit.pop("mlx_vlm_server_port", None)
-                manager.load(model_key, **per_model_explicit)
-        except Exception:
-            manager.shutdown()
-            raise
-        default_runtime = manager.resolve()
-        cfg = default_runtime.cfg
-        llm = default_runtime.engine
-    else:
-        cfg = build_config(
-            model=args.model,
-            model_path=args.model_path,
-            **explicit,
-        )
-        llm = load_llm(cfg)
-        manager = None
+    bootstrap = bootstrap_product_runtimes(
+        model=args.model,
+        model_path=args.model_path,
+        models=args.models,
+        default_model=args.default_model,
+        explicit=explicit,
+    )
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
     run_server(
-        cfg,
-        llm,
-        manager=manager,
+        bootstrap.cfg,
+        bootstrap.engine,
+        manager=bootstrap.manager,
         enable_admin_api=args.enable_admin_api,
         cors_origins=args.cors_origin,
+        resource_policy_settings=bootstrap.resource_policy,
     )
 
 
@@ -191,10 +165,10 @@ def _cmd_models() -> None:
         size = f"{entry['size_gb']:.1f} GB" if entry.get("size_gb") else "? GB"
         tags = ", ".join(entry.get("tags") or [])
         model_ready = bool(entry["downloaded"])
-        status = "\033[92m✅ downloaded\033[0m" if model_ready else "\033[90m❌ not downloaded\033[0m"
+        status_text = "\033[92m✅ downloaded\033[0m" if model_ready else "\033[90m❌ not downloaded\033[0m"
         marker = " (default)" if key == default else ""
         backend = entry.get("backend", "llama_cpp")
-        print(f"  {key:<{col_key}} {model_id:<{col_id}} {size:<8}  {backend:<13} [{tags}]  {status}{marker}")
+        print(f"  {key:<{col_key}} {model_id:<{col_id}} {size:<8}  {backend:<13} [{tags}]  {status_text}{marker}")
 
     print()
 

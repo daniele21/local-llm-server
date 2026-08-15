@@ -36,9 +36,11 @@ jobs:
       - name: Install package with test dependencies
         # llama-cpp-python has a heavy native build; install the package without
         # transitive runtime dependencies and provide only deterministic test deps.
+        # Keep this explicit list aligned with runtime dependencies exercised by
+        # the deterministic API suite (e.g. multipart form parsing for ASR).
         run: |
           python -m pip install --upgrade pip
           pip install -e . --no-deps
-          pip install pyyaml fastapi uvicorn pytest httpx ruff huggingface-hub
+          pip install pyyaml fastapi uvicorn python-multipart pytest httpx ruff huggingface-hub
       - name: Run deterministic unit tests
         run: pytest tests/ -v --tb=short
