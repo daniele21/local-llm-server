@@ -51,12 +51,14 @@
             fetchJson('/v1/models'),
             fetchJson('/api/v1/resources'),
             fetchJson('/api/v1/evidence'),
+            fetchJson('/api/v1/scheduler'),
         ]);
         const health = fulfilled(results[0]);
         const runtimeStatus = fulfilled(results[1]);
         const modelsPayload = fulfilled(results[2]);
         const resources = fulfilled(results[3]);
         const evidence = fulfilled(results[4]);
+        const scheduler = fulfilled(results[5]);
 
         const models = Array.isArray(modelsPayload?.data) ? modelsPayload.data : null;
         const serverReady = Boolean(health?.ok);
@@ -68,7 +70,7 @@
             ?? runtimeStatus?.default_model
             ?? evidence?.default_model
             ?? null;
-        const residentCount = models ? models.length : (numberOrNull(evidence?.runtime_count));
+        const residentCount = models ? models.length : numberOrNull(evidence?.runtime_count);
         const activeRequests = aggregateActiveRequests(runtimeStatus?.models);
         const defaultEvidence = chooseDefaultEvidence(evidence, defaultModel);
         const canonicalMetrics = defaultEvidence?.metrics || null;
@@ -76,6 +78,11 @@
         const resourceAdmission = defaultEvidence?.resource_admission || null;
         const resourceConfigured = resources?.policy_state === 'configured';
         const resourceAvailable = resources !== null;
+        const schedulerAvailable = scheduler !== null;
+        const schedulerEnabled = scheduler?.policy?.enabled === true;
+        const schedulerRuntimes = Array.isArray(scheduler?.runtimes) ? scheduler.runtimes : [];
+        const schedulerQueued = schedulerEnabled ? sumIntegerField(schedulerRuntimes, 'queued') : null;
+        const schedulerInflight = schedulerEnabled ? sumIntegerField(schedulerRuntimes, 'inflight') : null;
 
         surface.innerHTML = `
             <div class="control-plane-grid">
@@ -114,6 +121,20 @@
                     ${metric('Reserved', formatBytes(resources?.reserved_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
                     ${metric('Remaining', formatBytes(resources?.remaining_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
                 </article>
+
+                <article class="ds-card control-plane-card">
+                    <div class="control-plane-card-heading">
+                        <h3>Request scheduler</h3>
+                        ${statusBadge(
+                            schedulerAvailable ? (schedulerEnabled ? 'Enabled' : 'Disabled') : 'Unavailable',
+                            schedulerAvailable ? (schedulerEnabled ? 'ready' : 'cold') : 'unavailable'
+                        )}
+                    </div>
+                    ${metric('Queue capacity / runtime', schedulerEnabled ? scheduler?.policy?.queue_capacity ?? null : null, scheduler ? '/api/v1/scheduler' : 'source unavailable')}
+                    ${metric('Default queue timeout', schedulerEnabled ? formatMs(scheduler?.policy?.default_queue_timeout_ms) : null, scheduler ? '/api/v1/scheduler' : 'source unavailable')}
+                    ${metric('Inflight admissions', schedulerInflight, scheduler ? '/api/v1/scheduler' : 'source unavailable')}
+                    ${metric('Queued requests', schedulerQueued, scheduler ? '/api/v1/scheduler' : 'source unavailable')}
+                </article>
             </div>
 
             <div class="control-plane-grid control-plane-grid--two control-plane-evidence-grid">
@@ -122,6 +143,7 @@
                         <h3>Latest runtime evidence</h3>
                         ${statusBadge(canonicalMetrics ? 'Source connected' : 'Unavailable', canonicalMetrics ? 'ready' : 'unavailable')}
                     </div>
+                    ${metric('Queue wait', formatMs(canonicalMetrics?.durations_ms?.queue_wait), metricSource(canonicalMetrics, 'queue_wait_ms'))}
                     ${metric('Input tokens', canonicalMetrics?.counts?.input_tokens ?? null, metricSource(canonicalMetrics, 'input_tokens'))}
                     ${metric('Output tokens', canonicalMetrics?.counts?.output_tokens ?? null, metricSource(canonicalMetrics, 'output_tokens'))}
                     ${metric('Output chunks', canonicalMetrics?.counts?.output_chunks ?? null, metricSource(canonicalMetrics, 'output_chunks'))}
@@ -143,9 +165,9 @@
                 </article>
             </div>
 
-            ${resources === null || evidence === null ? `
+            ${resources === null || evidence === null || scheduler === null ? `
                 <div class="ds-empty control-plane-unavailable">
-                    Resource/evidence control-plane sources are unavailable. Enable the admin API to expose them; no fallback values are fabricated.
+                    Resource/evidence/scheduler control-plane sources are unavailable. Enable the admin API to expose them; no fallback values are fabricated.
                 </div>` : ''}
 
             <div class="control-plane-actions">
@@ -189,19 +211,34 @@
         return total;
     }
 
+    function sumIntegerField(items, field) {
+        let total = 0;
+        for (const item of items) {
+            const value = item?.[field];
+            if (!Number.isInteger(value) || value < 0) return null;
+            total += value;
+        }
+        return total;
+    }
+
     function metricSource(metrics, field) {
         if (!metrics) return 'source unavailable';
         return metrics.sources?.[field] || '/api/v1/evidence · unavailable source detail';
     }
 
+    function finiteNumber(value) {
+        if (value === null || value === undefined || value === '') return null;
+        const number = Number(value);
+        return Number.isFinite(number) ? number : null;
+    }
+
     function numberOrNull(value) {
-        return Number.isFinite(Number(value)) ? Number(value) : null;
+        return finiteNumber(value);
     }
 
     function formatBytes(value) {
-        if (value === null || value === undefined) return null;
-        const number = Number(value);
-        if (!Number.isFinite(number) || number < 0) return null;
+        const number = finiteNumber(value);
+        if (number === null || number < 0) return null;
         if (number >= 1024 ** 3) return `${(number / 1024 ** 3).toFixed(2)} GiB`;
         if (number >= 1024 ** 2) return `${(number / 1024 ** 2).toFixed(1)} MiB`;
         if (number >= 1024) return `${(number / 1024).toFixed(1)} KiB`;
@@ -209,18 +246,18 @@
     }
 
     function formatMs(value) {
-        const number = Number(value);
-        return Number.isFinite(number) && number >= 0 ? `${number.toFixed(1)} ms` : null;
+        const number = finiteNumber(value);
+        return number !== null && number >= 0 ? `${number.toFixed(1)} ms` : null;
     }
 
     function formatRate(value, unit) {
-        const number = Number(value);
-        return Number.isFinite(number) && number >= 0 ? `${number.toFixed(2)} ${unit}` : null;
+        const number = finiteNumber(value);
+        return number !== null && number >= 0 ? `${number.toFixed(2)} ${unit}` : null;
     }
 
     function formatTimestamp(value) {
-        const number = Number(value);
-        if (!Number.isFinite(number) || number < 0) return null;
+        const number = finiteNumber(value);
+        if (number === null || number < 0) return null;
         const date = new Date(number * 1000);
         return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
     }
