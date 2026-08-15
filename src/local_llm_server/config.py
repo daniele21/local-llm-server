@@ -160,6 +160,13 @@ def build_config(
     cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")
 
+    # MLX currently reads tokenizer_config directly. Supplying it here makes
+    # the trust decision explicit and fail-closed instead of relying on the
+    # backend's historical trust_remote_code=True fallback.
+    cfg["tokenizer_config"] = {
+        "trust_remote_code": bool(cfg.get("trust_remote_code", False))
+    }
+
     if "thinking_mode" in entry:
         cfg["thinking_mode"] = str(entry["thinking_mode"])
     elif "enable_thinking" in entry.get("params", {}):
