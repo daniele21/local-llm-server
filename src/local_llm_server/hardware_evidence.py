@@ -7,6 +7,7 @@ and local model paths from the serialized report.
 from __future__ import annotations
 
 import json
+import os
 import platform
 import re
 import subprocess
@@ -22,6 +23,7 @@ from .request_pipeline import prepare_chat_request
 from .resources import (
     ResourceObserver,
     ResourceValue,
+    ResourceValueSource,
     StandardLibraryResourceObserver,
     SystemResourceSnapshot,
 )
@@ -64,17 +66,33 @@ class HardwareEvidenceOptions:
 
 
 class WorkerSystemResourceObserver:
-    """Use host-level evidence without mislabelling the parent RSS as worker RSS."""
+    """Observe host resources plus the bound child RSS while it exists.
+
+    Before worker start and after worker stop, process RSS is explicitly
+    unavailable. A terminated child is never relabelled as a measured zero.
+    """
 
     def __init__(self, delegate: ResourceObserver) -> None:
         self.delegate = delegate
+        self._worker: Any | None = None
+
+    def bind_worker(self, worker: Any) -> None:
+        self._worker = worker
+
+    def unbind_worker(self, worker: Any) -> None:
+        if self._worker is worker:
+            self._worker = None
 
     def snapshot(self) -> SystemResourceSnapshot:
         snapshot = self.delegate.snapshot()
-        return replace(
-            snapshot,
-            process_rss_bytes=ResourceValue.unavailable("bytes"),
+        worker = self._worker
+        pid = getattr(worker, "pid", None) if worker is not None else None
+        rss = (
+            _read_process_rss_for_pid(pid)
+            if isinstance(pid, int) and not isinstance(pid, bool) and pid > 0
+            else ResourceValue.unavailable("bytes")
         )
+        return replace(snapshot, process_rss_bytes=rss)
 
 
 def default_worker_resource_observer() -> ResourceObserver:
@@ -188,6 +206,34 @@ def resolve_backend_version(config: Mapping[str, Any]) -> str | None:
         if binary:
             return _probe_llama_server_version(str(binary))
     return None
+
+
+def _read_process_rss_for_pid(pid: int) -> ResourceValue:
+    system = platform.system().lower()
+    if system == "linux":
+        try:
+            resident_pages = int(Path(f"/proc/{pid}/statm").read_text(encoding="utf-8").split()[1])
+            page_size = int(os.sysconf("SC_PAGE_SIZE"))
+            value = resident_pages * page_size
+        except (OSError, ValueError, IndexError):
+            return ResourceValue.unavailable("bytes")
+        return ResourceValue(value, ResourceValueSource.MEASURED, "bytes")
+
+    if system == "darwin":
+        try:
+            completed = subprocess.run(
+                ["ps", "-o", "rss=", "-p", str(pid)],
+                capture_output=True,
+                text=True,
+                timeout=2.0,
+                check=True,
+            )
+            value = int(completed.stdout.strip()) * 1024
+        except (OSError, ValueError, subprocess.SubprocessError):
+            return ResourceValue.unavailable("bytes")
+        return ResourceValue(value, ResourceValueSource.MEASURED, "bytes")
+
+    return ResourceValue.unavailable("bytes")
 
 
 def _probe_llama_server_version(binary: str) -> str | None:
