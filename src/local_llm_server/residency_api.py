@@ -1,4 +1,4 @@
-"""Administrative residency-policy API for explicit runtime pinning."""
+"""Administrative residency-policy API for pinning and explicit eviction."""
 from __future__ import annotations
 
 from typing import Any
@@ -6,10 +6,35 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from .residency_eviction import (
+    EvictionMode,
+    EvictionPolicySettings,
+    select_eviction_candidates,
+)
+
 
 class RuntimePinBody(BaseModel):
     model: str = Field(..., min_length=1)
     pinned: bool = True
+
+
+class EvictionPolicyBody(BaseModel):
+    mode: EvictionMode = EvictionMode.LRU
+    limit: int = Field(default=1, ge=1, le=32)
+    ttl_seconds: float | None = Field(default=None, ge=0)
+    protect_resident_default: bool = True
+
+
+def _eviction_settings(body: EvictionPolicyBody) -> EvictionPolicySettings:
+    try:
+        return EvictionPolicySettings(
+            mode=body.mode,
+            limit=body.limit,
+            ttl_seconds=body.ttl_seconds,
+            protect_resident_default=body.protect_resident_default,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 def install_residency_api(application: FastAPI) -> FastAPI:
@@ -54,6 +79,67 @@ def install_residency_api(application: FastAPI) -> FastAPI:
             "residency": producer(),
         }
 
+    def preview_eviction(body: EvictionPolicyBody, request: Request) -> dict[str, Any]:
+        manager = request.app.state.runtime_manager
+        producer = getattr(manager, "residency_policy_snapshot", None)
+        if producer is None:
+            raise HTTPException(
+                status_code=501,
+                detail="Runtime manager does not expose residency policy state.",
+            )
+        policy = _eviction_settings(body)
+        candidates = select_eviction_candidates(producer(), policy)
+        return {
+            "mode": policy.mode.value,
+            "protect_resident_default": policy.protect_resident_default,
+            "candidate_count": len(candidates),
+            "candidates": [candidate.to_public_dict() for candidate in candidates],
+            "automatic": False,
+            "reclamation_claim": False,
+        }
+
+    def evict(body: EvictionPolicyBody, request: Request) -> dict[str, Any]:
+        manager = request.app.state.runtime_manager
+        producer = getattr(manager, "residency_policy_snapshot", None)
+        unload = getattr(manager, "unload", None)
+        if producer is None or unload is None:
+            raise HTTPException(
+                status_code=501,
+                detail="Runtime manager does not support explicit residency eviction.",
+            )
+
+        policy = _eviction_settings(body)
+        candidates = select_eviction_candidates(producer(), policy)
+        evicted: list[dict[str, str]] = []
+        skipped: list[dict[str, str]] = []
+        for candidate in candidates:
+            try:
+                runtime = unload(candidate.key)
+            except (LookupError, RuntimeError) as exc:
+                # A lease/state change between selection and unload is expected
+                # concurrency, not a reason to force eviction.
+                skipped.append({
+                    "key": candidate.key,
+                    "model": candidate.model,
+                    "reason": type(exc).__name__,
+                })
+                continue
+            evicted.append({
+                "key": runtime.key,
+                "model": runtime.model_id,
+                "reason": candidate.reason.value,
+            })
+
+        return {
+            "ok": len(skipped) == 0,
+            "mode": policy.mode.value,
+            "automatic": False,
+            "reclamation_claim": False,
+            "evicted": evicted,
+            "skipped": skipped,
+            "residency": producer(),
+        }
+
     application.add_api_route(
         "/api/v1/residency",
         snapshot,
@@ -67,5 +153,19 @@ def install_residency_api(application: FastAPI) -> FastAPI:
         methods=["POST"],
         tags=["Resources"],
         name="set_runtime_pin",
+    )
+    application.add_api_route(
+        "/api/v1/residency/eviction/preview",
+        preview_eviction,
+        methods=["POST"],
+        tags=["Resources"],
+        name="preview_runtime_eviction",
+    )
+    application.add_api_route(
+        "/api/v1/residency/evict",
+        evict,
+        methods=["POST"],
+        tags=["Resources"],
+        name="evict_runtimes_explicitly",
     )
     return application

@@ -1,6 +1,9 @@
 """Product runtime manager with explicit configured-vs-resident default semantics."""
 from __future__ import annotations
 
+import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from .resource_manager import ResourceManager
@@ -37,6 +40,7 @@ class ProductRuntimeManager(ModelRuntimeManager):
         )
         self.configured_default_model = default_model
         self._pinned_runtime_keys: set[str] = set()
+        self._last_used_at_monotonic: dict[str, float] = {}
 
     @property
     def cold(self) -> bool:
@@ -52,6 +56,7 @@ class ProductRuntimeManager(ModelRuntimeManager):
         previous_resident_default = self.default_model
         runtime = super().add(cfg, engine, key=key)
         with self._manager_lock:
+            self._last_used_at_monotonic[runtime.key] = time.monotonic()
             configured = self.configured_default_model
             if configured is None:
                 self.configured_default_model = runtime.key
@@ -78,6 +83,23 @@ class ProductRuntimeManager(ModelRuntimeManager):
                 )
             raise LookupError("No resident default model is available.")
         return super().resolve(model)
+
+    @contextmanager
+    def lease_runtime(self, runtime: ModelRuntime) -> Iterator[ModelRuntime]:
+        """Lease a runtime and update LRU recency only after the lease ends."""
+        try:
+            with super().lease_runtime(runtime) as leased:
+                yield leased
+        finally:
+            with self._manager_lock:
+                if self._runtimes.get(runtime.key) is runtime:
+                    self._last_used_at_monotonic[runtime.key] = time.monotonic()
+
+    def reload(self, model: str, **explicit: Any) -> ModelRuntime:
+        replacement = super().reload(model, **explicit)
+        with self._manager_lock:
+            self._last_used_at_monotonic[replacement.key] = time.monotonic()
+        return replacement
 
     def set_default(self, model: str) -> ModelRuntime:
         runtime = super().set_default(model)
@@ -109,9 +131,11 @@ class ProductRuntimeManager(ModelRuntimeManager):
         candidate right now. It is not evidence that unload will reclaim host
         memory; reclamation remains a separate observed-evidence concern.
         """
+        now = time.monotonic()
         with self._manager_lock:
             runtimes = list(self._runtimes.values())
             pinned = set(self._pinned_runtime_keys)
+            last_used = dict(self._last_used_at_monotonic)
             configured_default = self.configured_default_model
             resident_default = self.default_model
 
@@ -126,6 +150,11 @@ class ProductRuntimeManager(ModelRuntimeManager):
                     "state": runtime.state.value,
                     "active_requests": runtime.active_requests,
                     "pinned": runtime.key in pinned,
+                    "is_resident_default": runtime.key == resident_default,
+                    "last_used_age_seconds": max(
+                        0.0,
+                        now - last_used.get(runtime.key, now),
+                    ),
                     "evictable": (
                         runtime.key not in pinned
                         and runtime.state is RuntimeState.READY
@@ -152,6 +181,7 @@ class ProductRuntimeManager(ModelRuntimeManager):
             runtime.state = RuntimeState.DRAINING
             self._runtimes.pop(runtime.key, None)
             self._pinned_runtime_keys.discard(runtime.key)
+            self._last_used_at_monotonic.pop(runtime.key, None)
             for alias, key in list(self._aliases.items()):
                 if key == runtime.key:
                     self._aliases.pop(alias, None)
@@ -170,4 +200,5 @@ class ProductRuntimeManager(ModelRuntimeManager):
         super().shutdown()
         with self._manager_lock:
             self._pinned_runtime_keys.clear()
+            self._last_used_at_monotonic.clear()
         self.configured_default_model = configured
