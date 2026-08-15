@@ -1,14 +1,20 @@
 """Canonical request preparation before backend execution.
 
-This module isolates API-shape translation and privacy/capability policy from the
-large FastAPI route implementation. The final AC1 wiring makes server.py call
-this adapter rather than owning a second parser.
+This module isolates API-shape translation, privacy/capability policy and the
+current engine-kwargs translation from the large FastAPI route implementation.
+The route can therefore migrate to one prepared request without changing the
+public request contract in the same step.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from .backend_request import (
+    PreparedBackendRequest,
+    build_backend_request,
+    resolve_show_thinking_override,
+)
 from .core import ErrorCode, InferenceError, InferenceRequest, chat_payload_to_inference_request
 from .media_policy import RemoteMediaPolicyError, validate_media_sources
 
@@ -18,17 +24,20 @@ class PreparedInferenceRequest:
     canonical: InferenceRequest
     messages: tuple[Mapping[str, Any], ...]
     required_modalities: frozenset[str]
+    backend: PreparedBackendRequest
 
 
 def prepare_chat_request(
     payload: Mapping[str, Any],
     *,
     runtime_config: Mapping[str, Any],
+    runtime_model_id: str | None = None,
 ) -> PreparedInferenceRequest:
     """Translate and validate one existing chat-completions payload.
 
-    This adapter deliberately stops before backend kwargs are created. It owns
-    request shape, local media policy and current modality compatibility only.
+    API-shape translation and media/modality policy are performed first. The
+    resulting canonical request is then translated exactly once into the engine
+    kwargs contract that the historical route still expects.
     """
     canonical = chat_payload_to_inference_request(payload)
     messages = tuple(canonical.messages)
@@ -61,10 +70,25 @@ def prepare_chat_request(
             },
         )
 
+    model_id = str(
+        runtime_model_id
+        or runtime_config.get("model_id")
+        or runtime_config.get("model")
+        or canonical.model
+        or "local"
+    )
+    backend = build_backend_request(
+        canonical,
+        runtime_config=runtime_config,
+        runtime_model_id=model_id,
+        show_thinking_override=resolve_show_thinking_override(payload),
+    )
+
     return PreparedInferenceRequest(
         canonical=canonical,
         messages=messages,
         required_modalities=required_modalities,
+        backend=backend,
     )
 
 
