@@ -1,18 +1,28 @@
 """
-registry.py — load and merge the built-in + user model registry.
+registry.py — load and merge the built-in, external, and user model registries.
 
 Resolution order (lowest → highest priority):
   1. Built-in registry  (src/local_llm_server/models_registry.yaml)
-  2. User registry      (~/.local-llm/models.yaml)
+  2. Explicit/external registry layers
+  3. User registry      (~/.local-llm/models.yaml)
+
+External registry layers are opt-in and can be supplied either through the
+``extra_registry_paths`` argument or the ``LOCAL_LLM_REGISTRY_PATHS``
+environment variable. Paths are separated with ``os.pathsep`` and may point to
+YAML or JSON files using the same top-level schema as the built-in registry.
 
 The result is a dict with keys:
   models_dir: Path
   defaults:   dict
   models:     dict[str, dict]
   default_model: str
+  startup_models: list[str]
 """
 from __future__ import annotations
 
+import json
+import os
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -21,73 +31,47 @@ import yaml
 _BUILTIN_REGISTRY = Path(__file__).parent / "models_registry.yaml"
 _SUPPORTED_BACKENDS = {"llama_cpp", "gguf", "mlx", "llama_server", "mlx_vlm_server"}
 _VALID_MODALITIES = {"text", "image", "audio"}
+_EXTERNAL_REGISTRY_ENV = "LOCAL_LLM_REGISTRY_PATHS"
 
 
-def load_registry() -> dict[str, Any]:
-    """Return the merged registry as a plain dict."""
-    builtin = _load_yaml(_BUILTIN_REGISTRY)
+def load_registry(
+    *,
+    extra_registry_paths: Iterable[str | Path] | None = None,
+) -> dict[str, Any]:
+    """Return the merged registry as a plain dict.
+
+    External registries are deliberately generic: the core package never reads
+    application-specific state or paths. Consumers that need to inject model
+    configuration can pass one or more registry files explicitly or set
+    ``LOCAL_LLM_REGISTRY_PATHS``.
+    """
+    builtin = _load_mapping(_BUILTIN_REGISTRY)
     user_registry_path = Path.home() / ".local-llm" / "models.yaml"
-    user = _load_yaml(user_registry_path) if user_registry_path.exists() else {}
+    user = _load_mapping(user_registry_path) if user_registry_path.exists() else {}
 
-    # Load ClosedRoom local_llm_params.json config
-    closedroom_params_path = Path.home() / "Library" / "Application Support" / "ClosedRoom" / "local_llm_params.json"
-    closedroom_models = {}
-    if closedroom_params_path.exists():
-        try:
-            import json
-            with open(closedroom_params_path, "r", encoding="utf-8") as f:
-                config_data = json.load(f)
-            if isinstance(config_data, dict) and "models" in config_data:
-                closedroom_models = config_data["models"]
-        except Exception:
-            pass
+    external_layers = [
+        _load_mapping(path)
+        for path in _resolve_external_registry_paths(extra_registry_paths)
+    ]
 
-    # Merge models: ClosedRoom and User registry entries override or extend built-in ones
-    models: dict[str, Any] = dict(builtin.get("models") or {})
-    
-    # Merge ClosedRoom models
-    for key, entry in closedroom_models.items():
-        if not isinstance(entry, dict):
-            continue
-        if key in models:
-            merged = dict(models[key])
-            merged["params"] = {**merged.get("params", {}), **entry.get("params", {})}
-            for k, v in entry.items():
-                if k != "params":
-                    merged[k] = v
-            models[key] = merged
-        else:
-            models[key] = entry
+    layers = [builtin, *external_layers, user]
 
-    # Merge User models (highest priority)
-    for key, entry in (user.get("models") or {}).items():
-        if key in models:
-            # Deep-merge params
-            merged = dict(models[key])
-            merged["params"] = {**merged.get("params", {}), **entry.get("params", {})}
-            for k, v in entry.items():
-                if k != "params":
-                    merged[k] = v
-            models[key] = merged
-        else:
-            models[key] = entry
+    models: dict[str, Any] = {}
+    defaults: dict[str, Any] = {}
+    for layer in layers:
+        models = _merge_models(models, layer.get("models") or {})
+        defaults.update(layer.get("defaults") or {})
 
-    # Resolve models_dir
-    raw_dir = user.get("models_dir") or builtin.get("models_dir") or "~/.local-llm/models"
+    raw_dir = _last_defined(layers, "models_dir") or "~/.local-llm/models"
     models_dir = Path(str(raw_dir)).expanduser().resolve()
 
-    defaults = {**builtin.get("defaults", {}), **user.get("defaults", {})}
-
-    default_model: str = (
-        user.get("default_model")
-        or (next(iter(closedroom_models)) if closedroom_models else None)
-        or builtin.get("default_model")
+    default_model = str(
+        _last_defined(layers, "default_model")
         or (next(iter(models)) if models else "")
     )
 
-    startup_models = list(user.get("startup_models") or builtin.get("startup_models") or [])
-    if not startup_models and closedroom_models:
-        startup_models = list(closedroom_models.keys())
+    startup_models_value = _last_defined(layers, "startup_models")
+    startup_models = list(startup_models_value or [])
 
     registry = {
         "models_dir": models_dir,
@@ -98,6 +82,60 @@ def load_registry() -> dict[str, Any]:
     }
     validate_registry(registry)
     return registry
+
+
+def _resolve_external_registry_paths(
+    extra_registry_paths: Iterable[str | Path] | None,
+) -> list[Path]:
+    paths: list[Path] = []
+
+    env_value = os.getenv(_EXTERNAL_REGISTRY_ENV, "").strip()
+    if env_value:
+        paths.extend(Path(raw).expanduser() for raw in env_value.split(os.pathsep) if raw.strip())
+
+    if extra_registry_paths:
+        paths.extend(Path(raw).expanduser() for raw in extra_registry_paths)
+
+    resolved: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        canonical = path.resolve()
+        if canonical in seen:
+            continue
+        if not canonical.is_file():
+            raise FileNotFoundError(f"External registry not found: {canonical}")
+        seen.add(canonical)
+        resolved.append(canonical)
+    return resolved
+
+
+def _merge_models(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged_models = dict(base)
+    for key, entry in override.items():
+        if not isinstance(entry, dict):
+            merged_models[key] = entry
+            continue
+        if key not in merged_models or not isinstance(merged_models[key], dict):
+            merged_models[key] = dict(entry)
+            continue
+
+        merged = dict(merged_models[key])
+        merged["params"] = {
+            **(merged.get("params") or {}),
+            **(entry.get("params") or {}),
+        }
+        for field_name, value in entry.items():
+            if field_name != "params":
+                merged[field_name] = value
+        merged_models[key] = merged
+    return merged_models
+
+
+def _last_defined(layers: list[dict[str, Any]], key: str) -> Any:
+    for layer in reversed(layers):
+        if key in layer and layer[key] is not None:
+            return layer[key]
+    return None
 
 
 def validate_registry(registry: dict[str, Any]) -> None:
@@ -185,7 +223,10 @@ def validate_registry(registry: dict[str, Any]) -> None:
         raise ValueError(f"Registry validation failed:\n{formatted}")
 
 
-def _load_yaml(path: Path) -> dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+def _load_mapping(path: Path) -> dict[str, Any]:
+    with open(path, "r", encoding="utf-8") as file_handle:
+        if path.suffix.lower() == ".json":
+            data = json.load(file_handle)
+        else:
+            data = yaml.safe_load(file_handle)
     return data if isinstance(data, dict) else {}
