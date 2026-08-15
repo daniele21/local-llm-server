@@ -18,109 +18,84 @@ Canonical target specification: [`ux-ui-implementation-plan.md`](ux-ui-implement
 | Workstream | Status | Integrated boundary | Remaining gate |
 | --- | --- | --- | --- |
 | Existing Studio workflows | PARTIAL | real Chat, Models lifecycle, Logs, examples and Swagger preserved during migration | legacy-internal cleanup without regression |
-| Design system | PARTIAL | tokens/primitives/focus/reduced-motion/light-dark | full accessibility/contrast evidence |
-| Shell/navigation | PARTIAL | seven control-plane destinations navigable with truthful neutral fallbacks | keyboard/responsive evidence |
+| Design system | EVIDENCE | tokens/primitives + expanded native/control focus + reduced-motion/light-dark semantics | manual light/dark contrast evidence |
+| Shell/navigation | EVIDENCE | seven destinations + dedicated ARIA tablist/tabpanel + roving keyboard focus + skip link | real end-to-end keyboard/zoom traversal |
 | Overview | PARTIAL | health/status/models + resource/evidence/scheduler sources | representative runtime/hardware evidence |
-| Models & Runtimes | PARTIAL | catalog/resident/capability/resource/identity/residency sources + pin UX | lifecycle/accessibility/hardware evidence |
-| Resource budget/pressure | PARTIAL | configured product policy and `/api/v1/resources` | measured reconciliation + hardware evidence |
-| Capability UX | PARTIAL | server descriptors drive Endpoints and Playground controls | broader backend/task evidence + accessibility |
-| Pin/auto-evict | PARTIAL | pin/unpin + explicit evictable state + deterministic LRU/TTL preview/execution | pressure-trigger validation + hardware evidence before automation |
-| Runtime fingerprint | PARTIAL | verified auto-capture + Overview/Models/Diagnostics presentation | broader artifact/backend coverage |
-| Endpoints | PARTIAL | task/model compatibility matrix from real capability sources | accessibility/regression evidence |
-| Playground text | PARTIAL | real chat + canonical capability-driven controls | legacy-internal cleanup + accessibility/evidence |
+| Models & Runtimes | PARTIAL | catalog/resident/capability/resource/identity/residency sources + pin UX | lifecycle/manual-accessibility/hardware evidence |
+| Resource budget/pressure | PARTIAL | configured product policy + deterministic pressure-policy contracts | representative pressure/hardware evidence before automation |
+| Capability UX | PARTIAL | server descriptors drive Endpoints and Playground controls | broader backend/task evidence + manual acceptance |
+| Pin/auto-evict | PARTIAL | pin/unpin + evictable + LRU/TTL + hysteretic dry policy | hardware review before any automatic unload |
+| Runtime fingerprint | PARTIAL | verified auto-capture + broader backend-version evidence + UI presentation | specialist artifact/backend coverage |
+| Endpoints | PARTIAL | task/model compatibility matrix from real capability sources | visual/manual regression evidence |
+| Playground text | PARTIAL | real chat + canonical capability-driven controls | legacy-internal cleanup + manual acceptance |
 | Playground vision | PARTIAL | real multimodal path + capability-driven image control + fail-closed remote media | regression/hardware evidence |
 | Playground transcription | PARTIAL | first-class multipart transcription API + capability-driven mini-playground | compatible backend/hardware evidence |
-| Benchmark & Evaluation | PARTIAL | run/results/history/comparison + custom JSON import/version selection | richer experiments + accessibility/visual evidence |
-| System/Diagnostics | PARTIAL | canonical runtime/resource/scheduler/identity summary above real live logs | accessibility/visual/hardware evidence |
-| Settings/privacy | PARTIAL | read-only effective policy/resource/residency/scheduler state | accessibility + future mutation semantics only if product requires them |
-| Responsive | PARTIAL | primary control-plane grids include responsive collapse rules | reference-width + 200% zoom verification |
-| Accessibility | PARTIAL | primitive-level focus/status/reduced motion | full keyboard/focus/contrast/zoom matrix |
+| Benchmark & Evaluation | PARTIAL | run/results/history/comparison + custom JSON import/version selection | richer experiments + visual/manual evidence |
+| System/Diagnostics | PARTIAL | canonical runtime/resource/scheduler/identity summary above real logs | visual/hardware evidence |
+| Settings/privacy | PARTIAL | read-only effective policy/resource/residency/scheduler state | manual acceptance + mutation semantics only if product requires them |
+| Responsive | EVIDENCE | min-width guards, single-column breakpoints, action stacking and horizontal table access | real phone/tablet/desktop + 200% zoom verification |
+| Accessibility | EVIDENCE | tab semantics, Arrow/Home/End navigation, skip link, focus expansion, decorative-icon hiding, text status | contrast + full workflow/manual audit |
 | Visual regression | PENDING | no stable screenshot suite yet | deterministic source-state fixtures + screenshot gate |
-| Hardware UX evidence | PENDING | deterministic lifecycle experiment harness exists | representative reclamation/performance runs |
+| Hardware UX evidence | PARTIAL | repeatable worker reclamation CLI/report schema exists | representative device reports + real runtime screenshots |
 
 ## Source-backed product state now available
 
 ### Overview
 
-The Overview consumes real `/health`, `/status`, `/v1/models`, `/api/v1/resources`, `/api/v1/evidence` and `/api/v1/scheduler` sources where available. It distinguishes configured default identity from resident default route, cold state from failure, resource policy state, queue wait and verified/exploratory identity. Missing values remain **Unavailable**.
+The Overview consumes real `/health`, `/status`, `/v1/models`, `/api/v1/resources`, `/api/v1/evidence` and `/api/v1/scheduler`. It distinguishes configured default identity from resident default route, cold state from failure, resource policy state, queue wait and verified/exploratory identity. Missing values remain **Unavailable**.
 
 ### Models & Runtimes
 
-The Models view now combines:
-
-- `/v1/models` for resident identity;
-- `/status` for route/lifecycle/active-request state;
-- `/api/v1/models/registry` for configured catalog and capability descriptors;
-- `/api/v1/resources` for global resource admission state;
-- `/api/v1/evidence` for verified runtime identity;
-- `/api/v1/residency` for pin/evictability/last-used state.
-
-Pin/unpin is a real admin action. `Evictable` means policy eligibility only; it is not presented as proof of resource reclamation.
+The Models view combines resident identity, status/default routing, configured catalog/capabilities, resource admission, verified runtime identity and residency/pinning evidence. Pin/unpin is a real admin action. `Evictable` means current policy eligibility only and is never displayed as proof of memory reclamation.
 
 ### Endpoints and Playground
 
-The capability layer consumes server-owned descriptors rather than named-model heuristics:
-
-- chat, vision-language, structured-generation and transcription availability are derived from declared tasks;
-- text/image controls follow declared input modalities;
-- structured-output/thinking controls follow declared features;
-- only resident runtimes are presented as immediately executable;
-- transcription is a distinct audio -> text flow over `/v1/audio/transcriptions`;
-- when capability metadata is unavailable, legacy controls are restored instead of being left stale/disabled.
+The capability layer consumes server-owned descriptors rather than named-model heuristics. Chat, vision-language, structured-generation and transcription availability follow declared tasks/modalities/features; only resident runtimes are presented as immediately executable. Transcription remains a distinct audio -> text workflow over `/v1/audio/transcriptions`. Capability-source loss restores the legacy controls instead of leaving stale disabled UI.
 
 ### Benchmark & Evaluation
 
-The evaluation screen supports:
-
-- resident model selection;
-- versioned built-in/custom test sets;
-- valid sample multiples of 10 and deterministic seed;
-- validated JSON custom test-set import;
-- explicit id + version propagation into runs;
-- duplicate conflict without silent replace;
-- objective quality, execution success, per-sample result/error and sourced timing/token evidence;
-- evidence-grade vs exploratory run state based on runtime fingerprint;
-- persisted history inspection and compatibility-aware baseline/candidate comparison;
-- no automatic better/worse verdict.
+The evaluation screen supports resident-model selection, versioned built-in/custom test sets, deterministic seed/sample counts, validated JSON import, explicit test-set version propagation, duplicate-conflict feedback, per-sample result/error/evidence state, persisted history and compatibility-aware comparison. It does not auto-declare a better/worse model.
 
 ### System / Diagnostics
 
-Diagnostics now prepends source-backed operational evidence to the existing real log workflow:
-
-- resident runtime/active-request state;
-- verified identity coverage;
-- scheduler inflight/queue state;
-- remaining configured resource budget;
-- canonical queue-wait/TTFT/decode-throughput values from `durations_ms` and `throughput` only when sourced.
-
-Prompt/generated content is not copied into the diagnostics evidence layer.
+Diagnostics prepends source-backed operational evidence to real live logs: resident/active state, identity coverage, scheduler inflight/queue, remaining resource budget and canonical queue-wait/TTFT/decode-throughput values only when sourced. Prompt/generated content is not copied into the evidence layer.
 
 ### Settings
 
-Settings is intentionally read-only and source-backed. It shows:
+Settings remains source-backed/read-only. It shows canonical request policy, remote-media/remote-code flags, resource budget, residency/pinning and scheduler state without inventing configuration mutations that lack a server-owned contract.
 
-- whether canonical request policy is installed;
-- remote-media and remote-code defaults/effective runtime flags;
-- resource budget state;
-- residency/pinning state;
-- scheduler policy state.
+## Integrated deterministic accessibility/responsive foundation
 
-The UI does not invent mutation controls for policy settings that lack a defined server-owned mutation contract.
+The shell now provides:
 
-## Immediate UX hardening wave
+- a dedicated ARIA `tablist` containing only the seven control-plane destinations; auxiliary controls such as the guided tour remain outside tab semantics;
+- `tab`/`tabpanel` relationships through `aria-controls`, `aria-labelledby` and `aria-selected`;
+- roving tabindex and ArrowUp/Down/Left/Right plus Home/End navigation;
+- inactive panels hidden from the accessibility tree;
+- a keyboard skip link to the main workspace;
+- decorative navigation icons marked assistive-technology hidden/non-focusable;
+- visible focus outlines for design-system and retained native/legacy buttons, links, inputs, selects and textareas;
+- status text in addition to the color indicator;
+- broader reduced-motion handling;
+- `min-width: 0`, content wrapping and one-column responsive breakpoints for high-zoom/narrow effective viewports;
+- preserved horizontal table access instead of clipping columns.
 
-### H1 — Accessibility acceptance
+These contracts pass deterministic CI and Node syntax checks. They are **not** the final manual accessibility certification.
 
-Implement/verify:
+## Immediate UX validation wave
 
-- keyboard-only navigation through shell, forms, tables and lifecycle controls;
-- visible focus for all interactive elements;
-- semantic names for icon-only controls;
-- status text in addition to color;
-- light/dark contrast checks;
-- 200% zoom without clipped critical actions/data.
+### H1b — Manual accessibility acceptance
 
-### H2 — Responsive and visual regression
+Verify on the real integrated UI:
+
+- keyboard-only traversal across shell, forms, tables, upload controls and lifecycle actions;
+- sensible focus order after async source refreshes and action completion;
+- semantic names for remaining icon-only controls outside the control-plane shell;
+- light/dark contrast for text, focus, status badges and disabled states;
+- no critical action/data loss at 200% browser zoom;
+- screen-reader spot checks for tab/panel selection and dynamic status feedback.
+
+### H2b — Responsive and visual regression
 
 Create deterministic source-state fixtures for:
 
@@ -131,40 +106,44 @@ Create deterministic source-state fixtures for:
 - error/action failure;
 - success/resident/evidence-grade.
 
-Capture stable reference widths for phone/tablet/desktop and prevent regression without presenting fixture screenshots as real runtime evidence.
+Capture stable phone/tablet/desktop reference widths and separate fixture screenshots from real runtime screenshots. Visual regression should detect layout/state regressions without presenting synthetic fixtures as product performance evidence.
 
 ### H3 — Representative runtime evidence
 
-Use the repeated lifecycle/reclamation harness and compatible task runtimes to capture real states used by public screenshots and product claims. Hardware evidence remains separate from deterministic UI fixtures.
+Use `local-llm evidence-reclamation` plus compatible text/vision/transcription runtimes to collect real hardware states. The worker runner can record live child RSS during READY/PEAK and host memory before/after stop while keeping prompt/output/path data out of the JSON report. Real runtime screenshots and hardware-dependent claims remain blocked until these runs exist.
 
-### H4 — Legacy-internal cleanup
+### H4 — Legacy/internal and release cleanup
 
-Once acceptance coverage is stable:
+After acceptance coverage stabilizes:
 
-- remove obsolete duplicate placeholder/internal markup that overlays have superseded;
+- remove obsolete internal/placeholder markup superseded by source-backed overlays;
 - retain real Chat, Logs and lifecycle behavior until modular replacements prove parity;
-- keep supported product entrypoints aligned with UI documentation.
+- align README/API examples with the current product entrypoints and hardware evidence workflow;
+- update public screenshots only from implemented real states.
 
 ## Evidence UX rules
 
 - `0` is valid only when a source measured zero; missing data is `Unavailable`.
 - resource estimate and observed footprint remain distinguishable.
+- child RSS is shown only while the child PID is actually observable; after stop it is not fabricated as measured zero.
 - chunk throughput is never token throughput.
 - exploratory benchmark runs may execute but are not presented as evidence-grade comparisons.
 - reclamation evidence is not PASS merely because a subprocess exits or one memory delta is positive.
 - capability truth is server-owned; JavaScript presents/filters it but does not invent support.
 - custom test-set files are data, not executable scorer/plugin definitions.
 - explicit eviction success is not presented as a host-memory reclamation guarantee.
+- deterministic accessibility/fixture tests are not a substitute for manual contrast/zoom or real hardware evidence.
 
 ## Acceptance still pending
 
 Before primary UX surfaces can be marked DONE:
 
-- keyboard/focus/semantic-label audit;
+- complete keyboard/focus/semantic-label workflow audit;
 - contrast verification in supported light/dark modes;
-- 200% zoom and representative width usability;
+- real 200% zoom and representative width usability;
 - stable source-state visual regression suite;
 - action confirmation/feedback review for destructive lifecycle operations;
+- screen-reader spot checks for tab/dynamic-state semantics;
 - real runtime screenshots for public documentation;
 - representative hardware evidence for resource/performance claims.
 
