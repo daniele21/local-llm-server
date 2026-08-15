@@ -21,6 +21,7 @@
     const scripts = [
         ['localLlmControlPlaneShell', '/static/control-plane-shell.js'],
         ['localLlmControlPlaneLive', '/static/control-plane-live.js'],
+        ['localLlmControlPlaneModels', '/static/control-plane-models.js'],
     ];
     scripts.forEach(([marker, src]) => {
         if (document.querySelector(`script[data-${marker.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`)) return;
