@@ -93,7 +93,7 @@ class AsyncRuntimeGate:
                     else:
                         try:
                             await asyncio.wait_for(self._condition.wait(), timeout=remaining)
-                        except TimeoutError:
+                        except asyncio.TimeoutError:
                             self.scheduler.snapshot()
         except asyncio.CancelledError:
             async with self._condition:
@@ -156,8 +156,7 @@ class AsyncRuntimeGate:
     def _release_slot_locked(self) -> None:
         self._inflight = max(0, self._inflight - 1)
 
-    @staticmethod
-    def _raise_terminal(scheduled: ScheduledRequest) -> None:
+    def _raise_terminal(self, scheduled: ScheduledRequest) -> None:
         if scheduled.state is QueueState.EXPIRED:
             raise InferenceError(
                 ErrorCode.TIMEOUT,
