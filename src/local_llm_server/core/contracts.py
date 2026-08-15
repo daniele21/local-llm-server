@@ -7,18 +7,18 @@ future backend workers.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import Enum
 from typing import Any, Mapping
 
 
-class TaskType(StrEnum):
+class TaskType(str, Enum):
     CHAT = "chat"
     STRUCTURED_GENERATION = "structured_generation"
     VISION_LANGUAGE = "vision_language"
     TRANSCRIPTION = "transcription"
 
 
-class TerminationReason(StrEnum):
+class TerminationReason(str, Enum):
     STOP = "stop"
     MAX_TOKENS = "max_tokens"
     CANCELLED = "cancelled"
@@ -26,7 +26,7 @@ class TerminationReason(StrEnum):
     ERROR = "error"
 
 
-class ErrorCode(StrEnum):
+class ErrorCode(str, Enum):
     INVALID_REQUEST = "invalid_request"
     UNSUPPORTED_TASK = "unsupported_task"
     UNSUPPORTED_MODALITY = "unsupported_modality"
