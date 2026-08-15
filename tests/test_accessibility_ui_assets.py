@@ -28,7 +28,7 @@ def test_shell_has_keyboard_skip_navigation_and_hidden_panel_state():
     script = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
 
     assert "Skip to main content" in script
-    assert "data-control-plane-skip-link" not in script  # dataset API owns the marker
+    assert "[data-control-plane-skip-link]" in script
     assert "dataset.controlPlaneSkipLink" in script
     assert "main.tabIndex = -1" in script
     assert "panel.hidden = !active" in script
