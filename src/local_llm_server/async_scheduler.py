@@ -68,8 +68,6 @@ class AsyncRuntimeGate:
                         started = self.scheduler.start(request_id)
                         if started.state is QueueState.RUNNING:
                             return started
-                        # A cancellation or expiry may win between admission and
-                        # start. That admission had already reserved one slot.
                         self._release_slot_locked()
                         self._condition.notify_all()
                         self._raise_terminal(started)
@@ -86,7 +84,7 @@ class AsyncRuntimeGate:
 
                     remaining = self._remaining_seconds(scheduled)
                     if remaining is not None and remaining <= 0:
-                        self.scheduler.snapshot()  # expire queued requests deterministically
+                        self.scheduler.snapshot()
                         continue
                     if remaining is None:
                         await self._condition.wait()
@@ -138,6 +136,11 @@ class AsyncRuntimeGate:
                 self._release_slot_locked()
             self._condition.notify_all()
             return result
+
+    async def forget(self, request_id: str) -> None:
+        """Remove terminal request bookkeeping after product evidence is captured."""
+        async with self._condition:
+            self.scheduler.forget(request_id)
 
     async def snapshot(self) -> GateSnapshot:
         async with self._condition:
