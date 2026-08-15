@@ -18,13 +18,18 @@
         document.head.appendChild(link);
     });
 
-    if (!document.querySelector('script[data-local-llm-control-plane-shell]')) {
+    const scripts = [
+        ['localLlmControlPlaneShell', '/static/control-plane-shell.js'],
+        ['localLlmControlPlaneLive', '/static/control-plane-live.js'],
+    ];
+    scripts.forEach(([marker, src]) => {
+        if (document.querySelector(`script[data-${marker.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`)) return;
         const script = document.createElement('script');
-        script.src = '/static/control-plane-shell.js';
+        script.src = src;
         script.defer = true;
-        script.dataset.localLlmControlPlaneShell = 'true';
+        script.dataset[marker] = 'true';
         document.head.appendChild(script);
-    }
+    });
 })();
 
 const APP_CONFIG = {
