@@ -36,4 +36,9 @@ assert {sig: signal.getsignal(sig) for sig in signals} == signals
 
 
 def test_terminal_endpoint_is_not_registered():
-    assert "/api/v1/terminal/run" not in {route.path for route in app.routes}
+    route_paths = {
+        path
+        for route in app.routes
+        if isinstance((path := getattr(route, "path", None)), str)
+    }
+    assert "/api/v1/terminal/run" not in route_paths
