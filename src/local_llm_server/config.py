@@ -52,6 +52,8 @@ _FALLBACKS: dict[str, Any] = {
     "max_concurrent_requests": 1,
     "max_kv_size": None,
     "thinking_mode": "none",
+    "trust_remote_code": False,
+    "allow_remote_media": False,
 }
 
 # ── Env-var names ──────────────────────────────────────────────────────────────
@@ -81,14 +83,18 @@ _ENV_MAP: dict[str, str] = {
     "default_top_k": "LOCAL_LLM_DEFAULT_TOP_K",
     "default_min_p": "LOCAL_LLM_DEFAULT_MIN_P",
     "default_repeat_penalty": "LOCAL_LLM_DEFAULT_REPEAT_PENALTY",
+    "trust_remote_code": "LOCAL_LLM_TRUST_REMOTE_CODE",
+    "allow_remote_media": "LOCAL_LLM_ALLOW_REMOTE_MEDIA",
 }
 
-_BOOL_ENV = {"force_json", "enable_thinking", "show_thinking", "verbose", "offload_kqv", "flash_attn", "use_mmap", "multimodal"}
+_BOOL_ENV = {
+    "force_json", "enable_thinking", "show_thinking", "verbose", "offload_kqv",
+    "flash_attn", "use_mmap", "multimodal", "trust_remote_code", "allow_remote_media",
+}
 _INT_ENV = {
     "port", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch", "timeout",
     "llama_server_port", "mlx_vlm_server_port", "startup_timeout", "default_top_k",
-    "max_concurrent_requests",
-    "max_kv_size",
+    "max_concurrent_requests", "max_kv_size",
 }
 _FLOAT_ENV = {
     "default_temperature", "default_top_p", "default_min_p",
@@ -101,19 +107,10 @@ def build_config(
     model_path: str | None = None,
     **explicit: Any,
 ) -> dict[str, Any]:
-    """
-    Return a fully resolved config dict ready to pass to load_llm() and LocalLLMServer.
-
-    Parameters
-    ----------
-    model:      Registry key (e.g. "qwen3-8b"). If None, uses default_model.
-    model_path: Direct path to a .gguf file. If set, skips registry path resolution.
-    **explicit: Any config key explicitly set by the caller (CLI flags / library API).
-    """
+    """Return a fully resolved config dict ready for runtime construction."""
     registry = load_registry()
     models_dir: Path = registry["models_dir"]
 
-    # Resolve model key
     if model is None:
         model = registry["default_model"]
 
@@ -123,7 +120,6 @@ def build_config(
         **entry.get("params", {}),
     }
 
-    # Resolve backend
     backend = explicit.get("backend") or os.getenv("LOCAL_LLM_BACKEND") or entry.get("backend") or reg_params.get("backend") or "llama_cpp"
 
     model_id: str = entry.get("model_id", model)
@@ -132,12 +128,10 @@ def build_config(
     cfg: dict[str, Any] = {}
 
     for key, fallback in _FALLBACKS.items():
-        # 1. Explicit caller value
         if key in explicit and explicit[key] is not None:
             cfg[key] = explicit[key]
             continue
 
-        # 2. Environment variable
         env_name = _ENV_MAP.get(key)
         env_val = os.getenv(env_name, "") if env_name else ""
         if env_val:
@@ -151,12 +145,10 @@ def build_config(
                 cfg[key] = env_val
             continue
 
-        # 3. Registry param
         if key in reg_params:
             cfg[key] = reg_params[key]
             continue
 
-        # 4. Hardcoded fallback
         cfg[key] = fallback
 
     cfg["model"] = model
@@ -168,28 +160,20 @@ def build_config(
     cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")
 
-    # Older entries used enable_thinking as both default and capability. Keep
-    # them compatible while making the model-level contract explicit.
     if "thinking_mode" in entry:
         cfg["thinking_mode"] = str(entry["thinking_mode"])
     elif "enable_thinking" in entry.get("params", {}):
         cfg["thinking_mode"] = "switchable"
     if cfg["thinking_mode"] == "none":
         if explicit.get("enable_thinking") is True:
-            raise ValueError(
-                f"Model '{model}' does not support thinking mode."
-            )
+            raise ValueError(f"Model '{model}' does not support thinking mode.")
         if explicit.get("show_thinking") is True:
-            raise ValueError(
-                f"Model '{model}' cannot expose thinking output."
-            )
+            raise ValueError(f"Model '{model}' cannot expose thinking output.")
         cfg["enable_thinking"] = False
         cfg["show_thinking"] = False
     elif cfg["thinking_mode"] == "always":
         if explicit.get("enable_thinking") is False:
-            raise ValueError(
-                f"Thinking cannot be disabled for model '{model}'."
-            )
+            raise ValueError(f"Thinking cannot be disabled for model '{model}'.")
         cfg["enable_thinking"] = True
 
     resolved_source = resolve_registry_model(
