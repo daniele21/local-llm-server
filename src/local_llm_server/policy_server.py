@@ -1,9 +1,8 @@
 """Policy-enabled HTTP server entrypoint.
 
 This wrapper composes the existing FastAPI application/runtime manager with the
-canonical request-policy middleware without editing the historical server
-monolith. It is the public/CLI server path while the legacy module-level app is
-kept for backward compatibility.
+canonical request-policy middleware and modular product APIs without editing the
+historical server monolith.
 """
 from __future__ import annotations
 
@@ -17,9 +16,12 @@ def run_server(
     *,
     enable_admin_api: bool = False,
     cors_origins: list[str] | tuple[str, ...] | None = None,
+    resource_policy_settings: Any | None = None,
 ) -> None:
     import uvicorn
 
+    from .control_plane_api import install_product_api
+    from .product_runtime import effective_policy_for_manager
     from .request_middleware import install_request_policy
     from .server import (
         ServerSettings,
@@ -35,7 +37,13 @@ def run_server(
         )
     )
     manager = configure_runtime(cfg, llm, manager, target_app=application)
+    application.state.resource_policy_settings = (
+        resource_policy_settings
+        if resource_policy_settings is not None
+        else effective_policy_for_manager(manager)
+    )
     install_request_policy(application)
+    install_product_api(application)
     resolved_cfg = manager.resolve().cfg
 
     config = uvicorn.Config(
