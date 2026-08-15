@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from .cold_state import install_cold_state
 from .core.contracts import ErrorCode, InferenceError
+from .evaluation_builtin import GENERAL_PURPOSE_V1
 from .evaluation_history_api import install_evaluation_history_api
 from .evaluation_service import (
     EvaluationRunRequest,
@@ -17,17 +18,20 @@ from .evaluation_service import (
     EvaluationStore,
     report_to_dict,
 )
+from .evaluation_testsets import CustomTestSetStore, parse_test_set_bytes
 from .live_evidence import manager_evidence_payload
 from .resource_policy import ResourcePolicySettings, resource_policy_snapshot
 from .scheduler_evidence import scheduler_evidence_payload
 from .transcription import ResidentTranscriptionService, TranscriptionRequest
 
 _MAX_TRANSCRIPTION_BYTES = 100 * 1024 * 1024
+_MAX_TEST_SET_BYTES = 5 * 1024 * 1024
 
 
 class EvaluationRunBody(BaseModel):
     model: str = Field(..., min_length=1)
     test_set_id: str = Field("general-purpose", min_length=1)
+    test_set_version: str | None = None
     sample_count: int = Field(20, ge=10)
     seed: int = 0
 
@@ -50,6 +54,10 @@ def install_product_api(
         )
     )
     application.state.evaluation_store = EvaluationStore(root)
+    application.state.evaluation_test_set_store = CustomTestSetStore(
+        root / "test_sets",
+        reserved_ids={GENERAL_PURPOSE_V1.test_set_id},
+    )
 
     async def transcribe_audio(
         request: Request,
@@ -101,6 +109,13 @@ def install_product_api(
     if not bool(getattr(settings, "enable_admin_api", False)):
         return application
 
+    def evaluation_service(request: Request) -> EvaluationService:
+        return EvaluationService(
+            request.app.state.runtime_manager,
+            store=request.app.state.evaluation_store,
+            test_set_store=request.app.state.evaluation_test_set_store,
+        )
+
     def get_resource_state(request: Request):
         policy_settings = getattr(
             request.app.state,
@@ -117,26 +132,50 @@ def install_product_api(
         return await scheduler_evidence_payload(request.app)
 
     def list_test_sets(request: Request):
-        service = EvaluationService(
-            request.app.state.runtime_manager,
-            store=request.app.state.evaluation_store,
-        )
-        return {"test_sets": list(service.list_test_sets())}
+        return {"test_sets": list(evaluation_service(request).list_test_sets())}
+
+    async def import_test_set(
+        request: Request,
+        file: UploadFile = File(...),
+        replace: bool = Form(False),
+    ):
+        raw = await file.read(_MAX_TEST_SET_BYTES + 1)
+        if len(raw) > _MAX_TEST_SET_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail={"code": "test_set_too_large", "max_bytes": _MAX_TEST_SET_BYTES},
+            )
+        try:
+            test_set = parse_test_set_bytes(raw)
+            request.app.state.evaluation_test_set_store.save(
+                test_set,
+                replace=replace,
+            )
+        except FileExistsError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {
+            "test_set": {
+                "id": test_set.test_set_id,
+                "version": test_set.version,
+                "identity": test_set.identity,
+                "sample_count": len(test_set.samples),
+                "source": "custom",
+            }
+        }
 
     def list_evaluation_runs(request: Request):
         store: EvaluationStore = request.app.state.evaluation_store
         return {"run_ids": list(store.list_run_ids())}
 
     def run_evaluation(body: EvaluationRunBody, request: Request):
-        service = EvaluationService(
-            request.app.state.runtime_manager,
-            store=request.app.state.evaluation_store,
-        )
         try:
-            outcome = service.run(
+            outcome = evaluation_service(request).run(
                 EvaluationRunRequest(
                     model=body.model,
                     test_set_id=body.test_set_id,
+                    test_set_version=body.test_set_version,
                     sample_count=body.sample_count,
                     seed=body.seed,
                 )
@@ -177,6 +216,13 @@ def install_product_api(
         methods=["GET"],
         tags=["Evaluation"],
         name="list_evaluation_test_sets",
+    )
+    application.add_api_route(
+        "/api/v1/evaluation/test-sets/import",
+        import_test_set,
+        methods=["POST"],
+        tags=["Evaluation"],
+        name="import_evaluation_test_set",
     )
     application.add_api_route(
         "/api/v1/evaluation/runs",
