@@ -106,14 +106,23 @@ class RuntimeFingerprint:
         return _digest_payload(self.stable_payload())
 
 
-def resolved_config_digest(config: Mapping[str, Any]) -> str:
-    """Digest an allowlisted effective config without paths, URLs or secrets."""
-    payload = {
+def resolved_config_payload(config: Mapping[str, Any]) -> dict[str, object]:
+    """Return the path/secret-free effective runtime config used for identity.
+
+    The allowlist is deliberately shared with ``resolved_config_digest`` so a
+    public identity document can show exactly which safe settings are covered
+    by the digest without exposing model paths, URLs, credentials or content.
+    """
+    return {
         key: _canonical_scalar(config[key])
         for key in sorted(_ALLOWED_CONFIG_KEYS)
         if key in config and config[key] is not None
     }
-    return _digest_payload(payload)
+
+
+def resolved_config_digest(config: Mapping[str, Any]) -> str:
+    """Digest an allowlisted effective config without paths, URLs or secrets."""
+    return _digest_payload(resolved_config_payload(config))
 
 
 def backend_identity(

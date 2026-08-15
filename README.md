@@ -17,6 +17,7 @@
   · <a href="docs/assets/local-llm-server%20demo.mp4">Guided product tour</a>
   · <a href="#common-workflows">Quick start</a>
   · <a href="#http-api">HTTP API</a>
+  · <a href="#public-execution-identity">Execution identity</a>
   · <a href="#hardware-evidence-workflow">Hardware evidence</a>
   · <a href="docs/README.md">Architecture & roadmap</a>
 </p>
@@ -59,12 +60,14 @@ The server is the infrastructure layer. **Local LLM Studio** is the bundled Web 
 - unsupported task/modality combinations rejected before backend execution on supported product entrypoints;
 - fail-closed remote HTTP(S) media unless explicitly enabled.
 
-### Observability and evaluation
+### Observability, identity and evaluation
 
 - canonical metric vocabulary separating tokens, chunks, queue wait, TTFT, prefill/decode duration and throughput;
 - explicit streaming usage/timing retention when a backend provides it;
 - task-specific transcription evidence (`backend_wall_clock_ms`, audio duration, realtime factor and segment count) kept separate from generation metrics;
 - artifact/backend/config/hardware runtime fingerprinting with exploratory state when identity is incomplete;
+- public, path-free `GET /v1/runtime/identity` using the versioned `local-llm-identity-v1` protocol for resident model/runtime/config/hardware identity;
+- explicit registry/config quantization metadata rather than requiring downstream filename inference;
 - built-in deterministic evaluation plus validated custom JSON test sets;
 - persisted run history and compatibility-aware baseline/candidate comparison;
 - no automatic “better model” verdict when evidence is incompatible or exploratory.
@@ -122,6 +125,7 @@ The screenshots below document real shipped Studio workflows from the repository
 - **Explicit model routing:** requests resolve a configured model key/model ID; no silent model substitution.
 - **Artifact ≠ configured model ≠ resident runtime ≠ default route:** these states remain distinct.
 - **Source-backed observability:** measured, estimated, configured and unavailable values are not collapsed together.
+- **Explicit identity:** artifact, quantization, runtime version/config and hardware are exposed only from owned evidence; unknown remains unknown.
 - **Privacy by default:** loopback binding, disabled CORS/admin routes, fail-closed remote media and explicit remote-code trust.
 - **Evidence before optimization claims:** deterministic CI proves contracts; representative hardware proves hardware-dependent behavior.
 - **No fake streaming or reclamation:** buffered output is not labelled incremental streaming; process exit is not labelled memory recovery.
@@ -132,7 +136,9 @@ The screenshots below document real shipped Studio workflows from the repository
 src/local_llm_server/core/                    Backend-neutral request/task/capability contracts
 src/local_llm_server/product_composition.py   Supported product HTTP policy/middleware composition
 src/local_llm_server/control_plane_api.py     Modular control-plane/evaluation APIs
+src/local_llm_server/identity_api.py          Public versioned execution identity
 src/local_llm_server/runtime.py               Resident runtime ownership, leases and routing
+src/local_llm_server/runtime_identity*.py     Artifact/backend/config/hardware fingerprinting
 src/local_llm_server/product_runtime_manager.py
                                                Cold/default/residency/pinning state
 src/local_llm_server/resource_manager.py      Memory reservation/admission/accounting
@@ -299,6 +305,32 @@ curl http://127.0.0.1:1235/v1/audio/transcriptions \
 
 Programmatic server ownership is also available through `local_llm_server.serve(...)`, including explicit shutdown ownership in background mode.
 
+## Public execution identity
+
+External evaluators can ask the supported product stack what is actually resident without reading private configuration or inferring model semantics from filenames:
+
+```bash
+curl http://127.0.0.1:1235/v1/runtime/identity
+```
+
+The response declares:
+
+```text
+protocol_version = local-llm-identity-v1
+```
+
+and returns one path-free identity object per resident runtime. Depending on available evidence it can include:
+
+- model ID, explicit revision, verified `sha256:` artifact digest and quantization;
+- effective backend name/version;
+- safe effective runtime config plus the digest covering exactly that allowlist;
+- bounded machine/CPU/accelerator/memory/OS identity;
+- partial vs verified runtime-fingerprint evidence.
+
+Unknown values remain `null`/partial. The API does **not** expose model paths, download URLs, credentials, prompts, outputs, hostnames or dynamic request counters. Dynamic activity remains on `/status`.
+
+AI Performance Lab consumes this contract to freeze model/runtime/hardware identity before an evaluation run while remaining independent from Local LLM Server internals. See [`docs/runtime-identity-api.md`](docs/runtime-identity-api.md) for the complete contract.
+
 ## HTTP API
 
 Public runtime surface:
@@ -306,7 +338,8 @@ Public runtime surface:
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/health` | server/runtime readiness |
-| `GET` | `/status` | current inference/runtime status |
+| `GET` | `/status` | current dynamic inference/runtime status |
+| `GET` | `/v1/runtime/identity` | versioned path-free resident execution identity |
 | `GET` | `/v1/models` | resident model list |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible chat + SSE |
 | `POST` | `/v1/audio/transcriptions` | first-class multipart audio → text |
@@ -348,7 +381,7 @@ local-llm evidence-reclamation \
   --no-download
 ```
 
-The report records procedure/runtime identity plus available host memory checkpoints and live child-process RSS where the OS exposes it. Prompt text, generated output and local model paths are excluded. A stopped child is **not** recorded as a measured RSS of zero.
+The report records procedure/runtime identity plus bounded hostname-free environment metadata, available host memory checkpoints and live child-process RSS where the OS exposes it. Prompt text, generated output and local model paths are excluded. A stopped child is **not** recorded as a measured RSS of zero.
 
 Repeat the procedure, then review compatible reports together:
 
@@ -385,9 +418,10 @@ Defaults are local and fail-conservative:
 - remote HTTP(S) media disabled by default;
 - remote model/tokenizer code requires explicit trust;
 - no silent cloud inference fallback;
-- evidence/report surfaces omit prompt/output/media content and private local paths by default.
+- evidence/report/public-identity surfaces omit prompt/output/media content and private local paths by default;
+- public identity also excludes download URLs, credentials and hostname/user identity.
 
-Binding to `0.0.0.0` exposes public routes to the network. The server does not currently provide authentication; use a trusted local boundary/reverse proxy and do not expose administrative routes to an untrusted network.
+Binding to `0.0.0.0` exposes public routes — including `/v1/runtime/identity` — to the network. The server does not currently provide authentication; use a trusted local boundary/reverse proxy and do not expose administrative routes to an untrusted network.
 
 ## Validation
 
@@ -398,11 +432,11 @@ ruff check src/ tests/
 
 CI runs Ruff plus the test suite on Python 3.10, 3.11 and 3.12.
 
-Contract tests do not establish real unified-memory recovery, accelerator footprint, device throughput, thermal behavior or safe automatic pressure eviction. Use retained hardware reports for those claims.
+Contract tests do not establish real unified-memory recovery, accelerator footprint, device throughput, thermal behavior, complete identity coverage or safe automatic pressure eviction. Use retained hardware reports/real runtime evidence for those claims.
 
 ## Remaining product-grade gates
 
-1. **Representative hardware matrix:** execute/review the evidence workflow across agreed devices/backends/artifacts.
+1. **Representative identity + hardware matrix:** exercise `/v1/runtime/identity` and the reclamation evidence workflow across agreed devices/backends/artifacts; retain identity completeness and hardware evidence rather than inferring it from CI.
 2. **Canonical route cleanup:** make the historical chat route consume the integrated prepared backend request and formalize the direct `server:app` deprecation boundary.
 3. **Specialist evidence coverage:** continue explicit VLM/ASR timing/identity mapping only where backends expose trustworthy sources.
 4. **Worker streaming/cancellation decision:** add a true incremental protocol only if interactive process isolation is required; never fake streaming with buffered output.
@@ -417,6 +451,7 @@ See [`docs/current-state.md`](docs/current-state.md) for integrated truth and [`
 - [`docs/current-state.md`](docs/current-state.md) — integrated/blocking/next state.
 - [`docs/roadmap.md`](docs/roadmap.md) — dependencies and parallelization.
 - [`docs/implementation-plan.md`](docs/implementation-plan.md) — target implementation behavior.
+- [`docs/runtime-identity-api.md`](docs/runtime-identity-api.md) — `local-llm-identity-v1` producer, privacy and evidence semantics.
 - [`docs/architecture-evolution-plan.md`](docs/architecture-evolution-plan.md) — architecture/migration boundaries.
 - [`docs/ux-ui-implementation-plan.md`](docs/ux-ui-implementation-plan.md) — target UX behavior.
 - [`docs/definition-of-done.md`](docs/definition-of-done.md) — completion/evidence gates.

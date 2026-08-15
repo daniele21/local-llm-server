@@ -154,6 +154,7 @@ def build_config(
     cfg["download_url"] = download_url
     cfg["models_dir"] = models_dir
     cfg["backend"] = backend
+    cfg["quantization"] = explicit.get("quantization") or entry.get("quantization")
     cfg["mmproj_filename"] = entry.get("mmproj_filename")
     cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")

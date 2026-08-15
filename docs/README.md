@@ -19,6 +19,7 @@ The documentation model intentionally follows the discipline used by the Android
 | What product are we building and why? | [`implementation-plan.md`](implementation-plan.md) |
 | Which milestones remain and what can run in parallel? | [`roadmap.md`](roadmap.md) |
 | What runtime/control-plane architecture is the target? | [`architecture-evolution-plan.md`](architecture-evolution-plan.md) |
+| What does the public runtime identity endpoint expose and what may it never leak? | [`runtime-identity-api.md`](runtime-identity-api.md) |
 | What should the product UX/UI do? | [`ux-ui-implementation-plan.md`](ux-ui-implementation-plan.md) |
 | What UX/UI work is actually integrated? | [`ux-ui-implementation-progress.md`](ux-ui-implementation-progress.md) |
 | What brand and visual language should be used? | [`brand-guidelines.md`](brand-guidelines.md) |
@@ -28,6 +29,7 @@ The documentation model intentionally follows the discipline used by the Android
 
 - `current-state`: one short operational ledger for the integrated baseline, blockers and immediate next block.
 - `target-specification`: intended product behavior, invariants and acceptance criteria. It changes only when the target changes.
+- `focused-specification`: independently readable durable behavior for one bounded contract such as public runtime identity.
 - `roadmap`: capability milestones, dependencies and parallel work lanes. It is not a branch/commit log.
 - `workstream-state`: concise status tracker for one focused workstream.
 - `architecture`: durable target boundaries and migration direction.
@@ -90,6 +92,7 @@ When two tasks share a contract that is still changing, extract or stabilize tha
 
 - [`implementation-plan.md`](implementation-plan.md) — product positioning, target, non-goals and cross-cutting invariants.
 - [`architecture-evolution-plan.md`](architecture-evolution-plan.md) — control-plane architecture and technical migration sequence.
+- [`runtime-identity-api.md`](runtime-identity-api.md) — `local-llm-identity-v1`, public `GET /v1/runtime/identity`, privacy boundary, evidence-grade semantics and AI Performance Lab consumer mapping.
 - [`roadmap.md`](roadmap.md) — milestones, dependency graph, work lanes and recommended parallel batches.
 - [`current-state.md`](current-state.md) — current operational truth and next block.
 

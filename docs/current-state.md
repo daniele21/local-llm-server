@@ -13,6 +13,8 @@ This is the operational ledger for the Local LLM Server evolution program. Targe
 
 Local LLM Server is evolving into a **resource-aware, observable local AI control plane and evaluation harness** for product-grade local inference. Specialist inference engines retain backend execution ownership.
 
+The `LLS-ID-001` candidate adds a public, versioned, path-free execution-identity producer for external evaluators. The aligned AI Performance Lab consumer uses the same `local-llm-identity-v1` protocol without creating a server-side dependency on Performance Lab.
+
 ## Integrated baseline
 
 ### Delivery, canonical requests and privacy
@@ -25,14 +27,14 @@ Integrated:
 - remote HTTP(S) media is fail-closed by default; `trust_remote_code` and remote-media opt-in remain explicit;
 - canonical request preparation produces a tested `PreparedBackendRequest` with current engine kwargs/default semantics, including aliases, structured output and switchable thinking;
 - exact resident model ID can be separated from the public request alias during backend preparation;
-- a full product-stack parity gate now proves that the historical chat route and `PreparedBackendRequest` send equivalent engine kwargs for default chat, sampling/penalties, legacy input/system prompt, structured output, force-json, reasoning aliases and streaming;
+- a full product-stack parity gate proves that the historical chat route and `PreparedBackendRequest` send equivalent engine kwargs for default chat, sampling/penalties, legacy input/system prompt, structured output, force-json, reasoning aliases and streaming;
 - owned temporary audio cleanup is deterministic;
 - read-only admin `/api/v1/policies` exposes bounded effective policy flags without paths, prompt/output content or secrets;
 - external registry integration is consumer-agnostic.
 
 Compatibility boundary:
 
-- `server.py` still reconstructs historical backend kwargs after middleware validation instead of directly consuming `prepared.backend`; parity is now green, so the remaining work is a physical cleanup/cutover rather than unresolved semantics;
+- `server.py` still reconstructs historical backend kwargs after middleware validation instead of directly consuming `prepared.backend`; parity is green, so the remaining work is a physical cleanup/cutover rather than unresolved semantics;
 - direct use of legacy module-level `local_llm_server.server:app` remains a compatibility/deprecation path rather than the supported product entrypoint.
 
 ### Resources, runtime lifecycle, workers and scheduling
@@ -57,6 +59,7 @@ Integrated:
 - worker reclamation cycles bind real isolated start/ready/infer/stop operations to that harness;
 - `local-llm evidence-reclamation` produces atomic privacy-safe JSON reports on local hardware, excluding prompt/output and local model paths;
 - the hardware runner records artifact/config/backend/hardware identity, resolves backend versions where possible and can measure bound child-process RSS during READY/PEAK on Linux/macOS;
+- hardware evidence now also serializes bounded hostname-free environment metadata (`system`, release, machine, Python version), restoring the contract already required by the deterministic tests;
 - child RSS is `Unavailable` before start and after stop rather than fabricated as zero; host available-memory remains the before/after recovery source;
 - repeated reports can be reviewed with a conservative compatibility/repetition layer that refuses to pool different runtime/hardware/procedure identities;
 - `local-llm evidence-review` exposes that reviewer directly from the CLI, with explicit thresholds and no residency/eviction mutation path.
@@ -77,7 +80,7 @@ Integrated:
 - unsupported canonical chat combinations fail before backend execution;
 - first-class resident transcription service and bounded multipart `/v1/audio/transcriptions` require explicit ASR capability;
 - legacy audio modality alone never implies ASR support;
-- transcription now records task-specific evidence (`backend_wall_clock_ms`, backend-reported audio duration, realtime factor and segment count) instead of forcing ASR into generation token/TTFT fields;
+- transcription records task-specific evidence (`backend_wall_clock_ms`, backend-reported audio duration, realtime factor and segment count) instead of forcing ASR into generation token/TTFT fields;
 - latest transcription evidence is exposed under `task_metrics.transcription` while canonical generation metrics remain independent;
 - backend transcription metadata is preserved on normalized results;
 - Endpoints derives chat, vision-language, structured-generation and transcription compatibility from server-owned descriptors;
@@ -99,19 +102,25 @@ Integrated:
 - streaming SSE events retain explicit cumulative `usage`/`timings` evidence instead of discarding it after TTFT observation;
 - HTTP-boundary TTFT/total sources remain distinct from backend timing sources;
 - an explicit MLX generation adapter maps prompt/generation token counts and processing rates only when supplied by the backend, deriving durations only from valid count/rate pairs;
-- MLX-VLM proxy regression tests now prove that OpenAI-compatible `usage`/`timings` — including `timings.predicted_per_second` — survive both non-streaming and terminal streaming events and map into the canonical evidence layer without synthetic metrics;
+- MLX-VLM proxy regression tests prove that OpenAI-compatible `usage`/`timings` survive both non-streaming and terminal streaming events and map into canonical evidence without synthetic metrics;
 - missing VLM evidence remains unavailable;
 - privacy-safe `/api/v1/evidence` exposes runtime and task evidence without generated content;
 - path-free artifact/backend/config/hardware fingerprint contracts and immutable residency snapshots are integrated;
-- automatic identity capture requires strong artifact SHA + backend version; otherwise runs remain exploratory;
+- automatic evidence-grade identity capture requires strong artifact SHA + backend version; otherwise runtimes remain exploratory/partial;
 - generic/specialist backends may supply an explicit backend version, and llama-server build+commit can be probed conservatively without publishing its executable path;
+- resolved runtime identity now exposes the exact allowlisted path-free effective configuration covered by its config digest;
+- built-in registry entries carry explicit quantization metadata rather than requiring downstream filename inference;
+- `LLS-ID-001` adds public read-only `GET /v1/runtime/identity` with protocol `local-llm-identity-v1`, exposing resident model revision/digest/quantization when known, backend/version/config digest, bounded hardware identity and partial/verified evidence state;
+- public identity excludes model paths, download URLs, credentials, prompt/output content, hostname and dynamic request counters;
+- the producer is aligned with AI Performance Lab `INT-002`, which maps the same protocol into its immutable execution fingerprint;
 - System / Diagnostics consumes canonical `durations_ms` / `throughput` fields and preserves missing values as `Unavailable`.
 
-Remaining boundary:
+Validation boundary:
 
-- the in-process MLX engine still needs to propagate its upstream generation response counters/rates into emitted OpenAI-compatible chunks/responses so the already-integrated adapter becomes end-to-end rather than library-only;
+- the new producer implementation has passed the full Local LLM Server CI matrix on Python 3.10/3.11/3.12 before final documentation consolidation; final PR-head CI is still required before `LLS-ID-001` becomes DONE;
+- the in-process MLX engine still needs to propagate upstream generation response counters/rates into emitted OpenAI-compatible chunks/responses so the integrated adapter becomes end-to-end rather than library-only;
 - wider ASR/VLM termination/cancellation coverage is backend-dependent;
-- device-specific throughput, TTFT and thermal claims remain evidence-pending.
+- device-specific throughput, TTFT, thermal and identity-completeness claims remain evidence-pending.
 
 ### Evaluation harness
 
@@ -129,7 +138,7 @@ Remaining boundary:
 
 - cancellation/progress remains limited by synchronous evaluation execution;
 - broader workload families and explicit cold/warm orchestration remain later extensions;
-- evidence-grade comparisons remain constrained by runtime/backend identity coverage.
+- evidence-grade comparisons remain constrained by runtime/backend/artifact identity coverage.
 
 ### UX/UI and release-facing documentation
 
@@ -146,8 +155,7 @@ Integrated:
 - responsive grid/action/table contracts are hardened for narrow effective viewports and high browser zoom; tables retain horizontal access;
 - reduced-motion handling is broadened and status components retain visible text in addition to color;
 - missing values remain `Unavailable`, not zero;
-- the repository README is aligned with the integrated control-plane/evaluation product, verified API routes and hardware run/review workflow instead of presenting already-shipped capabilities as future roadmap work;
-- README keeps hardware reclamation, automatic pressure eviction, device performance and worker streaming/cancellation explicitly evidence-pending.
+- release-facing documentation distinguishes deterministic contract evidence from hardware-dependent claims.
 
 Remaining boundary:
 
@@ -175,7 +183,8 @@ Remaining boundary:
 | C3 transcription | PARTIAL | first-class service/API/UI + task-specific ASR evidence | specialist hardware/backend validation |
 | D1 metrics vocabulary | DONE | truthful canonical schema | — |
 | D2 live metrics | PARTIAL | HTTP TTFT + nonstream/stream evidence + VLM pass-through contract + ASR task metrics | in-process MLX wiring + wider device validation |
-| D3 runtime identity | PARTIAL | verified auto-capture + explicit/specialist version paths | stronger artifact/backend coverage |
+| D3 runtime identity | PARTIAL | verified capture + explicit/specialist versions + safe public identity producer | stronger artifact/backend/hardware coverage + representative evidence |
+| LLS-ID-001 public identity API | VALIDATION | `local-llm-identity-v1`, `/v1/runtime/identity`, explicit quantization, safe config digest/payload, privacy tests | final documentation-head CI + merge with aligned PL consumer |
 | D4 evaluation | PARTIAL | resident runs, persistence and custom dataset backend/UI | richer workloads/cold-warm orchestration |
 | D5 history/comparison | PARTIAL | persisted compatibility-aware comparison | baseline/report UX later |
 | E1/E2 design system + shell | EVIDENCE | shared primitives + ARIA keyboard/focus/responsive contracts | manual contrast/zoom/visual evidence |
@@ -188,18 +197,20 @@ Remaining boundary:
 
 ## Immediate next parallel wave
 
-The remaining work is now concentrated in validation and final consolidation:
+The remaining work is concentrated in cross-repository validation, representative evidence and final consolidation:
 
-1. **H3 representative hardware execution** — run `local-llm evidence-reclamation` repeatedly across agreed Mac/Linux devices/backends/artifacts, then use `local-llm evidence-review` only on compatible reports.
-2. **A2 physical route cutover** — make `server.py` consume `prepared.backend`; the new parity gate must remain green before duplicate construction is deleted. Then formalize the direct `server:app` compatibility/deprecation boundary.
-3. **D2 MLX in-process wiring** — propagate explicit `stream_generate` token/rate evidence through MLXEngine response/chunk payloads so canonical metrics can consume it end to end; do not infer missing fields.
-4. **B6 pressure integration review** — connect real pressure observations only after representative hardware review establishes a defensible safety envelope; automatic unload stays off by default until then.
-5. **B3 worker protocol decision** — decide whether true incremental worker streaming/cancellation is a product requirement; never emulate it with buffered completed output.
-6. **H1/H2 manual + visual hardening** — contrast, real 200% zoom, reference widths, destructive-action review and stable visual-regression fixtures.
-7. **H4 final release matrix** — retained hardware result references, representative real-state screenshots and cumulative integration-to-main review.
+1. **Close LLS-ID-001 / PL INT-002** — require the same endpoint/schema in both repositories, final green CI on both PR heads and producer-first merge into `dev`.
+2. **H3 representative hardware execution** — run `local-llm evidence-reclamation` repeatedly across agreed Mac/Linux devices/backends/artifacts, then use `local-llm evidence-review` only on compatible reports.
+3. **A2 physical route cutover** — make `server.py` consume `prepared.backend`; the parity gate must remain green before duplicate construction is deleted. Then formalize the direct `server:app` compatibility/deprecation boundary.
+4. **D2 MLX in-process wiring** — propagate explicit `stream_generate` token/rate evidence through MLXEngine response/chunk payloads so canonical metrics can consume it end to end; do not infer missing fields.
+5. **B6 pressure integration review** — connect real pressure observations only after representative hardware review establishes a defensible safety envelope; automatic unload stays off by default until then.
+6. **B3 worker protocol decision** — decide whether true incremental worker streaming/cancellation is a product requirement; never emulate it with buffered completed output.
+7. **H1/H2 manual + visual hardening** — contrast, real 200% zoom, reference widths, destructive-action review and stable visual-regression fixtures.
+8. **H4 final release matrix** — retained hardware result references, representative real-state screenshots and cumulative integration-to-main review.
 
 ### Parallelization constraints
 
+- identity schema changes are coordinated across producer/consumer and must bump protocol version if incompatible;
 - pressure-policy correctness and a consistent recovery observation are not production-safety proof;
 - child PID RSS may describe READY/PEAK footprint, while after-stop recovery remains a host-memory observation rather than invented zero;
 - A2 cutover must preserve the green route-parity gate;
@@ -209,7 +220,7 @@ The remaining work is now concentrated in validation and final consolidation:
 
 ## Evidence boundary
 
-Automated tests establish deterministic contract/workflow correctness and make representative testing reproducible. CI still does **not** prove unified-memory reclamation, actual unload recovery, thermal behavior, device-specific throughput or safe automatic eviction under pressure. Those claims require retained reports from representative hardware.
+Automated tests establish deterministic contract/workflow correctness and make representative testing reproducible. CI still does **not** prove unified-memory reclamation, actual unload recovery, thermal behavior, device-specific throughput, complete hardware/model identity or safe automatic eviction under pressure. Those claims require retained reports from representative hardware.
 
 ## Update rule
 
