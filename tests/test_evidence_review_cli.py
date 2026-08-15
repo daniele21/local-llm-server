@@ -30,7 +30,7 @@ def test_load_evidence_reports_rejects_non_object_json(tmp_path: Path):
         _load_evidence_reports([path])
 
 
-def test_cli_exposes_review_thresholds_and_no_automatic_policy_action():
+def test_cli_exposes_review_thresholds_and_no_policy_mutation_action():
     cli_path = Path(__file__).resolve().parents[1] / "src" / "local_llm_server" / "cli.py"
     cli = cli_path.read_text(encoding="utf-8")
 
@@ -40,4 +40,6 @@ def test_cli_exposes_review_thresholds_and_no_automatic_policy_action():
     assert "--allow-exploratory-identity" in cli
     assert "--allow-error-cycles" in cli
     assert "review_hardware_evidence" in cli
-    assert "evict" not in cli.lower()
+    assert "set_pinned" not in cli
+    assert "select_eviction_candidates" not in cli
+    assert "/api/v1/residency/evict" not in cli
