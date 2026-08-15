@@ -6,6 +6,13 @@
     text-transform: uppercase;
 }
 
+.control-plane-tablist {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
 .nav-item[data-control-plane="true"] {
     min-height: 44px;
 }
