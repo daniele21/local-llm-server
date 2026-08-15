@@ -43,8 +43,7 @@ def capture_verified_runtime_identity(
     if not isinstance(sha256, str) or not _valid_sha256(sha256):
         return None
 
-    backend_name = str(cfg.get("backend") or getattr(runtime.engine, "backend", "unknown"))
-    backend = _resolved_backend_identity(runtime, backend_name, cfg)
+    backend = resolve_backend_identity(runtime)
     if backend is None or backend.version is None:
         return None
 
@@ -75,11 +74,10 @@ def capture_verified_runtime_identity(
     )
 
 
-def _resolved_backend_identity(
-    runtime: Any,
-    backend_name: str,
-    cfg: Mapping[str, Any],
-) -> BackendIdentity | None:
+def resolve_backend_identity(runtime: Any) -> BackendIdentity | None:
+    """Resolve the effective backend identity without requiring artifact verification."""
+    cfg: Mapping[str, Any] = getattr(runtime, "cfg", {})
+    backend_name = str(cfg.get("backend") or getattr(runtime.engine, "backend", "unknown"))
     implementation = runtime.engine.__class__.__name__
     package_name = _BACKEND_PACKAGES.get(backend_name)
     if package_name is not None:
