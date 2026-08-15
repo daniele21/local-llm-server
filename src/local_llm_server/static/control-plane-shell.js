@@ -16,8 +16,6 @@
         nav.dataset.controlPlaneReady = 'true';
 
         ensureSkipLink(main);
-        nav.setAttribute('role', 'tablist');
-        nav.setAttribute('aria-orientation', 'vertical');
 
         const legacyButtons = new Map(
             [...nav.querySelectorAll('.nav-item[data-tab]')].map((button) => [button.dataset.tab, button])
@@ -30,6 +28,13 @@
         sectionLabel.setAttribute('aria-hidden', 'true');
         nav.insertBefore(sectionLabel, nav.firstChild);
 
+        const tablist = document.createElement('div');
+        tablist.className = 'control-plane-tablist';
+        tablist.setAttribute('role', 'tablist');
+        tablist.setAttribute('aria-label', 'Control plane views');
+        tablist.setAttribute('aria-orientation', 'vertical');
+        nav.insertBefore(tablist, tourButton || null);
+
         NAV.forEach((item) => {
             let button = legacyButtons.get(item.id);
             if (!button) {
@@ -39,11 +44,11 @@
                 button.dataset.tab = item.id;
                 button.dataset.controlPlane = 'true';
                 button.textContent = item.label;
-                nav.insertBefore(button, tourButton || null);
             } else {
                 replaceButtonLabel(button, item.label);
             }
             configureTabButton(button, item);
+            tablist.appendChild(button);
         });
 
         ensureView(main, 'overview-tab', overviewMarkup());
@@ -98,7 +103,7 @@
     function handleTabKeydown(event) {
         const buttons = orderedTabButtons();
         const current = buttons.indexOf(event.currentTarget);
-        if (current < 0) return;
+        if (current < 0 || buttons.length === 0) return;
 
         let next = null;
         if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
@@ -118,10 +123,10 @@
     }
 
     function orderedTabButtons() {
-        const nav = document.querySelector('.sidebar-nav');
-        if (!nav) return [];
+        const tablist = document.querySelector('.control-plane-tablist');
+        if (!tablist) return [];
         return NAV
-            .map((item) => nav.querySelector(`.nav-item[data-tab="${item.id}"]`))
+            .map((item) => tablist.querySelector(`.nav-item[data-tab="${item.id}"]`))
             .filter(Boolean);
     }
 
@@ -161,7 +166,7 @@
         main.querySelectorAll('.tab-panel').forEach((panel) => {
             panel.setAttribute('role', 'tabpanel');
             panel.tabIndex = 0;
-            const button = document.querySelector(`.sidebar-nav .nav-item[data-tab="${panel.id}"]`);
+            const button = document.querySelector(`.control-plane-tablist .nav-item[data-tab="${panel.id}"]`);
             if (button?.id) panel.setAttribute('aria-labelledby', button.id);
         });
     }
