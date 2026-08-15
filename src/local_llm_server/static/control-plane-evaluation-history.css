@@ -1,0 +1,110 @@
+.evaluation-history {
+    display: grid;
+    gap: var(--ds-space-4, 16px);
+    margin-top: var(--ds-space-6, 24px);
+}
+
+.evaluation-history-header {
+    margin-bottom: 0;
+}
+
+.evaluation-history-header p,
+.evaluation-comparison-form p,
+.evaluation-comparison-note,
+.evaluation-history-detail-note {
+    color: var(--ds-text-muted, #94a3b8);
+    line-height: 1.5;
+}
+
+.evaluation-history-table-wrap {
+    overflow-x: auto;
+}
+
+.evaluation-history-table {
+    min-width: 980px;
+}
+
+.evaluation-history-table code {
+    white-space: nowrap;
+}
+
+.evaluation-comparison-form {
+    display: grid;
+    gap: var(--ds-space-4, 16px);
+}
+
+.evaluation-comparison-form h3,
+.evaluation-comparison-form p {
+    margin-bottom: 0;
+}
+
+.evaluation-comparison-selectors {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--ds-space-3, 12px);
+}
+
+.evaluation-comparison-result-card,
+.evaluation-history-detail-card {
+    display: grid;
+    gap: var(--ds-space-4, 16px);
+}
+
+.evaluation-comparison-deltas {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ds-space-3, 12px);
+}
+
+.evaluation-comparison-delta {
+    min-width: 0;
+    padding: 12px 14px;
+    border: 1px solid var(--ds-border, rgba(148, 163, 184, .2));
+    border-radius: var(--ds-radius-md, 10px);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.evaluation-comparison-delta span {
+    color: var(--ds-text-muted, #94a3b8);
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.evaluation-comparison-delta strong {
+    font-size: 1.08rem;
+}
+
+.evaluation-comparison-reasons {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--ds-text-muted, #94a3b8);
+    line-height: 1.55;
+}
+
+.evaluation-comparison-note,
+.evaluation-history-detail-note {
+    margin: 0;
+    font-size: .83rem;
+}
+
+.ds-button--small {
+    min-height: 30px;
+    padding: 5px 9px;
+    font-size: .78rem;
+}
+
+@media (max-width: 900px) {
+    .evaluation-comparison-deltas {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .evaluation-comparison-selectors,
+    .evaluation-comparison-deltas {
+        grid-template-columns: 1fr;
+    }
+}
