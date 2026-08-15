@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Iterator, Protocol
 
 from .downloader import ensure_model
+from .mlx_generation_evidence import openai_evidence_from_mlx_generation
 from .process import ManagedProcess
 
 logger = logging.getLogger("local-llm.engine")
@@ -167,40 +168,77 @@ class MLXEngine:
             max_kv_size=self.cfg.get("max_kv_size"),
         ):
             text = response.text or ""
-            if not text:
+            usage, timings, finish_reason = openai_evidence_from_mlx_generation(response)
+
+            choices: list[dict[str, Any]] = []
+            if text or finish_reason is not None:
+                choices.append(
+                    {
+                        "index": 0,
+                        "delta": {"content": text} if text else {},
+                        "finish_reason": finish_reason,
+                    }
+                )
+
+            if not choices and not usage and not timings:
                 continue
 
-            yield {
+            chunk: dict[str, Any] = {
                 "id": "chatcmpl-local-mlx",
                 "object": "chat.completion.chunk",
                 "created": 0,
                 "model": model_name,
-                "choices": [
-                    {
-                        "index": 0,
-                        "delta": {"content": text},
-                        "finish_reason": None,
-                    }
-                ],
+                "choices": choices,
             }
+            if usage:
+                chunk["usage"] = usage
+            if timings:
+                chunk["timings"] = timings
+            yield chunk
 
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
         chunks = list(self.stream(payload))
-        content = "".join(
-            str(chunk.get("choices", [{}])[0].get("delta", {}).get("content") or "")
-            for chunk in chunks
-        )
-        return {
+        content_parts: list[str] = []
+        latest_usage: dict[str, Any] | None = None
+        latest_timings: dict[str, Any] | None = None
+        finish_reason: str | None = None
+
+        for chunk in chunks:
+            choices = chunk.get("choices")
+            if isinstance(choices, list) and choices:
+                first = choices[0]
+                if isinstance(first, dict):
+                    delta = first.get("delta")
+                    if isinstance(delta, dict):
+                        text = delta.get("content")
+                        if isinstance(text, str) and text:
+                            content_parts.append(text)
+                    reason = first.get("finish_reason")
+                    if isinstance(reason, str) and reason:
+                        finish_reason = reason
+            usage = chunk.get("usage")
+            if isinstance(usage, dict) and usage:
+                latest_usage = dict(usage)
+            timings = chunk.get("timings")
+            if isinstance(timings, dict) and timings:
+                latest_timings = dict(timings)
+
+        result: dict[str, Any] = {
             "id": "chatcmpl-local-mlx",
             "object": "chat.completion",
             "created": 0,
             "model": str(payload.get("model") or self.model_ref),
             "choices": [{
                 "index": 0,
-                "message": {"role": "assistant", "content": content},
-                "finish_reason": "stop",
+                "message": {"role": "assistant", "content": "".join(content_parts)},
+                "finish_reason": finish_reason or "stop",
             }],
         }
+        if latest_usage:
+            result["usage"] = latest_usage
+        if latest_timings:
+            result["timings"] = latest_timings
+        return result
 
     def close(self) -> None:
         return None
