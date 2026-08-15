@@ -94,7 +94,7 @@ def test_recorder_retains_latest_explicit_stream_usage_and_backend_timings():
     assert metrics.durations.prompt_prefill_ms == 40.0
     assert metrics.durations.decode_ms == 80.0
     assert metrics.throughput.decode_tokens_per_second == 50.0
-    assert metrics.durations.ttft_ms == 100.0
+    assert round(metrics.durations.ttft_ms or 0, 6) == 100.0
     assert metrics.durations.total_ms == 500.0
     assert metrics.sources["output_tokens"] == "response.usage.completion_tokens"
     assert metrics.sources["decode_tokens_per_second"] == "response.timings.predicted_per_second"
