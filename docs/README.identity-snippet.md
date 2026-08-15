@@ -1,0 +1,1 @@
+Runtime identity producer documentation: [`runtime-identity-api.md`](runtime-identity-api.md). Cross-repository contract alignment with AI Performance Lab: [`identity-contract-alignment.md`](identity-contract-alignment.md).
