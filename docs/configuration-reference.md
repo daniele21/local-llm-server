@@ -1,0 +1,147 @@
+# Configuration reference
+
+Status: active
+Document type: operational-reference
+Owner: runtime configuration
+Canonical scope: operations.configuration
+Read when: choosing server/runtime settings, diagnosing unexpected effective configuration, or preparing reproducible runs
+Last reviewed: 2026-08-15
+
+Local LLM Server resolves runtime configuration from multiple sources. This reference documents the supported precedence and the settings that materially affect serving behavior and execution identity.
+
+## Resolution precedence
+
+Configuration is resolved in this order, from highest to lowest priority:
+
+1. explicit Python kwargs / CLI flags;
+2. environment variables;
+3. selected model registry `params`;
+4. registry `defaults`;
+5. hardcoded fallbacks.
+
+A model registry entry may additionally own model-specific identity and capability metadata such as `model_id`, backend, quantization, artifact revision/hash, modalities and features.
+
+The public `/v1/runtime/identity` endpoint exposes only a safe allowlisted effective configuration. It is not a dump of every private source used to build the runtime.
+
+## Core server and inference settings
+
+| Effective key | CLI | Environment | Fallback | Meaning |
+| --- | --- | --- | --- | --- |
+| `host` | `--host` | `LOCAL_LLM_HOST` | `127.0.0.1` | public bind address |
+| `port` | `--port` | `LOCAL_LLM_PORT` | `1235` | public HTTP port |
+| `backend` | `--backend` | `LOCAL_LLM_BACKEND` | `llama_cpp` | runtime adapter |
+| `ctx_size` | `--ctx-size` | `LOCAL_LLM_CTX_SIZE` | `4096` | context limit used by compatible backends |
+| `n_gpu_layers` | `--n-gpu-layers` | `LOCAL_LLM_N_GPU_LAYERS` | `0` | GGUF GPU/offload layer setting where supported |
+| `n_threads` | `--n-threads` | `LOCAL_LLM_N_THREADS` | `8` | CPU thread setting where supported |
+| `n_batch` | — | `LOCAL_LLM_N_BATCH` | `512` | batch size where supported |
+| `n_ubatch` | — | `LOCAL_LLM_N_UBATCH` | `512` | micro-batch size where supported |
+| `timeout` | — | `LOCAL_LLM_TIMEOUT` | `1200` | backend/request timeout configuration |
+| `startup_timeout` | `--startup-timeout` | `LOCAL_LLM_STARTUP_TIMEOUT` | `60` | managed backend startup timeout |
+| `max_concurrent_requests` | `--max-concurrent-requests` | `LOCAL_LLM_MAX_CONCURRENT_REQUESTS` | `1` | per-runtime concurrency limit |
+| `max_kv_size` | `--max-kv-size` | `LOCAL_LLM_MAX_KV_SIZE` | `null` | MLX KV-cache bound when supported |
+| `chat_format` | `--chat-format` | `LOCAL_LLM_CHAT_FORMAT` | `null` | explicit backend chat template/format override |
+| `force_json` | `--force-json/--no-force-json` | `LOCAL_LLM_FORCE_JSON` | `false` | default structured JSON forcing policy |
+| `enable_thinking` | `--enable-thinking/--no-enable-thinking` | `LOCAL_LLM_ENABLE_THINKING` | `false` | reasoning/thinking enablement when model supports it |
+| `show_thinking` | `--show-thinking/--no-show-thinking` | `LOCAL_LLM_SHOW_THINKING` | `false` | whether reasoning content may be surfaced when supported |
+| `verbose` | `--verbose` | `LOCAL_LLM_VERBOSE` | `false` | debug logging |
+
+Boolean environment variables accept common truthy values such as `1`, `true`, `yes` and `on` case-insensitively.
+
+## Default generation settings
+
+These defaults may be supplied through registry parameters or environment variables and are part of the resolved serving configuration when relevant:
+
+| Key | Environment | Fallback |
+| --- | --- | --- |
+| `default_temperature` | `LOCAL_LLM_DEFAULT_TEMPERATURE` | `0.0` |
+| `default_top_p` | `LOCAL_LLM_DEFAULT_TOP_P` | `0.8` |
+| `default_top_k` | `LOCAL_LLM_DEFAULT_TOP_K` | `20` |
+| `default_min_p` | `LOCAL_LLM_DEFAULT_MIN_P` | `0.0` |
+| `default_repeat_penalty` | `LOCAL_LLM_DEFAULT_REPEAT_PENALTY` | `1.0` |
+
+Request-level OpenAI-compatible generation values can still override applicable defaults for an individual inference request.
+
+## Managed backend settings
+
+| Key | CLI | Environment | Fallback |
+| --- | --- | --- | --- |
+| `llama_server_port` | `--llama-server-port` | `LOCAL_LLM_SERVER_PORT` | `8091` |
+| `llama_server_bin` | `--llama-server-bin` | `LOCAL_LLM_SERVER_BIN` | `null` |
+| `mlx_vlm_server_port` | `--mlx-vlm-server-port` | `LOCAL_LLM_MLX_VLM_SERVER_PORT` | `8092` |
+| `mmproj_path` | `--mmproj-path` | — | `null` |
+
+Paths and executable locations are private deployment details and are intentionally excluded from the public execution-identity response.
+
+## Security-sensitive settings
+
+| Key | Environment | Fallback | Rule |
+| --- | --- | --- | --- |
+| `trust_remote_code` | `LOCAL_LLM_TRUST_REMOTE_CODE` | `false` | enable only for an explicitly trusted model/source |
+| `allow_remote_media` | `LOCAL_LLM_ALLOW_REMOTE_MEDIA` | `false` | remote HTTP(S) media remains fail-closed by default |
+
+CORS and the administrative API are controlled at server startup rather than through `build_config`:
+
+```bash
+local-llm serve \
+  --model nemotron-nano-4b-q8 \
+  --enable-admin-api \
+  --cors-origin http://127.0.0.1:3000
+```
+
+`--cors-origin` is repeatable. CORS is disabled by default. Enabling the admin API does not add authentication.
+
+## Model selection and residency
+
+The main selection options are:
+
+```text
+--model <registry-key>          start/select one configured model
+--models <key> [<key> ...]     keep multiple runtimes resident
+--default-model <key>          default route when request model is omitted
+--model-path <path-or-ref>      direct model source override
+--no-download                  fail rather than fetch a missing artifact
+```
+
+`--model-path` changes the runtime source but does not justify inventing missing revision, hash or quantization metadata. For evidence-grade identity, provide explicit owned metadata rather than relying on path/filename parsing.
+
+## Identity metadata
+
+The resolved configuration can carry the following identity evidence when supplied explicitly or through the registry:
+
+- `quantization`;
+- `artifact_sha256` / registry `sha256`;
+- `artifact_revision` / registry `revision` / `hf_revision`;
+- backend and resolvable backend version;
+- allowlisted effective serving settings used to compute `runtime.config_digest`.
+
+Missing identity remains missing. Local LLM Server does not claim a verified fingerprint simply because a filename happens to contain a quantization label.
+
+See [`runtime-identity-api.md`](runtime-identity-api.md) for the public representation.
+
+## Thinking-mode validation
+
+Model registry metadata controls whether thinking is unsupported, always enabled or switchable. Invalid explicit combinations fail during configuration resolution rather than being silently ignored. Examples include trying to enable thinking for a model declared as non-thinking, or trying to disable it for a model declared as always-thinking.
+
+## Reproducibility guidance
+
+For comparisons or AI Performance Lab evidence campaigns, record at minimum:
+
+- registry/model key and effective model ID;
+- backend and backend version when available;
+- artifact revision/hash/quantization when available;
+- `/v1/runtime/identity` payload;
+- relevant CLI/environment/registry settings;
+- server package revision/version;
+- hardware identity actually observed.
+
+Do not treat two runs as the same execution configuration merely because the public model name matches.
+
+## Inspecting the effective configuration safely
+
+Use:
+
+```bash
+curl http://127.0.0.1:1235/v1/runtime/identity
+```
+
+The `runtime.config` object is generated from the same non-sensitive allowlist covered by `runtime.config_digest`. Private paths, download URLs and credentials are excluded by design.
