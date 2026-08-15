@@ -4,7 +4,11 @@
 
     async function fetchJson(path) {
         const response = await fetch(path, { headers: { Accept: 'application/json' } });
-        if (!response.ok) throw new Error(`${path} returned ${response.status}`);
+        if (!response.ok) {
+            const error = new Error(`${path} returned ${response.status}`);
+            error.status = response.status;
+            throw error;
+        }
         return response.json();
     }
 
@@ -45,46 +49,109 @@
             fetchJson('/health'),
             fetchJson('/status'),
             fetchJson('/v1/models'),
+            fetchJson('/api/v1/resources'),
+            fetchJson('/api/v1/evidence'),
         ]);
-        const health = results[0].status === 'fulfilled' ? results[0].value : null;
-        const runtimeStatus = results[1].status === 'fulfilled' ? results[1].value : null;
-        const modelsPayload = results[2].status === 'fulfilled' ? results[2].value : null;
+        const health = fulfilled(results[0]);
+        const runtimeStatus = fulfilled(results[1]);
+        const modelsPayload = fulfilled(results[2]);
+        const resources = fulfilled(results[3]);
+        const evidence = fulfilled(results[4]);
 
         const models = Array.isArray(modelsPayload?.data) ? modelsPayload.data : null;
         const serverReady = Boolean(health?.ok);
-        const defaultModel = health?.default_model ?? runtimeStatus?.default_model ?? null;
-        const residentCount = models ? models.length : null;
+        const serverState = health?.state || (serverReady ? 'ready' : null);
+        const configuredDefault = health?.configured_default_model
+            ?? evidence?.configured_default_model
+            ?? null;
+        const defaultModel = health?.default_model
+            ?? runtimeStatus?.default_model
+            ?? evidence?.default_model
+            ?? null;
+        const residentCount = models ? models.length : (numberOrNull(evidence?.runtime_count));
         const activeRequests = aggregateActiveRequests(runtimeStatus?.models);
+        const defaultEvidence = chooseDefaultEvidence(evidence, defaultModel);
+        const canonicalMetrics = defaultEvidence?.metrics || null;
+        const identity = defaultEvidence?.identity || null;
+        const resourceAdmission = defaultEvidence?.resource_admission || null;
+        const resourceConfigured = resources?.policy_state === 'configured';
+        const resourceAvailable = resources !== null;
 
         surface.innerHTML = `
             <div class="control-plane-grid">
                 <article class="ds-card control-plane-card">
                     <div class="control-plane-card-heading">
                         <h3>Server</h3>
-                        ${statusBadge(serverReady ? 'Ready' : 'Unavailable', serverReady ? 'ready' : 'unavailable')}
+                        ${statusBadge(
+                            serverReady ? capitalize(serverState || 'ready') : 'Unavailable',
+                            serverReady ? (serverState === 'cold' ? 'cold' : 'ready') : 'unavailable'
+                        )}
                     </div>
                     ${metric('Backend', health?.backend ?? null, health ? '/health' : 'source unavailable')}
-                    ${metric('Default route', defaultModel, health || runtimeStatus ? '/health · /status' : 'source unavailable')}
+                    ${metric('Resident default', defaultModel, health || runtimeStatus ? '/health · /status' : 'source unavailable')}
+                    ${metric('Configured default', configuredDefault, health || evidence ? '/health · /api/v1/evidence' : 'source unavailable')}
                 </article>
+
                 <article class="ds-card control-plane-card">
                     <div class="control-plane-card-heading">
                         <h3>Resident runtimes</h3>
-                        ${statusBadge(models ? 'Source connected' : 'Unavailable', models ? 'resident' : 'unavailable')}
+                        ${statusBadge(models || evidence ? 'Source connected' : 'Unavailable', models || evidence ? 'resident' : 'unavailable')}
                     </div>
-                    ${metric('Resident count', residentCount, models ? '/v1/models' : 'source unavailable')}
+                    ${metric('Resident count', residentCount, models ? '/v1/models' : evidence ? '/api/v1/evidence' : 'source unavailable')}
                     ${metric('Active requests', activeRequests, runtimeStatus ? '/status' : 'source unavailable')}
                 </article>
+
                 <article class="ds-card control-plane-card">
                     <div class="control-plane-card-heading">
-                        <h3>Resource pressure</h3>
-                        ${statusBadge('Unavailable', 'unavailable')}
+                        <h3>Resource policy</h3>
+                        ${statusBadge(
+                            resourceAvailable ? (resourceConfigured ? 'Configured' : 'Disabled') : 'Unavailable',
+                            resourceAvailable ? (resourceConfigured ? 'ready' : 'cold') : 'unavailable'
+                        )}
                     </div>
-                    <p>Resource contracts exist, but runtime resource observation is not yet exposed through a product API.</p>
+                    ${metric('Usable budget', formatBytes(resources?.usable_budget_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
+                    ${metric('Committed', formatBytes(resources?.committed_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
+                    ${metric('Reserved', formatBytes(resources?.reserved_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
+                    ${metric('Remaining', formatBytes(resources?.remaining_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
                 </article>
             </div>
+
+            <div class="control-plane-grid control-plane-grid--two control-plane-evidence-grid">
+                <article class="ds-card control-plane-card">
+                    <div class="control-plane-card-heading">
+                        <h3>Latest runtime evidence</h3>
+                        ${statusBadge(canonicalMetrics ? 'Source connected' : 'Unavailable', canonicalMetrics ? 'ready' : 'unavailable')}
+                    </div>
+                    ${metric('Input tokens', canonicalMetrics?.counts?.input_tokens ?? null, metricSource(canonicalMetrics, 'input_tokens'))}
+                    ${metric('Output tokens', canonicalMetrics?.counts?.output_tokens ?? null, metricSource(canonicalMetrics, 'output_tokens'))}
+                    ${metric('Output chunks', canonicalMetrics?.counts?.output_chunks ?? null, metricSource(canonicalMetrics, 'output_chunks'))}
+                    ${metric('Prefill', formatMs(canonicalMetrics?.durations_ms?.prompt_prefill), metricSource(canonicalMetrics, 'prompt_prefill_ms'))}
+                    ${metric('TTFT', formatMs(canonicalMetrics?.durations_ms?.ttft), metricSource(canonicalMetrics, 'ttft_ms'))}
+                    ${metric('Decode', formatMs(canonicalMetrics?.durations_ms?.decode), metricSource(canonicalMetrics, 'decode_ms'))}
+                    ${metric('Decode throughput', formatRate(canonicalMetrics?.throughput?.decode_tokens_per_second, 'tok/s'), metricSource(canonicalMetrics, 'decode_tokens_per_second'))}
+                </article>
+
+                <article class="ds-card control-plane-card">
+                    <div class="control-plane-card-heading">
+                        <h3>Execution identity</h3>
+                        ${statusBadge(identity ? 'Captured' : 'Unavailable', identity ? 'ready' : 'unavailable')}
+                    </div>
+                    ${metric('Runtime fingerprint', identity?.fingerprint ?? null, identity ? '/api/v1/evidence' : 'source unavailable')}
+                    ${metric('Captured at', formatTimestamp(identity?.captured_at), identity ? '/api/v1/evidence' : 'source unavailable')}
+                    ${metric('Admission', resourceAdmission?.decision ?? null, resourceAdmission ? '/api/v1/evidence' : 'source unavailable')}
+                    ${metric('Load estimate', formatBytes(resourceAdmission?.estimate_bytes), resourceAdmission ? '/api/v1/evidence' : 'source unavailable')}
+                </article>
+            </div>
+
+            ${resources === null || evidence === null ? `
+                <div class="ds-empty control-plane-unavailable">
+                    Resource/evidence control-plane sources are unavailable. Enable the admin API to expose them; no fallback values are fabricated.
+                </div>` : ''}
+
             <div class="control-plane-actions">
                 <button type="button" class="ds-button" data-open-control-plane="registry-tab">Open Models & Runtimes</button>
                 <button type="button" class="ds-button" data-open-control-plane="logs-tab">Open Diagnostics</button>
+                <button type="button" class="ds-button" data-open-control-plane="benchmark-tab">Open Evaluation</button>
             </div>`;
 
         surface.querySelectorAll('[data-open-control-plane]').forEach((button) => {
@@ -93,6 +160,20 @@
                 document.querySelector(`.sidebar-nav .nav-item[data-tab="${id}"]`)?.click();
             });
         });
+    }
+
+    function fulfilled(result) {
+        return result?.status === 'fulfilled' ? result.value : null;
+    }
+
+    function chooseDefaultEvidence(evidence, defaultModel) {
+        const runtimes = Array.isArray(evidence?.runtimes) ? evidence.runtimes : [];
+        if (!runtimes.length) return null;
+        if (!defaultModel) return runtimes[0];
+        return runtimes.find((item) => {
+            const runtime = item?.runtime || {};
+            return runtime.key === defaultModel || runtime.model_id === defaultModel;
+        }) || runtimes[0];
     }
 
     function aggregateActiveRequests(models) {
@@ -106,6 +187,47 @@
             total += value;
         }
         return total;
+    }
+
+    function metricSource(metrics, field) {
+        if (!metrics) return 'source unavailable';
+        return metrics.sources?.[field] || '/api/v1/evidence · unavailable source detail';
+    }
+
+    function numberOrNull(value) {
+        return Number.isFinite(Number(value)) ? Number(value) : null;
+    }
+
+    function formatBytes(value) {
+        if (value === null || value === undefined) return null;
+        const number = Number(value);
+        if (!Number.isFinite(number) || number < 0) return null;
+        if (number >= 1024 ** 3) return `${(number / 1024 ** 3).toFixed(2)} GiB`;
+        if (number >= 1024 ** 2) return `${(number / 1024 ** 2).toFixed(1)} MiB`;
+        if (number >= 1024) return `${(number / 1024).toFixed(1)} KiB`;
+        return `${number} B`;
+    }
+
+    function formatMs(value) {
+        const number = Number(value);
+        return Number.isFinite(number) && number >= 0 ? `${number.toFixed(1)} ms` : null;
+    }
+
+    function formatRate(value, unit) {
+        const number = Number(value);
+        return Number.isFinite(number) && number >= 0 ? `${number.toFixed(2)} ${unit}` : null;
+    }
+
+    function formatTimestamp(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number) || number < 0) return null;
+        const date = new Date(number * 1000);
+        return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
+    }
+
+    function capitalize(value) {
+        const text = String(value || '');
+        return text ? `${text[0].toUpperCase()}${text.slice(1)}` : text;
     }
 
     function escapeHtml(value) {
