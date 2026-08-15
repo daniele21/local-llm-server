@@ -86,11 +86,17 @@ Queueing, load, prompt/prefill, TTFT, decode, total latency, output tokens, thro
 
 ### 8. Reproducible inference identity
 
-A result can be tied to model artifact identity, revision/hash, backend and version, resolved configuration and hardware profile.
+A result can be tied to model artifact identity, revision/hash, explicit quantization, backend and version, effective serving-configuration digest and hardware profile.
+
+Local LLM Server is the source of truth for identity it can observe about a resident runtime. It exposes that identity through a stable, path-free public contract rather than requiring downstream evaluators to infer semantics from model filenames, private paths or convenience response fields.
+
+The current public contract is specified in [`runtime-identity-api.md`](runtime-identity-api.md). Incompatible wire-format changes require a new protocol version.
 
 ### 9. Local privacy by default
 
 The default runtime path does not fetch remote media, send prompts to remote inference or leave avoidable sensitive temporary files. Network or remote-code exceptions require explicit configuration.
+
+Public evidence/identity surfaces must not expose model paths, download URLs, credentials, prompt/output content or host/user identity.
 
 ### 10. Bounded shutdown and recovery
 
@@ -99,10 +105,14 @@ Cancellation, disconnect, failure, draining and shutdown are normal lifecycle pa
 ## Canonical product architecture
 
 ```text
-Applications
+Applications / external evaluators
     |
     v
 Public API / Local SDK
+    |
+    +--> OpenAI-compatible inference
+    +--> public execution identity
+    +--> dynamic status/evidence
     |
     v
 Canonical InferenceRequest
@@ -147,7 +157,7 @@ InferenceRequest
 - metadata
 ```
 
-Initial task vocabulary should cover the durable needs already represented in the ecosystem:
+Initial task vocabulary should cover:
 
 - `chat`
 - `structured_generation`
@@ -246,6 +256,25 @@ Normalized request metrics should include, when source data supports them:
 
 Unavailable metrics remain unavailable; they are never inferred from unrelated counters.
 
+Dynamic operational telemetry and frozen execution identity are separate contracts. Request counters/phases/throughput belong to status/metrics surfaces; stable model/runtime/config/hardware identity belongs to the public identity surface.
+
+## Public execution identity target
+
+External evaluators need a stable contract that describes what is actually resident without importing server internals.
+
+The identity surface must:
+
+- expose a versioned protocol identifier;
+- support multiple resident runtimes and identify the default route when present;
+- expose model ID, explicit revision, verified artifact digest and quantization when known;
+- expose effective backend name/version and an allowlisted runtime-configuration digest;
+- expose bounded non-identifying hardware characteristics;
+- distinguish partial identity from evidence-grade verified fingerprint state;
+- preserve unknown values instead of deriving them from suggestive filenames or paths;
+- never expose private artifact paths, download URLs, credentials, content, hostname or mutable request counters.
+
+The first shared consumer is AI Performance Lab. The producer must remain consumer-agnostic and must not depend on Performance Lab packages or benchmark concepts.
+
 ## Evidence and benchmark target
 
 The harness should support reproducible runs keyed by:
@@ -274,14 +303,14 @@ Default policy:
 - `trust_remote_code` disabled unless explicitly approved per model/source;
 - administrative mutation endpoints opt-in;
 - no prompt/output persistence in normal operational telemetry;
-- no private paths or sensitive media in shared logs/reports;
+- no private paths or sensitive media in shared logs/reports/public identity;
 - model downloads use explicit trusted source and future immutable integrity metadata.
 
 Network-shared deployment and authentication are a separate opt-in concern and must not weaken local defaults.
 
 ## UX positioning
 
-The UI should stop presenting Local LLM Server primarily as a chat demo with configuration attached. It should communicate the control-plane mental model:
+The UI should communicate the control-plane mental model:
 
 - **Overview:** health, workload, residency and pressure;
 - **Models & Runtimes:** artifacts, capabilities, state, memory and lifecycle;
@@ -300,7 +329,8 @@ Brand and product language belong in [`brand-guidelines.md`](brand-guidelines.md
 - arbitrary distributed cluster serving;
 - multi-tenant internet-facing serving as the default deployment;
 - presenting mock/illustrative telemetry as live product data;
-- claiming memory/performance characteristics without representative evidence.
+- claiming memory/performance/identity completeness without representative evidence;
+- embedding Performance Lab-specific benchmark logic in the serving runtime.
 
 ## Cross-cutting acceptance criteria
 
@@ -311,7 +341,8 @@ Every coherent implementation slice must satisfy the applicable criteria below.
 - orchestration does not depend on UI state;
 - backend-native objects remain inside adapters/workers;
 - capability/task checks happen before backend execution;
-- public error semantics remain bounded and typed enough for UI/client behavior.
+- public error semantics remain bounded and typed enough for UI/client behavior;
+- incompatible public identity schema changes use a new protocol version.
 
 ### Lifecycle
 
@@ -327,19 +358,30 @@ Every coherent implementation slice must satisfy the applicable criteria below.
 - eviction never targets an active leased runtime;
 - resource exhaustion fails explicitly rather than relying on OOM as flow control.
 
+### Identity and evidence
+
+- runtime identity reuses the same artifact/backend/config/hardware primitives that own server-side truth;
+- effective config display and config digest use the same safe allowlist;
+- quantization is explicit metadata rather than downstream filename inference;
+- missing revision/hash/version remains missing;
+- public identity distinguishes partial from verified evidence;
+- consumers can freeze a coherent identity before an evaluation run without accessing private paths.
+
 ### Privacy
 
-- inference content stays out of ordinary telemetry;
+- inference content stays out of ordinary telemetry and public identity;
 - local media cleanup is deterministic;
-- remote media/code/network behavior requires explicit policy.
+- remote media/code/network behavior requires explicit policy;
+- public identity/log/evidence surfaces do not expose private artifact paths, download URLs, credentials, hostname or user identity.
 
 ### Validation
 
 - changed owners have deterministic unit/integration coverage;
 - cross-domain contracts have end-to-end tests with deterministic fakes;
+- cross-repository protocol consumers are validated against the same explicit protocol version;
 - hardware-dependent claims remain labelled evidence-pending until measured;
 - UX uses source-backed states and explicit unavailable states.
 
 ## Delivery boundary
 
-The active program is complete when the control-plane architecture, resource-aware lifecycle, truthful capability/observability contracts and redesigned primary UX surfaces satisfy [`definition-of-done.md`](definition-of-done.md). Future cloud routing, broader task families and advanced acceleration may build on this boundary without redefining its local-first guarantees.
+The active program is complete when the control-plane architecture, resource-aware lifecycle, truthful capability/observability/identity contracts and redesigned primary UX surfaces satisfy [`definition-of-done.md`](definition-of-done.md). Future cloud routing, broader task families and advanced acceleration may build on this boundary without redefining its local-first guarantees.
