@@ -17,86 +17,105 @@ Canonical target specification: [`ux-ui-implementation-plan.md`](ux-ui-implement
 
 | Workstream | Status | Integrated boundary | Remaining gate |
 | --- | --- | --- | --- |
-| Existing Studio workflows | PARTIAL | real Chat, Models, Logs, examples, Swagger preserved | migrate without regression |
+| Existing Studio workflows | PARTIAL | real Chat, Models, Logs, examples, Swagger preserved | modular migration without regression |
 | Design system | PARTIAL | tokens/primitives/focus/reduced-motion/light-dark | screen adoption + visual/accessibility evidence |
 | Shell/navigation | PARTIAL | seven control-plane destinations navigable | screen-level navigation/responsive tests |
-| Overview | PARTIAL | live `/health`, `/status`, `/v1/models`; unavailable-on-source-failure | resource/metric/fingerprint panels |
-| Models & Runtimes | PARTIAL | legacy real registry/residency view remains | E3a source-backed lifecycle redesign |
-| Resource budget/pressure | BLOCKED | B1 observers + B2 accounting exist | product API/runtime wiring |
-| Capability UX | BLOCKED | C2 descriptor/catalog projection exists | public model-source exposure C2c |
+| Overview | PARTIAL | live `/health`, `/status`, `/v1/models`; unavailable-on-source-failure | resource/metric/fingerprint/evaluation panels |
+| Models & Runtimes | PARTIAL | dedicated source-backed module over resident/status/admin catalog | resource/fingerprint sources + lifecycle UX evidence |
+| Resource budget/pressure | BLOCKED | admission wiring exists internally | B2c configured product policy/API exposure |
+| Capability UX | PARTIAL | capability descriptors now public via model/admin catalog and rendered in Models view | C2d enforcement + endpoint/playground compatibility presentation |
 | Pin/auto-evict | BLOCKED | no B6 policy | B6 |
-| Runtime fingerprint | BLOCKED | artifact identity exists | D3b/D3 |
-| Endpoints | PARTIAL | real Swagger/examples | capability-aware compatibility C2c |
-| Playground text | PARTIAL | real chat preserved | AC1b + richer D2 metrics |
-| Playground vision | PARTIAL | real multimodal path preserved | AC1b + public capabilities |
-| Playground transcription | BLOCKED | task/capability foundations only | C3 |
-| Benchmark & Evaluation | PARTIAL | shell + explicit no-engine state; D4a schema exists | D4b dataset, then D4 engine |
-| System/Diagnostics | PARTIAL | real logs/status preserved | canonical metrics/resources/evidence exposure |
-| Settings/privacy | PARTIAL | policy status described | AC1b route enforcement + future resource policy controls |
+| Runtime fingerprint | BLOCKED | runtime snapshot contract exists | D3d automatic capture/public exposure |
+| Endpoints | PARTIAL | real Swagger/examples + public capability metadata | capability-aware compatibility composition |
+| Playground text | PARTIAL | real chat + public entrypoint policy enforcement | modular view + live canonical metrics |
+| Playground vision | PARTIAL | real multimodal path + fail-closed remote-media middleware | C2d capability enforcement + modular controls |
+| Playground transcription | BLOCKED | canonical/capability prerequisites now available | C3 first-class ASR API |
+| Benchmark & Evaluation | PARTIAL | shell + 20-sample set + deterministic runner | D4d resident-runtime service/persistence + E6a wiring |
+| System/Diagnostics | PARTIAL | real logs/status preserved | resource/metrics/fingerprint evidence API |
+| Settings/privacy | PARTIAL | supported public/CLI entrypoints enforce canonical remote-media policy | expose policy state/config; legacy direct-app compatibility note |
 | Responsive | PARTIAL | control-plane grids collapse responsively | screen-level verification |
 | Accessibility | PARTIAL | primitive-level focus/status/reduced motion | full keyboard/focus/contrast/zoom matrix |
-| Visual regression | PENDING | none | stable E3/E4 states |
-| Hardware UX evidence | PENDING | no connected resource evidence yet | runtime resource API + representative hardware |
+| Visual regression | PENDING | none | stable E3/E4/E6 states |
+| Hardware UX evidence | PENDING | no connected reclamation evidence yet | B3c + representative hardware |
 
-## Integrated Overview behavior
+## Integrated source-backed Models behavior
 
-`control-plane-live.js` now consumes current product APIs instead of mock values:
+`control-plane-models.js` now consumes:
 
-- `/health` -> server readiness/backend/default route where present;
-- `/status` -> runtime/default/active-request state where present;
-- `/v1/models` -> resident runtime count;
-- source failure -> explicit `Unavailable`;
-- resource pressure -> remains unavailable because B1/B2 are not yet product-exposed;
-- navigation buttons route to the real Models & Runtimes and Diagnostics views.
+- `/v1/models` for resident runtime identity;
+- `/status` for default route, lifecycle and active-request state;
+- `/api/v1/models/registry` for configured catalog and capability descriptors when the admin API is available.
 
-The module polls at a bounded interval and does not persist stale values as current truth after a failed refresh.
+It shows configured identity, resident/cold state, default route, backend, runtime state, active requests and capability summary only from real sources. If the admin API is disabled or fails, the screen explicitly degrades to **resident view only**. Resource admission and runtime fingerprint remain unavailable rather than inferred.
 
-## Current UX dependencies
+The existing model load/activate/unload controls remain reachable during migration.
 
-Now available internally:
+## Integrated request/privacy UX boundary
+
+Supported public Python and CLI server entrypoints now install canonical request-policy middleware. This means the existing Playground path receives fail-closed remote-media validation before backend inference when the product is started through supported entrypoints. Direct legacy use of `local_llm_server.server:app` remains a compatibility path and should not be presented as the primary setup flow.
+
+## Newly available UX dependencies
+
+Now available internally/publicly:
 
 - B1 Linux/macOS resource source contracts;
-- B2 reservation/admission accounting;
-- C2 descriptor + catalog projection;
-- D1 precise metric schema + D2a chunk adapter;
-- D3a artifact identity;
-- D4a evaluation schema.
+- B2 real load/reload/unload admission accounting internally;
+- public C2 capability descriptors/provenance;
+- D1/D2 true token/timing adapters where backend evidence exists;
+- D3 runtime fingerprint + immutable snapshot contract;
+- D4 built-in dataset + executable deterministic runner.
 
-Still missing for truthful UI panels:
+Still missing for truthful product panels:
 
-- resource public/runtime wiring;
-- public capability projection;
-- backend/config/hardware runtime fingerprint;
-- real backend token/TTFT/prefill/decode adapters;
-- benchmark execution engine.
+- configured ResourceManager/product resource API;
+- live canonical metric attachment/API;
+- automatic runtime identity snapshot capture/API;
+- resident-runtime evaluation service + persistence;
+- first-class transcription.
 
 ## Immediate UX wave
 
-### E3a — Models & Runtimes redesign
+### E4b — Overview/System evidence enrichment
 
-Use existing real sources to present:
+Parallel source-driven panels:
 
-- configured identity;
-- resident vs non-resident state;
-- default route separately from residency;
-- backend/runtime state/active requests;
-- existing load/activate/unload actions.
+- resource budget/admission/pressure -> B2c;
+- exact token/prefill/decode metrics -> D2c;
+- runtime fingerprint -> D3d;
+- recent evaluation summary -> D4d.
 
-Show capability/resource/fingerprint sections as unavailable until their public sources land.
+Every unavailable source must remain explicitly unavailable; do not reuse stale values as current truth after refresh failure.
 
-### E4b — Overview enrichment after source wiring
+### E6a — Benchmark & Evaluation workflow
 
-Parallel dependency-driven panels:
+Once D4d lands, implement:
 
-- resource budget/pressure -> B1/B2 product exposure;
-- exact performance -> richer D2 adapters;
-- artifact/runtime identity -> D3;
-- recent evaluation -> D4 engine.
+- built-in test-set selector (`general-purpose` v1 initially);
+- model selection;
+- sample size and seed;
+- start/cancel/status where supported;
+- deterministic quality score summary;
+- per-sample result/error view;
+- runtime fingerprint/evidence-grade indicator;
+- no cross-run comparison when identity is missing/incompatible.
 
-### E6a — Evaluation setup after D4b
+### E5a — Capability-driven Playground/Endpoints
 
-The shell can begin local test-set/sample/scorer configuration once the built-in dataset exists, while run execution remains disabled until D4.
+After C2d/C3:
+
+- task-aware model filtering;
+- text/image/audio controls only when supported;
+- structured-output/thinking/streaming controls from capability features;
+- explicit unavailable/unsupported state rather than optimistic backend assumptions.
+
+## Evidence UX rules
+
+- `0` is a valid measured value only when a source measured zero; missing data is `Unavailable`.
+- resource estimate and observed footprint must be visually distinguishable.
+- chunk throughput must never be labeled token throughput.
+- exploratory benchmark runs without runtime identity may be shown, but not promoted as evidence-grade comparisons.
+- reclamation evidence is not PASS merely because a subprocess exited.
 
 ## Update rule
 
-Update this file in the same integration cycle whenever a UX workstream status or blocker changes. Keep acceptance detail in the target specification.
+Update this file in the same integration cycle whenever a UX workstream status or blocker changes. Keep detailed acceptance criteria in the target specification.

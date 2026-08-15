@@ -17,87 +17,102 @@ Local LLM Server is evolving into a **resource-aware, observable local AI contro
 
 ### Delivery and safety
 
-- blocking pytest on Python 3.10/3.11/3.12;
-- Ruff correctness gate;
+- blocking pytest on Python 3.10/3.11/3.12 plus a Ruff correctness gate;
 - fail-closed `trust_remote_code` and remote-media policy foundations;
 - deterministic owned temporary-audio cleanup;
-- generic external registry integration with no ClosedRoom-specific core dependency.
+- generic external registry integration with no ClosedRoom-specific core dependency;
+- supported public Python and CLI server entrypoints now install canonical request-policy middleware before inference.
 
-### Canonical requests
+### Canonical requests and privacy enforcement
 
 Integrated:
 
 - backend-neutral task/request/result/error contracts;
 - OpenAI/legacy compatibility translator;
-- `request_pipeline.py` for canonicalization, modality checking, remote-media policy and bounded public errors.
+- `request_pipeline.py` canonicalization, modality checking, remote-media policy and bounded public errors;
+- request-policy middleware on `/v1/chat/completions` and `/api/v1/chat` for the supported `serve()`, package `run_server()` and `local-llm serve` paths;
+- remote HTTP(S) media is rejected before backend invocation by default; tests assert zero backend calls on rejection;
+- explicit remote-media opt-in remains compatible;
+- the prepared canonical request is attached to request state for subsequent route migration.
 
-Open gap:
+Compatibility boundary:
 
-- `server.py` still uses its historical duplicate parser. AC1b remains the route-level privacy/canonicalization blocker.
+- the historical route still builds backend kwargs with its legacy parser after middleware validation;
+- direct use of the legacy module-level `local_llm_server.server:app` does not automatically install the middleware and remains a compatibility/deprecation path rather than the supported product entrypoint.
 
-### Resources and lifecycle
+### Resources and runtime lifecycle
 
 Integrated:
 
 - measured/estimated/configured/unavailable resource semantics;
-- Linux memory/RSS observation;
-- macOS total/reclaimable-memory adapter with unified-memory-safe semantics;
-- budget/headroom and pressure vocabulary;
+- Linux memory/RSS and macOS total/reclaimable-memory observation;
+- Apple unified memory is not represented as fake separate VRAM;
+- budget/headroom/pressure vocabulary;
 - `ResourceManager` reservation ledger with `ADMIT`, `REJECT`, `UNKNOWN`;
-- reserve/commit/reconcile/release/rollback accounting;
-- worker protocol states/commands and deterministic state-machine validation;
-- worker evidence slots for before-start, after-ready, peak and after-stop snapshots.
+- model artifact estimates from explicit bytes, registry `size_gb` or concrete local file size;
+- `ModelRuntimeManager.load()` reserves before expensive backend load when a ResourceManager and estimate exist;
+- successful load commits accounting; failed load rolls back;
+- reload preserves old accounting while checking replacement peak overlap and restores the old runtime on rejection/failure;
+- unload/shutdown release accounting after engine close;
+- runtime status exposes the admission decision/estimate when present;
+- worker protocol plus concrete bounded JSON-line subprocess transport with request correlation, health/generate/drain/cancel/stop ownership.
 
 Important boundary:
 
-- the worker protocol is a contract, not yet a concrete isolated process implementation;
-- accounting does not prove memory reclamation;
-- load/reload is not yet routed through ResourceManager;
-- physical post-stop reclamation evidence is still required.
+- normal product entrypoints do not yet construct/configure a ResourceManager from user settings, so resource admission is wired but not yet an always-active product policy;
+- estimates are not measured residency;
+- subprocess ownership is not proof of host-memory reclamation;
+- existing inference engines are not yet routed through the new worker transport;
+- representative pre/peak/post-stop memory evidence remains required.
 
 ### Capabilities
 
 Integrated:
 
-- task/input/output/feature descriptors;
-- conservative legacy mapping;
-- `supports(request)`;
-- explicit-vs-legacy capability catalog projection;
-- audio modality alone does not imply first-class transcription.
+- task/input/output/feature descriptors and conservative legacy mapping;
+- `supports(request)` and consistency validation;
+- audio modality alone does not imply first-class transcription;
+- capability catalog projection with explicit vs `legacy_conservative` provenance;
+- `list_models()` and the admin registry source now expose `capabilities` and `capability_source` while preserving legacy fields.
 
 Open gap:
 
-- capability projection is not yet exposed through the model listing/admin source or enforced in the live request route.
+- live inference currently enforces media/modality compatibility but not the full capability descriptor (`structured_output`, streaming, task eligibility, etc.);
+- first-class transcription remains unimplemented.
 
 ### Observability
 
 Integrated:
 
-- exact D1 lifecycle/duration/count/throughput vocabulary;
-- token and chunk semantics are separate;
-- D2a maps only trustworthy `output_chunks` and `chunks_per_second`;
-- historical chunk-backed `tokens_generated` / `tokens_per_second` are ignored by the canonical adapter.
+- D1 lifecycle/duration/count/throughput vocabulary with token/chunk separation;
+- current runtime chunk counters map only to canonical chunk fields;
+- misleading historical chunk-backed token aliases are ignored by the canonical adapter;
+- completed OpenAI-compatible responses can contribute real `prompt_tokens` / `completion_tokens` when provided;
+- llama.cpp-style `prompt_ms`, `predicted_ms`, `prompt_n`, `predicted_n`, `predicted_per_second` are mapped only when explicitly present;
+- completed-response adapters deliberately leave TTFT unavailable;
+- complementary token and chunk evidence can be merged without aliasing.
 
 Open gap:
 
-- real backend prompt/output tokens, TTFT, prefill and decode timing remain backend-specific adapter work;
-- canonical metrics are not yet exposed through the product API/UI.
+- canonical metrics are not yet attached to live request/status API responses;
+- streaming TTFT needs a real first-output timestamp rather than reconstruction;
+- backend-specific coverage remains incomplete across MLX/VLM/ASR.
 
 ### Artifact and runtime identity
 
 Integrated:
 
 - path-free artifact identity and verification state;
-- explicit optional SHA-256 for concrete local files;
-- backend identity contract;
-- allowlisted resolved-config digest excluding paths, URLs, prompts and unrelated private fields;
-- hostname-free hardware profile;
-- stable runtime fingerprint composition from artifact/backend/config/hardware identity.
+- optional explicit SHA-256 for concrete local files;
+- backend identity, allowlisted config digest and hostname-free hardware profile;
+- stable privacy-safe runtime fingerprint composition;
+- explicit immutable `RuntimeIdentitySnapshot` attachment for one residency period;
+- attachment is intentionally controlled rather than recomputed per request/token.
 
 Open gap:
 
-- runtime instances and evaluation reports do not yet attach the fingerprint automatically;
-- hardware/backend version evidence must be captured at controlled lifecycle points, not per token/request refresh.
+- product lifecycle does not yet automatically capture and expose an identity snapshot after runtime readiness;
+- artifact verification/backend version/hardware capture policy still needs a controlled integration point.
 
 ### Evaluation harness
 
@@ -105,78 +120,83 @@ Integrated:
 
 - versioned test-set/sample/scorer/run/report contracts;
 - deterministic seeded sample selection;
-- built-in `general-purpose` v1 dataset with 20 stable samples;
-- coverage across arithmetic, classification, extraction, instruction following, simple reasoning, structured JSON and formatting;
-- deterministic objective scorer for exact, case-insensitive, contains, word-count, comma-count and JSON checks;
-- no LLM-as-judge dependency in the initial deterministic core.
+- built-in `general-purpose` v1 set with 20 stable samples covering arithmetic, classification, extraction, instruction following, simple reasoning, structured JSON and formatting;
+- deterministic objective scorer with no initial LLM-as-judge dependency;
+- backend-neutral `EvaluationExecutor` and `EvaluationRunner`;
+- selected samples are translated into canonical deterministic `InferenceRequest` objects, executed, scored and collected into a report;
+- one sample failure does not abort the full run;
+- test-set identity is validated before sample interpretation;
+- supplied runtime fingerprint is carried into sample evidence.
 
 Open gap:
 
-- no live execution engine yet;
-- benchmark comparison/history waits for runtime execution identity and richer measured metrics.
+- no executor is yet bound to the resident runtime/server API;
+- no benchmark run service/API/persistence yet;
+- history/regression and evidence-grade comparison rules remain pending.
 
 ### UX/UI
 
 Integrated:
 
-- shared design system;
-- control-plane shell with Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System/Diagnostics and Settings;
-- existing real Chat/Models/Logs workflows preserved;
-- Overview reads real `/health`, `/status`, `/v1/models` sources;
-- missing sources render `Unavailable`, not fake zero/stale data.
+- shared design system and seven-destination control-plane shell;
+- existing real Chat/Models/Logs workflows remain available;
+- Overview reads real `/health`, `/status`, `/v1/models` and renders source failure as `Unavailable`;
+- a dedicated Models & Runtimes control-plane module now combines resident models, runtime state and admin catalog data;
+- configured identity, resident/cold state, default route, backend, active requests and capability descriptors are rendered only when sources exist;
+- when admin catalog is unavailable the screen degrades explicitly to resident-only mode;
+- resource admission and runtime fingerprint sections remain `Unavailable` until public product sources exist.
 
 Open gap:
 
-- E3a Models & Runtimes redesign;
-- capability/resource/metric/fingerprint API exposure and panels;
-- Playground/Diagnostics modular migration;
-- accessibility/visual-regression evidence.
+- resource/metrics/fingerprint panels need API exposure;
+- Benchmark & Evaluation has no connected runner workflow yet;
+- Playground/Diagnostics modular migration, accessibility and visual-regression evidence remain.
 
 ## Program status
 
 | Task | Status | Integrated outcome | Remaining gate |
 | --- | --- | --- | --- |
 | A1 truthful CI | DONE | blocking deterministic matrix | broad Ruff debt later |
-| A2/C1/AC1 | PARTIAL | policy + contracts + request pipeline | AC1b `server.py` wiring |
+| A2/C1/AC1 | PARTIAL | canonical policy enforced on supported public/CLI entrypoints | retire duplicate parser + legacy direct-app gap; full capability enforcement |
 | A3 consumer decoupling | DONE | generic registry sources | — |
 | E1 design system | PARTIAL | shared tokens/primitives | screen evidence |
 | F1 positioning | DONE | control-plane positioning | — |
-| B1 resource observation | PARTIAL | Linux/macOS observers | product wiring + hardware evidence |
-| B2 ResourceManager | PARTIAL | reservation/admission accounting | runtime load/reload wiring |
-| B3 worker/reclamation | PARTIAL | protocol + evidence contract | concrete worker + reclamation evidence |
-| C2 capabilities | PARTIAL | descriptor + catalog projection | public/request wiring |
+| B1 resource observation | PARTIAL | Linux/macOS observers | product API + representative evidence |
+| B2 ResourceManager | PARTIAL | real load/reload/unload accounting wiring | product budget configuration + measured reconciliation |
+| B3 worker/reclamation | PARTIAL | protocol + concrete subprocess transport | engine integration + reclamation evidence |
+| C2 capabilities | PARTIAL | descriptor + public catalog exposure | full pre-backend capability enforcement |
 | D1 metrics vocabulary | DONE | truthful canonical schema | — |
-| D2 adapters | PARTIAL | truthful chunk adapter | real tokens/timings + exposure |
-| D3 runtime identity | PARTIAL | artifact/backend/config/hardware fingerprint contracts | lifecycle/evidence attachment |
-| D4 evaluation | PARTIAL | schema + 20-sample built-in set + deterministic scorer | execution/history |
-| E2 shell/navigation | PARTIAL | new IA | full screen migration |
-| E4a Overview | PARTIAL | live source-backed health/runtime summary | richer source panels |
+| D2 adapters | PARTIAL | real response token/timing adapters where sourced | live request/API integration + TTFT/backends |
+| D3 runtime identity | PARTIAL | fingerprint + immutable residency snapshot contract | automatic lifecycle capture/exposure |
+| D4 evaluation | PARTIAL | dataset + scorer + executable runner | runtime binding + run service/persistence/history |
+| E2 shell/navigation | PARTIAL | new IA | full screen migration/evidence |
+| E3a Models & Runtimes | PARTIAL | live source-backed control-plane view | resource/fingerprint/actions integration + UX evidence |
+| E4a Overview | PARTIAL | live health/runtime summary | resource/metrics/fingerprint/evaluation panels |
 
 ## Immediate next parallel wave
 
-Prioritize **wiring real execution paths**, not more disconnected contracts:
+Prioritize **product exposure, evaluation workflow and runtime control**:
 
-1. **AC1b request-route wiring** — exclusive `server.py` ownership; make `/v1/chat/completions` call `request_pipeline.py` and enforce remote-media policy before backend work.
-2. **B2b runtime admission wiring** — reserve/commit/rollback/release around real model load/reload/unload while preserving rollback semantics.
-3. **B3b concrete worker transport** — bind the worker protocol to managed process ownership for runtime families where isolation is needed for reclaimability.
-4. **C2c public capability exposure** — add capability object/provenance to model catalog/list sources; request enforcement follows AC1b.
-5. **D2b backend metric adapters** — add real token/timing fields only where the backend exposes trustworthy measurements.
-6. **D3c fingerprint attachment** — attach runtime fingerprint to controlled runtime/evaluation evidence without per-request expensive probing.
-7. **D4c evaluation runner** — execute the built-in set through an executor interface, score samples and produce reports tied to supplied runtime fingerprint.
-8. **E3a Models & Runtimes redesign** — consume current lifecycle facts and leave not-yet-public capability/resource/fingerprint values unavailable.
+1. **B2c resource policy configuration/exposure** — configure optional memory budget/headroom in supported server entrypoints, expose truthful ResourceManager snapshot and admission state, and keep unconfigured policy explicit.
+2. **B3c reclamation evidence harness** — bind observers to worker lifecycle checkpoints and produce before-ready/peak/after-stop evidence without automatically declaring PASS.
+3. **B4 zero-resident semantics** — separate configured/default identity from residency so the server can remain healthy with no loaded models; automatic cold loading waits for policy/worker readiness.
+4. **B5a scheduler foundation** — bounded queue/deadline/cancellation contracts and deterministic tests; backend-native batching remains backend-owned.
+5. **C2d request capability enforcement + C3 ASR foundation** — use public descriptors before backend invocation and begin first-class transcription API/adapter now that canonical policy/catalog dependencies exist.
+6. **D2c/D3d evidence API** — attach canonical request metrics and runtime identity snapshots to product status/evidence surfaces only when sourced.
+7. **D4d evaluation service** — bind `EvaluationRunner` to a resident-runtime executor, persist a run manifest/report, expose built-in test-set selection and sample count.
+8. **E4b/E6a UI** — consume resource/metric/fingerprint sources and build the first real Benchmark & Evaluation setup/run/results flow.
 
 ### Parallelization constraints
 
-- AC1b is the only broad request-route editor.
-- B2b owns load admission; B3b owns process isolation/reclamation.
-- C2c owns model/catalog presentation rather than request execution.
-- D2b/D3c expose canonical observability/identity contracts; UI consumes them rather than recomputing semantics.
-- D4c must require explicit execution identity for evidence-grade comparison.
-- E3a remains source-backed and must not infer unsupported values.
+- B2c owns resource configuration/API state; B3c owns reclamation evidence, not admission claims.
+- B4 state semantics should avoid broad request-route edits while C2d/C3 own canonical task/API changes.
+- D2c/D3d expose canonical producer data; UI must not recompute or infer it.
+- D4d comparisons require explicit runtime identity; runs lacking it may execute but are not evidence-grade comparisons.
+- E4b/E6a stay source-backed and show `Unavailable`/`Inconclusive` when evidence is missing.
 
 ## Evidence boundary
 
-Automated tests prove contract and deterministic harness behavior. They do not prove Apple unified-memory reclamation, real unload memory recovery, TTFT or token throughput. Representative hardware evidence remains mandatory.
+Automated tests establish contract and deterministic workflow correctness. They do **not** prove Apple unified-memory reclamation, actual unload recovery, thermal behavior, streaming TTFT or device-specific token throughput. Representative hardware evidence remains mandatory before those claims become DONE.
 
 ## Update rule
 
