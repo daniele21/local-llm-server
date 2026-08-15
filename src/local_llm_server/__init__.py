@@ -46,9 +46,8 @@ def serve(
     import threading
     import uvicorn
 
-    from .control_plane_api import install_product_api
+    from .product_composition import install_product_http_stack
     from .product_runtime import bootstrap_product_runtimes
-    from .request_middleware import install_request_policy
     from .server import (
         ServerSettings,
         begin_app_shutdown,
@@ -83,8 +82,7 @@ def serve(
     )
     configure_runtime(cfg, llm, manager, target_app=application)
     application.state.resource_policy_settings = bootstrap.resource_policy
-    install_request_policy(application)
-    install_product_api(application)
+    install_product_http_stack(application)
 
     config = uvicorn.Config(
         application,
