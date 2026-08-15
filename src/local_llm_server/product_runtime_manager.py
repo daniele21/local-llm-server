@@ -27,9 +27,6 @@ class ProductRuntimeManager(ModelRuntimeManager):
         *,
         resource_manager: ResourceManager | None = None,
     ) -> None:
-        # The base manager's default_model means "currently routable resident
-        # default". Do not preload the configured identity into that field: a
-        # product may start cold or load a non-default runtime first.
         super().__init__(
             default_model=None,
             resource_manager=resource_manager,
@@ -55,12 +52,16 @@ class ProductRuntimeManager(ModelRuntimeManager):
                 self.configured_default_model = runtime.key
                 self.default_model = runtime.key
             elif configured in {runtime.key, runtime.model_id}:
-                # Restore the desired route when its runtime becomes resident.
                 self.default_model = runtime.key
             elif previous_resident_default is None:
-                # Loading a different runtime while the configured default is
-                # cold must not silently replace the configured route.
                 self.default_model = None
+
+        # Capture once after the runtime is resident. The helper is deliberately
+        # conservative and returns None unless artifact SHA + backend version
+        # are both strong enough for an evidence-grade identity.
+        from .runtime_identity_capture import capture_verified_runtime_identity
+
+        capture_verified_runtime_identity(runtime)
         return runtime
 
     def resolve(self, model: str | None = None) -> ModelRuntime:
