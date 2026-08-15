@@ -27,6 +27,16 @@ class EvaluationSample:
         if not self.sample_id.strip():
             raise ValueError("sample_id must be non-empty")
 
+    def identity_payload(self) -> dict[str, object]:
+        """Canonical content that determines evaluation semantics."""
+        return {
+            "sample_id": self.sample_id,
+            "task": self.task.value,
+            "payload": dict(self.payload),
+            "expected": dict(self.expected),
+            "tags": list(self.tags),
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class TestSet:
@@ -49,10 +59,19 @@ class TestSet:
         payload = {
             "test_set_id": self.test_set_id,
             "version": self.version,
-            "sample_ids": sorted(sample.sample_id for sample in self.samples),
+            "samples": [
+                sample.identity_payload()
+                for sample in sorted(self.samples, key=lambda item: item.sample_id)
+            ],
             "provenance": dict(self.provenance),
         }
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+            default=str,
+        )
         return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
