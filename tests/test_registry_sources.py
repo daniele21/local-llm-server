@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -68,7 +69,10 @@ default_model: external
         ),
         encoding="utf-8",
     )
-    monkeypatch.setenv("LOCAL_LLM_REGISTRY_PATHS", f"{first}:{second}")
+    monkeypatch.setenv(
+        "LOCAL_LLM_REGISTRY_PATHS",
+        f"{first}{os.pathsep}{second}",
+    )
 
     registry = load_registry()
 
@@ -76,7 +80,10 @@ default_model: external
     assert registry["startup_models"] == ["external"]
 
 
-def test_missing_external_registry_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+def test_missing_external_registry_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
 
     with pytest.raises(FileNotFoundError, match="External registry not found"):
