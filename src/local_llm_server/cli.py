@@ -112,7 +112,7 @@ def main() -> None:
 def _cmd_serve(args: argparse.Namespace) -> None:
     from .config import build_config
     from .engine import load_llm
-    from .server import run_server
+    from .policy_server import run_server
     from .registry import load_registry
     from .runtime import ModelRuntimeManager
 
