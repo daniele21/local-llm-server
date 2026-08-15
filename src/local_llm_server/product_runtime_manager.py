@@ -27,8 +27,11 @@ class ProductRuntimeManager(ModelRuntimeManager):
         *,
         resource_manager: ResourceManager | None = None,
     ) -> None:
+        # The base manager's default_model means "currently routable resident
+        # default". Do not preload the configured identity into that field: a
+        # product may start cold or load a non-default runtime first.
         super().__init__(
-            default_model=default_model,
+            default_model=None,
             resource_manager=resource_manager,
         )
         self.configured_default_model = default_model
