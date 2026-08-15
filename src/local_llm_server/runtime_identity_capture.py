@@ -12,7 +12,7 @@ from typing import Any, Mapping
 from .artifact_identity import (
     ArtifactIdentity,
     ArtifactSourceKind,
-    ArtifactVerificationState,
+    VerificationState,
 )
 from .runtime_evidence import RuntimeIdentitySnapshot, build_and_attach_runtime_identity
 from .runtime_identity import backend_identity, local_hardware_profile
@@ -64,7 +64,7 @@ def capture_verified_runtime_identity(
             else None
         ),
         sha256=sha256.lower(),
-        verification=ArtifactVerificationState.VERIFIED,
+        verification=VerificationState.VERIFIED,
     )
 
     return build_and_attach_runtime_identity(

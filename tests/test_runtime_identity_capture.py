@@ -46,7 +46,7 @@ def test_unversioned_backend_keeps_runtime_exploratory(monkeypatch):
     monkeypatch.setattr(
         "local_llm_server.runtime_identity_capture.backend_identity",
         lambda *args, **kwargs: BackendIdentity(
-            backend="llama_cpp",
+            name="llama_cpp",
             implementation="_Engine",
             version=None,
         ),
@@ -67,7 +67,7 @@ def test_verified_artifact_plus_backend_version_attaches_privacy_safe_identity(m
     monkeypatch.setattr(
         "local_llm_server.runtime_identity_capture.backend_identity",
         lambda *args, **kwargs: BackendIdentity(
-            backend="llama_cpp",
+            name="llama_cpp",
             implementation="_Engine",
             version="1.2.3",
         ),
