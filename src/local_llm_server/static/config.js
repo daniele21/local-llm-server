@@ -8,6 +8,7 @@
     const stylesheets = [
         ['data-local-llm-design-system', '/static/design-system.css'],
         ['data-local-llm-control-plane-shell', '/static/control-plane-shell.css'],
+        ['data-local-llm-control-plane-evaluation', '/static/control-plane-evaluation.css'],
     ];
     stylesheets.forEach(([marker, href]) => {
         if (document.querySelector(`link[${marker}]`)) return;
@@ -22,6 +23,7 @@
         ['localLlmControlPlaneShell', '/static/control-plane-shell.js'],
         ['localLlmControlPlaneLive', '/static/control-plane-live.js'],
         ['localLlmControlPlaneModels', '/static/control-plane-models.js'],
+        ['localLlmControlPlaneEvaluation', '/static/control-plane-evaluation.js'],
     ];
     scripts.forEach(([marker, src]) => {
         if (document.querySelector(`script[data-${marker.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`)) return;
@@ -34,44 +36,31 @@
 })();
 
 const APP_CONFIG = {
-    // Basic settings
     theme: {
         default: 'dark',
         storageKey: 'theme'
     },
-
-    // Polling intervals in milliseconds
     polling: {
-        serverHealth: 10000, // check health every 10s
-        statusUpdate: 300   // poll generation status every 300ms during inference
+        serverHealth: 10000,
+        statusUpdate: 300
     },
-
-    // Log Console configurations
     logs: {
-        maxBufferLines: 2000, // limit cached lines to prevent memory bloating
-        sseRetryMs: 5000       // retry SSE connection after 5 seconds if failed
+        maxBufferLines: 2000,
+        sseRetryMs: 5000
     },
-
-    // Toast Notifications
     toast: {
         durationMs: 4000
     },
-
-    // Default chat settings (if not overridden by backend)
     chat: {
-        maxContextHistory: 10, // how many past messages to keep in prompt payload
+        maxContextHistory: 10,
         defaultSystemPrompt: "Sei un assistente utile e sintetico."
     },
-
-    // Terminal settings
     terminal: {
         welcomeMessage: "Digita un comando e premi Invio. Esempi: <code>uname -a</code>, <code>ls -la</code> o <code>python --version</code>. Digita <code>help</code> per i comandi speciali.",
         defaultPrompt: "$",
         timeoutSeconds: 15,
         maxLines: 100
     },
-
-    // UI Translation Labels
     labels: {
         online: "Online",
         offline: "Disconnesso",
