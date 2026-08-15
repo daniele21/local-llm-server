@@ -6,11 +6,13 @@ never qualifies it as an ASR runtime.
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 from .core.capabilities import descriptor_from_registry_entry
 from .core.contracts import ErrorCode, InferenceError, TaskType
+from .transcription_metrics import build_transcription_metrics, record_transcription_metrics
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,8 +51,14 @@ class TranscriptionEngine(Protocol):
 class ResidentTranscriptionService:
     """Execute explicit ASR workloads against currently resident runtimes."""
 
-    def __init__(self, manager: Any) -> None:
+    def __init__(
+        self,
+        manager: Any,
+        *,
+        clock: Callable[[], float] = time.perf_counter,
+    ) -> None:
         self.manager = manager
+        self.clock = clock
 
     def transcribe(self, request: TranscriptionRequest) -> TranscriptionResult:
         try:
@@ -93,6 +101,7 @@ class ResidentTranscriptionService:
             payload["prompt"] = request.prompt
 
         with self.manager.lease_runtime(runtime):
+            started_at = self.clock()
             try:
                 raw = transcribe(payload)
             except InferenceError:
@@ -104,8 +113,18 @@ class ResidentTranscriptionService:
                     retryable=False,
                     details={"backend": getattr(runtime.engine, "backend", "unknown")},
                 ) from exc
+            finished_at = self.clock()
 
-        return _normalize_result(raw, runtime.model_id)
+        result = _normalize_result(raw, runtime.model_id)
+        record_transcription_metrics(
+            runtime,
+            build_transcription_metrics(
+                backend_wall_clock_ms=max(0.0, (finished_at - started_at) * 1000.0),
+                audio_duration_seconds=result.duration_seconds,
+                segment_count=len(result.segments),
+            ),
+        )
+        return result
 
 
 def _normalize_result(raw: Any, model_id: str) -> TranscriptionResult:
@@ -130,6 +149,8 @@ def _normalize_result(raw: Any, model_id: str) -> TranscriptionResult:
         for segment in segments_raw
         if isinstance(segment, Mapping)
     ) if isinstance(segments_raw, (list, tuple)) else ()
+    metadata_raw = raw.get("metadata")
+    metadata = dict(metadata_raw) if isinstance(metadata_raw, Mapping) else {}
     return TranscriptionResult(
         model=model_id,
         text=text,
@@ -138,4 +159,5 @@ def _normalize_result(raw: Any, model_id: str) -> TranscriptionResult:
             float(duration) if isinstance(duration, (int, float)) and not isinstance(duration, bool) else None
         ),
         segments=segments,
+        metadata=metadata,
     )
