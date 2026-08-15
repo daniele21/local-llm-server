@@ -49,11 +49,13 @@ def test_recorder_handles_sse_json_split_across_transport_chunks():
 
     assert recorder.observe(b'data: {"choices":[{"delta":{"cont') is False
     assert recorder.observe(b'ent":"hello"}}]}\n\n') is True
-    metrics = recorder.finish(completed=True)
+    metrics = recorder.finish(completed=True, queue_wait_ms=125.0)
 
     assert metrics is not None
+    assert metrics.durations.queue_wait_ms == 125.0
     assert metrics.durations.ttft_ms == 250.0
     assert metrics.durations.total_ms == 750.0
+    assert metrics.sources["queue_wait_ms"] == "request_scheduler.admission_wall_clock"
     assert metrics.sources["ttft_ms"] == "http_stream.first_content_delta_wall_clock"
 
 

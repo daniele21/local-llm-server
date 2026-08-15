@@ -4,6 +4,7 @@ from pathlib import Path
 
 from local_llm_server.product_composition import install_product_http_stack
 from local_llm_server.runtime import ModelRuntimeManager
+from local_llm_server.scheduler_policy import RequestSchedulerSettings
 from local_llm_server.server import ServerSettings, create_app
 
 
@@ -29,12 +30,24 @@ def _app():
     return create_app(manager, settings=ServerSettings(enable_admin_api=False))
 
 
-def test_product_http_stack_installs_policy_stream_metrics_and_product_api_once(tmp_path):
+def test_product_http_stack_installs_scheduler_policy_stream_metrics_and_product_api_once(tmp_path):
     app = _app()
+    settings = RequestSchedulerSettings(queue_capacity=2)
 
-    install_product_http_stack(app, evaluation_root=tmp_path / "evaluations")
-    install_product_http_stack(app, evaluation_root=tmp_path / "evaluations")
+    install_product_http_stack(
+        app,
+        evaluation_root=tmp_path / "evaluations",
+        scheduler_settings=settings,
+    )
+    install_product_http_stack(
+        app,
+        evaluation_root=tmp_path / "evaluations",
+        scheduler_settings=settings,
+    )
 
+    assert app.state.request_scheduler_installed is True
+    assert app.state.request_scheduler_settings == settings
+    assert app.state.runtime_gate_registry is not None
     assert app.state.canonical_request_policy_installed is True
     assert app.state.streaming_metrics_installed is True
     assert app.state.product_api_installed is True
@@ -44,6 +57,18 @@ def test_product_http_stack_installs_policy_stream_metrics_and_product_api_once(
         if (path := getattr(route, "path", None)) is not None
     ]
     assert route_paths.count("/v1/audio/transcriptions") == 1
+
+
+def test_product_http_stack_keeps_scheduler_disabled_when_queue_is_unconfigured(tmp_path):
+    app = _app()
+    install_product_http_stack(
+        app,
+        evaluation_root=tmp_path / "evaluations",
+        scheduler_settings=RequestSchedulerSettings(),
+    )
+    assert app.state.request_scheduler_installed is True
+    assert app.state.request_scheduler_settings.enabled is False
+    assert app.state.runtime_gate_registry is None
 
 
 def test_supported_server_entrypoints_use_shared_product_composition():

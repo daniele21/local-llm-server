@@ -186,6 +186,20 @@ class BoundedScheduler:
                 self._transition_terminal(scheduled, QueueState.CANCELLED, now)
             return scheduled
 
+    def forget(self, request_id: str) -> None:
+        """Discard a terminal request so long-running servers do not retain it forever."""
+        with self._lock:
+            scheduled = self._require(request_id)
+            if not scheduled.terminal:
+                raise RuntimeError(
+                    f"request {request_id} cannot be forgotten from {scheduled.state.value}"
+                )
+            self._requests.pop(request_id, None)
+            try:
+                self._queue.remove(request_id)
+            except ValueError:
+                pass
+
     def get(self, request_id: str) -> ScheduledRequest | None:
         with self._lock:
             return self._requests.get(request_id)
