@@ -9,107 +9,94 @@ Last reviewed: 2026-08-15
 
 Canonical target specification: [`ux-ui-implementation-plan.md`](ux-ui-implementation-plan.md)
 
-This tracker records concise implementation status only. Repository-wide truth and the immediate implementation wave belong in [`current-state.md`](current-state.md).
-
 ## Status legend
 
-- `DONE`: implementation and applicable automated acceptance are integrated.
-- `PARTIAL`: meaningful connected behavior exists but target acceptance remains.
-- `BLOCKED`: a named upstream contract prevents truthful implementation.
-- `EVIDENCE`: implementation exists; representative runtime/hardware/UX evidence remains.
-- `PENDING`: implementation has not started.
+`PARTIAL` connected behavior/incomplete acceptance · `BLOCKED` upstream source missing · `PENDING` not started · `EVIDENCE` implementation complete/UX or hardware evidence pending · `DONE` complete.
 
-## Current workstreams
+## Workstreams
 
-| Workstream | Status | Integrated boundary | Remaining gate / dependency |
+| Workstream | Status | Integrated boundary | Remaining gate |
 | --- | --- | --- | --- |
-| Existing Local LLM Studio workflows | PARTIAL | Real Chat, model/runtime config, logs, examples and Swagger remain operational | Migrate into dedicated control-plane modules without regression |
-| Brand/design-system foundation | PARTIAL | Shared tokens, primitives, focus/reduced-motion and dark/light semantics | Screen adoption + visual/accessibility regression |
-| Application shell/navigation | PARTIAL | Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System/Diagnostics, Settings are navigable | Migrate real content into each destination and test navigation/responsiveness |
-| Overview | PARTIAL | Explicit shell view; current server/runtime facts remain visible in persistent sidebar | E4a source-backed health/runtime cards; later B1/B2/D2/D3 panels |
-| Models & Runtimes inventory | PARTIAL | Existing real registry/residency view preserved and relabeled in IA | E3a lifecycle composition; C2b capabilities; B1/B2 resources; D3 fingerprint |
-| Memory budget/pressure UX | BLOCKED | B1 resource contract now exists | Wait for B2 admission + connected observations before authoritative values |
-| Model capability UX | BLOCKED | C2 capability descriptor exists | Wait for C2b registry/API exposure |
-| Pin / auto-evict UX | BLOCKED | No residency policy contract | B6 |
-| Runtime fingerprint UX | BLOCKED | D3a artifact identity exists | Full D3 backend/config/hardware fingerprint |
-| Endpoints | PARTIAL | Real Swagger/examples links plus current OpenAI compatibility context | C2b capability-aware model/endpoint compatibility |
-| Playground text | PARTIAL | Existing real chat flow preserved under new IA | AC1b canonical route wiring + D2 truthful metrics |
-| Playground vision | PARTIAL | Existing multimodal flow preserved | AC1b policy enforcement + C2b capabilities |
-| Playground transcription | BLOCKED | Audio helper + canonical TaskType + C2 schema foundations | First-class C3 transcription API |
-| Benchmark & Evaluation | PARTIAL | Navigable shell with explicit no-engine/unavailable state | D4a schema, then D4 engine |
-| System / Diagnostics | PARTIAL | Existing logs/status preserved under new IA | E4a composition + D2/B1 source wiring |
-| Settings/privacy | PARTIAL | Current privacy defaults described without invented controls | AC1b enforcement + future resource policy controls |
-| Responsive behavior | PARTIAL | New shell styles collapse multi-column control-plane grids | Screen-level narrow-width verification |
-| Accessibility | PARTIAL | Focus/status/reduced-motion primitives | Keyboard/focus/contrast/zoom validation across migrated views |
-| Visual regression | PENDING | No formal suite | Stable E3/E4 states |
-| Representative hardware UX evidence | PENDING | No new source-backed hardware panels yet | B1/B2/D2 + hardware validation |
+| Existing Studio workflows | PARTIAL | real Chat, Models, Logs, examples, Swagger preserved | migrate without regression |
+| Design system | PARTIAL | tokens/primitives/focus/reduced-motion/light-dark | screen adoption + visual/accessibility evidence |
+| Shell/navigation | PARTIAL | seven control-plane destinations navigable | screen-level navigation/responsive tests |
+| Overview | PARTIAL | live `/health`, `/status`, `/v1/models`; unavailable-on-source-failure | resource/metric/fingerprint panels |
+| Models & Runtimes | PARTIAL | legacy real registry/residency view remains | E3a source-backed lifecycle redesign |
+| Resource budget/pressure | BLOCKED | B1 observers + B2 accounting exist | product API/runtime wiring |
+| Capability UX | BLOCKED | C2 descriptor/catalog projection exists | public model-source exposure C2c |
+| Pin/auto-evict | BLOCKED | no B6 policy | B6 |
+| Runtime fingerprint | BLOCKED | artifact identity exists | D3b/D3 |
+| Endpoints | PARTIAL | real Swagger/examples | capability-aware compatibility C2c |
+| Playground text | PARTIAL | real chat preserved | AC1b + richer D2 metrics |
+| Playground vision | PARTIAL | real multimodal path preserved | AC1b + public capabilities |
+| Playground transcription | BLOCKED | task/capability foundations only | C3 |
+| Benchmark & Evaluation | PARTIAL | shell + explicit no-engine state; D4a schema exists | D4b dataset, then D4 engine |
+| System/Diagnostics | PARTIAL | real logs/status preserved | canonical metrics/resources/evidence exposure |
+| Settings/privacy | PARTIAL | policy status described | AC1b route enforcement + future resource policy controls |
+| Responsive | PARTIAL | control-plane grids collapse responsively | screen-level verification |
+| Accessibility | PARTIAL | primitive-level focus/status/reduced motion | full keyboard/focus/contrast/zoom matrix |
+| Visual regression | PENDING | none | stable E3/E4 states |
+| Hardware UX evidence | PENDING | no connected resource evidence yet | runtime resource API + representative hardware |
 
-## E2 shell result
+## Integrated Overview behavior
 
-The shell was integrated incrementally instead of rewriting the existing ~38 KB `index.html` monolith.
+`control-plane-live.js` now consumes current product APIs instead of mock values:
 
-New modules:
+- `/health` -> server readiness/backend/default route where present;
+- `/status` -> runtime/default/active-request state where present;
+- `/v1/models` -> resident runtime count;
+- source failure -> explicit `Unavailable`;
+- resource pressure -> remains unavailable because B1/B2 are not yet product-exposed;
+- navigation buttons route to the real Models & Runtimes and Diagnostics views.
 
-- `control-plane-shell.js` — information architecture and placeholder/source-aware destinations;
-- `control-plane-shell.css` — shell-specific responsive layout;
-- `config.js` loads the shell and design-system assets.
+The module polls at a bounded interval and does not persist stale values as current truth after a failed refresh.
 
-Important behavior:
+## Current UX dependencies
 
-- existing Chat/Models/Logs screens remain real operational views;
-- new future-data views display explicit unavailable states;
-- Benchmark does not show synthetic scores;
-- Overview does not invent resource pressure;
-- Settings does not pretend budget/eviction controls exist;
-- Endpoints links to actual Swagger and integration examples.
+Now available internally:
 
-## Newly available UX dependencies
+- B1 Linux/macOS resource source contracts;
+- B2 reservation/admission accounting;
+- C2 descriptor + catalog projection;
+- D1 precise metric schema + D2a chunk adapter;
+- D3a artifact identity;
+- D4a evaluation schema.
 
-- B1 resource schema exists, so E3/E4 can begin designing against stable source types while leaving values unavailable until connected.
-- C2 capability schema exists, but capability UI remains blocked until registry/API exposure.
-- D1 metric vocabulary exists, so final labels should use its exact token/chunk/duration terms.
-- D3a artifact identity exists, enabling future model detail identity sections without private path disclosure.
+Still missing for truthful UI panels:
+
+- resource public/runtime wiring;
+- public capability projection;
+- backend/config/hardware runtime fingerprint;
+- real backend token/TTFT/prefill/decode adapters;
+- benchmark execution engine.
 
 ## Immediate UX wave
 
-Run E3a and E4a in parallel after the shell boundary:
+### E3a — Models & Runtimes redesign
 
-### E3a — Models & Runtimes current-source composition
+Use existing real sources to present:
 
-Use only currently real sources to show:
+- configured identity;
+- resident vs non-resident state;
+- default route separately from residency;
+- backend/runtime state/active requests;
+- existing load/activate/unload actions.
 
-- configured model identity;
-- resident vs non-resident distinction;
-- default-route distinction;
-- backend;
-- runtime state/active requests where available;
-- load/activate/unload actions already supported.
+Show capability/resource/fingerprint sections as unavailable until their public sources land.
 
-Do not yet show authoritative memory budget, eviction, runtime fingerprint or capability compatibility until their sources are wired.
+### E4b — Overview enrichment after source wiring
 
-### E4a — Overview/System current-source composition
+Parallel dependency-driven panels:
 
-Use existing sources to show:
-
-- server connection/health;
-- default route;
-- resident runtime count/list;
-- runtime state;
-- links into Models and Diagnostics.
-
-Keep resource pressure, TTFT/token throughput and evidence identity unavailable until B1/B2, D2 and D3 are connected.
-
-## Subsequent parallel UX slices
-
-- capability detail -> C2b;
-- resource budget/pressure -> B1 runtime wiring + B2;
-- request lifecycle -> B5/D1;
-- truthful performance -> D2;
+- resource budget/pressure -> B1/B2 product exposure;
+- exact performance -> richer D2 adapters;
 - artifact/runtime identity -> D3;
-- transcription controls -> C3;
-- benchmark selection/results -> D4;
-- pin/LRU/TTL -> B6.
+- recent evaluation -> D4 engine.
+
+### E6a — Evaluation setup after D4b
+
+The shell can begin local test-set/sample/scorer configuration once the built-in dataset exists, while run execution remains disabled until D4.
 
 ## Update rule
 
-Update this tracker in the same integration cycle whenever a UX status or blocker changes. Detailed acceptance criteria remain in the target specification.
+Update this file in the same integration cycle whenever a UX workstream status or blocker changes. Keep acceptance detail in the target specification.
