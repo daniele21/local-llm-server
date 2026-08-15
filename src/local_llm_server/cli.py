@@ -2,15 +2,17 @@
 cli.py — entry point for the `local-llm` command.
 
 Subcommands:
-  local-llm serve    — start the HTTP server
-  local-llm models   — list available models
-  local-llm download — download a model without starting the server
+  local-llm serve                — start the HTTP server
+  local-llm models               — list available models
+  local-llm download             — download a model without starting the server
+  local-llm evidence-reclamation — run isolated repeated lifecycle evidence
 """
 from __future__ import annotations
 
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 
 def main() -> None:
@@ -96,6 +98,55 @@ def main() -> None:
     p_download = sub.add_parser("download", help="Download a model without starting the server.")
     p_download.add_argument("model", help="Registry key (e.g. qwen3-8b).")
 
+    p_evidence = sub.add_parser(
+        "evidence-reclamation",
+        help="Run repeated isolated worker load/infer/stop cycles and write a JSON evidence report.",
+    )
+    p_evidence.add_argument("--model", required=True, help="Registry model key to exercise.")
+    p_evidence.add_argument("--model-path", default=None, dest="model_path")
+    p_evidence.add_argument(
+        "--backend",
+        choices=["llama_cpp", "mlx", "llama_server", "mlx_vlm_server"],
+        default=None,
+    )
+    p_evidence.add_argument(
+        "--backend-version",
+        default=None,
+        dest="backend_version",
+        help="Explicit backend/binary version when it cannot be resolved automatically.",
+    )
+    p_evidence.add_argument(
+        "--accelerator",
+        default=None,
+        help="Optional evidence label for the active accelerator/device class.",
+    )
+    p_evidence.add_argument("--cycles", type=int, default=3)
+    p_evidence.add_argument("--max-tokens", type=int, default=32, dest="max_tokens")
+    p_evidence.add_argument(
+        "--prompt",
+        default="Reply with the single word OK.",
+        help="Local workload prompt. Prompt/output are not written to the evidence report.",
+    )
+    p_evidence.add_argument(
+        "--settle-seconds",
+        type=float,
+        default=2.0,
+        dest="settle_seconds",
+        help="Delay after each worker stop before the after-stop resource snapshot.",
+    )
+    p_evidence.add_argument(
+        "--output",
+        required=True,
+        help="Destination JSON report path.",
+    )
+    p_evidence.add_argument(
+        "--no-download",
+        action="store_true",
+        default=False,
+        dest="no_download",
+        help="Fail if required model artifacts are not already available locally.",
+    )
+
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -104,6 +155,8 @@ def main() -> None:
         _cmd_models()
     elif args.command == "download":
         _cmd_download(args.model)
+    elif args.command == "evidence-reclamation":
+        _cmd_evidence_reclamation(args)
 
 
 def _cmd_serve(args: argparse.Namespace) -> None:
@@ -182,3 +235,32 @@ def _cmd_download(model: str) -> None:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     print(f"Model '{model}' is available locally.")
+
+
+def _cmd_evidence_reclamation(args: argparse.Namespace) -> None:
+    from .hardware_evidence import (
+        HardwareEvidenceOptions,
+        execute_hardware_reclamation_evidence,
+        write_evidence_report,
+    )
+
+    options = HardwareEvidenceOptions(
+        model=args.model,
+        cycles=args.cycles,
+        prompt=args.prompt,
+        max_tokens=args.max_tokens,
+        model_path=args.model_path,
+        backend=args.backend,
+        backend_version=args.backend_version,
+        accelerator=args.accelerator,
+        settle_seconds=args.settle_seconds,
+        no_download=args.no_download,
+    )
+    output = Path(args.output)
+    try:
+        report = execute_hardware_reclamation_evidence(options)
+        write_evidence_report(output, report)
+    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+        print(f"Evidence run failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Evidence report written to {output.expanduser().resolve()}")

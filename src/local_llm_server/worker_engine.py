@@ -53,6 +53,14 @@ class WorkerBackedEngine:
             self.transport.stop(timeout=min(timeout, 5.0))
             raise RuntimeError(prepared.error_code or "worker preparation failed")
 
+    @property
+    def pid(self) -> int | None:
+        process = getattr(self.transport, "process", None)
+        value = getattr(process, "pid", None)
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            return None
+        return value
+
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
         response = self.transport.request(
             WorkerCommand.GENERATE,

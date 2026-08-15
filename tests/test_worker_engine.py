@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -17,6 +18,7 @@ class _FakeTransport:
         self.started = []
         self.stopped = []
         self.requests = []
+        self.process = SimpleNamespace(pid=4321)
         self.prepare_accepted = True
         self.generation_result = {
             "choices": [{"message": {"role": "assistant", "content": "ok"}}],
@@ -76,6 +78,7 @@ def test_worker_backed_engine_starts_prepares_and_executes_completed_response():
 
     assert transport.command[-2:] == ("-m", "local_llm_server.worker_entrypoint")
     assert transport.started == [3.0]
+    assert engine.pid == 4321
     assert transport.requests[0][0] is WorkerCommand.PREPARE
     prepared_config = transport.requests[0][1]["config"]
     assert prepared_config["model_path"] == "/private/models/demo.gguf"
@@ -99,6 +102,18 @@ def test_worker_backed_engine_starts_prepares_and_executes_completed_response():
 
     engine.close()
     assert transport.stopped == [5.0]
+
+
+def test_worker_pid_is_unavailable_when_transport_has_no_live_process():
+    class _NoProcessTransport(_FakeTransport):
+        def __init__(self, command, *, env=None):
+            super().__init__(command, env=env)
+            self.process = None
+
+    _NoProcessTransport.instances.clear()
+    engine = WorkerBackedEngine(_cfg(), transport_factory=_NoProcessTransport)
+    assert engine.pid is None
+    engine.close()
 
 
 def test_worker_backed_engine_does_not_fake_streaming_support():

@@ -88,7 +88,11 @@ def run_worker_reclamation_experiment(
     descriptor = _descriptor(cfg)
 
     def start() -> WorkerBackedEngine:
-        return worker_factory(cfg)
+        worker = worker_factory(cfg)
+        binder = getattr(observer, "bind_worker", None)
+        if callable(binder):
+            binder(worker)
+        return worker
 
     def wait_ready(worker: WorkerBackedEngine) -> None:
         health = worker.health()
@@ -101,7 +105,12 @@ def run_worker_reclamation_experiment(
             raise RuntimeError("worker exercise returned an invalid result")
 
     def stop(worker: WorkerBackedEngine) -> None:
-        worker.close()
+        try:
+            worker.close()
+        finally:
+            unbinder = getattr(observer, "unbind_worker", None)
+            if callable(unbinder):
+                unbinder(worker)
 
     experiment = run_reclamation_experiment(
         observer,
