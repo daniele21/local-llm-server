@@ -17,104 +17,126 @@ Canonical target specification: [`ux-ui-implementation-plan.md`](ux-ui-implement
 
 | Workstream | Status | Integrated boundary | Remaining gate |
 | --- | --- | --- | --- |
-| Existing Studio workflows | PARTIAL | real Chat, Models, Logs, examples, Swagger preserved | modular migration without regression |
-| Design system | PARTIAL | tokens/primitives/focus/reduced-motion/light-dark | screen adoption + visual/accessibility evidence |
-| Shell/navigation | PARTIAL | seven control-plane destinations navigable | screen-level navigation/responsive tests |
-| Overview | PARTIAL | live `/health`, `/status`, `/v1/models`; unavailable-on-source-failure | resource/metric/fingerprint/evaluation panels |
-| Models & Runtimes | PARTIAL | dedicated source-backed module over resident/status/admin catalog | resource/fingerprint sources + lifecycle UX evidence |
-| Resource budget/pressure | BLOCKED | admission wiring exists internally | B2c configured product policy/API exposure |
-| Capability UX | PARTIAL | capability descriptors now public via model/admin catalog and rendered in Models view | C2d enforcement + endpoint/playground compatibility presentation |
-| Pin/auto-evict | BLOCKED | no B6 policy | B6 |
-| Runtime fingerprint | BLOCKED | runtime snapshot contract exists | D3d automatic capture/public exposure |
-| Endpoints | PARTIAL | real Swagger/examples + public capability metadata | capability-aware compatibility composition |
-| Playground text | PARTIAL | real chat + public entrypoint policy enforcement | modular view + live canonical metrics |
-| Playground vision | PARTIAL | real multimodal path + fail-closed remote-media middleware | C2d capability enforcement + modular controls |
-| Playground transcription | BLOCKED | canonical/capability prerequisites now available | C3 first-class ASR API |
-| Benchmark & Evaluation | PARTIAL | shell + 20-sample set + deterministic runner | D4d resident-runtime service/persistence + E6a wiring |
-| System/Diagnostics | PARTIAL | real logs/status preserved | resource/metrics/fingerprint evidence API |
-| Settings/privacy | PARTIAL | supported public/CLI entrypoints enforce canonical remote-media policy | expose policy state/config; legacy direct-app compatibility note |
-| Responsive | PARTIAL | control-plane grids collapse responsively | screen-level verification |
-| Accessibility | PARTIAL | primitive-level focus/status/reduced motion | full keyboard/focus/contrast/zoom matrix |
-| Visual regression | PENDING | none | stable E3/E4/E6 states |
-| Hardware UX evidence | PENDING | no connected reclamation evidence yet | B3c + representative hardware |
+| Existing Studio workflows | PARTIAL | real Chat, Models, Logs, examples and Swagger preserved | modular migration without regression |
+| Design system | PARTIAL | tokens/primitives/focus/reduced-motion/light-dark | full screen adoption + accessibility evidence |
+| Shell/navigation | PARTIAL | seven control-plane destinations navigable | screen-level responsive/keyboard evidence |
+| Overview | PARTIAL | health/status/models + resource/evidence/scheduler sources | representative hardware evidence + final diagnostics composition |
+| Models & Runtimes | PARTIAL | resident/catalog/capability/cold/default source-backed view | pin/eviction controls + lifecycle UX evidence |
+| Resource budget/pressure | PARTIAL | configured product policy and `/api/v1/resources` | measured reconciliation + hardware evidence |
+| Capability UX | PARTIAL | descriptors public and rendered in Models | capability-driven Playground/Endpoints |
+| Pin/auto-evict | PENDING | no B6 policy yet | B6a pin metadata then lease-safe LRU/TTL |
+| Runtime fingerprint | PARTIAL | verified auto-capture + `/api/v1/evidence` + Overview | broader artifact/backend coverage |
+| Endpoints | PARTIAL | real Swagger/examples + public capability metadata | task/model compatibility composition |
+| Playground text | PARTIAL | real chat + canonical policy/capability enforcement | modular capability-driven controls + live evidence presentation |
+| Playground vision | PARTIAL | real multimodal path + fail-closed remote media | capability-driven model/controls + regression evidence |
+| Playground transcription | PARTIAL | first-class `/v1/audio/transcriptions` backend/API | dedicated UI workflow + compatible runtime evidence |
+| Benchmark & Evaluation | PARTIAL | real run/results/history/comparison + custom dataset backend | custom upload/version-selection UI |
+| System/Diagnostics | PARTIAL | real logs/status preserved; evidence sources exist | modular source-backed diagnostics screen |
+| Settings/privacy | PARTIAL | supported entrypoints enforce remote-media policy | source-backed policy state/configuration presentation |
+| Responsive | PARTIAL | major control-plane grids collapse responsively | full screen/reference-width verification |
+| Accessibility | PARTIAL | primitive-level focus/status/reduced motion | keyboard/focus/contrast/zoom matrix |
+| Visual regression | PENDING | no stable screenshot suite | stable source-backed states + fixture strategy |
+| Hardware UX evidence | PENDING | no representative reclamation/performance matrix | B3d/H3 representative hardware runs |
 
-## Integrated source-backed Models behavior
+## Source-backed product state now available
 
-`control-plane-models.js` now consumes:
+### Overview
 
-- `/v1/models` for resident runtime identity;
+The Overview consumes real `/health`, `/status`, `/v1/models`, `/api/v1/resources`, `/api/v1/evidence` and `/api/v1/scheduler` sources where available. It distinguishes:
+
+- configured default identity from resident default route;
+- cold/zero-resident state from failure;
+- configured/disabled/unavailable resource policy;
+- measured values from unavailable values;
+- queue wait from runtime execution timing;
+- verified runtime fingerprint from exploratory/no-fingerprint state.
+
+`null`/missing values remain **Unavailable**; the UI does not coerce them to zero.
+
+### Models & Runtimes
+
+The control-plane Models view combines:
+
+- `/v1/models` for resident identity;
 - `/status` for default route, lifecycle and active-request state;
-- `/api/v1/models/registry` for configured catalog and capability descriptors when the admin API is available.
+- `/api/v1/models/registry` for configured catalog and capability descriptors when enabled.
 
-It shows configured identity, resident/cold state, default route, backend, runtime state, active requests and capability summary only from real sources. If the admin API is disabled or fails, the screen explicitly degrades to **resident view only**. Resource admission and runtime fingerprint remain unavailable rather than inferred.
+Configured identity, resident/cold state, backend, active requests and capability summary are source-backed. The remaining major lifecycle UX gap is explicit pin/evictability/automatic-eviction policy.
 
-The existing model load/activate/unload controls remain reachable during migration.
+### Benchmark & Evaluation
 
-## Integrated request/privacy UX boundary
+The evaluation screen now supports:
 
-Supported public Python and CLI server entrypoints now install canonical request-policy middleware. This means the existing Playground path receives fail-closed remote-media validation before backend inference when the product is started through supported entrypoints. Direct legacy use of `local_llm_server.server:app` remains a compatibility path and should not be presented as the primary setup flow.
+- real resident-model selection;
+- versioned test-set selection;
+- valid sample multiples of 10 and deterministic seed;
+- real evaluation execution;
+- objective quality, execution success, per-sample result/error and sourced timing/token evidence;
+- evidence-grade vs exploratory run state based on runtime fingerprint;
+- persisted history inspection;
+- compatibility-aware baseline/candidate comparison with `Not comparable`, `Exploratory comparison`, `Descriptive only` and attribution-safe states;
+- no automatic better/worse verdict.
 
-## Newly available UX dependencies
-
-Now available internally/publicly:
-
-- B1 Linux/macOS resource source contracts;
-- B2 real load/reload/unload admission accounting internally;
-- public C2 capability descriptors/provenance;
-- D1/D2 true token/timing adapters where backend evidence exists;
-- D3 runtime fingerprint + immutable snapshot contract;
-- D4 built-in dataset + executable deterministic runner.
-
-Still missing for truthful product panels:
-
-- configured ResourceManager/product resource API;
-- live canonical metric attachment/API;
-- automatic runtime identity snapshot capture/API;
-- resident-runtime evaluation service + persistence;
-- first-class transcription.
+The backend additionally supports validated custom test-set import and multiple versions. The UI still needs the upload/catalog/version-selection slice.
 
 ## Immediate UX wave
 
-### E4b — Overview/System evidence enrichment
+### E6b — Custom test-set workflow
 
-Parallel source-driven panels:
+Implement now:
 
-- resource budget/admission/pressure -> B2c;
-- exact token/prefill/decode metrics -> D2c;
-- runtime fingerprint -> D3d;
-- recent evaluation summary -> D4d.
+- JSON file picker and import action;
+- built-in/custom source badge;
+- catalog refresh after import;
+- explicit version in option identity;
+- send `test_set_version` on evaluation runs;
+- surface 409 duplicate conflict without silently replacing;
+- optional explicit replace action only if the user knowingly chooses it later;
+- preserve source-backed/no-client-scoring boundary.
 
-Every unavailable source must remain explicitly unavailable; do not reuse stale values as current truth after refresh failure.
+### E5b — Capability-driven Playground and Endpoints
 
-### E6a — Benchmark & Evaluation workflow
+Implement in parallel:
 
-Once D4d lands, implement:
+- derive available tasks from public model capability descriptors;
+- keep text controls for text-compatible runtimes;
+- show image controls only for image input support;
+- expose transcription as a distinct audio -> text task when explicit ASR capability exists;
+- feature controls such as streaming/structured output only when declared;
+- endpoint compatibility matrix/card from server-owned capability metadata;
+- unsupported combinations show explicit unavailable state rather than hidden/failing controls.
 
-- built-in test-set selector (`general-purpose` v1 initially);
-- model selection;
-- sample size and seed;
-- start/cancel/status where supported;
-- deterministic quality score summary;
-- per-sample result/error view;
-- runtime fingerprint/evidence-grade indicator;
-- no cross-run comparison when identity is missing/incompatible.
+### E7 — Diagnostics and Settings completion
 
-### E5a — Capability-driven Playground/Endpoints
+After E5b source composition stabilizes:
 
-After C2d/C3:
-
-- task-aware model filtering;
-- text/image/audio controls only when supported;
-- structured-output/thinking/streaming controls from capability features;
-- explicit unavailable/unsupported state rather than optimistic backend assumptions.
+- move runtime/resource/scheduler evidence into a coherent Diagnostics surface without duplicating canonical source ownership;
+- expose privacy/resource policy configuration state truthfully;
+- retain Logs as a real operational source, not illustrative content.
 
 ## Evidence UX rules
 
-- `0` is a valid measured value only when a source measured zero; missing data is `Unavailable`.
-- resource estimate and observed footprint must be visually distinguishable.
-- chunk throughput must never be labeled token throughput.
-- exploratory benchmark runs without runtime identity may be shown, but not promoted as evidence-grade comparisons.
-- reclamation evidence is not PASS merely because a subprocess exited.
+- `0` is valid only when a source measured zero; missing data is `Unavailable`.
+- resource estimate and observed footprint remain visually distinguishable.
+- chunk throughput is never token throughput.
+- exploratory benchmark runs may execute but are not presented as evidence-grade comparisons.
+- reclamation evidence is not PASS merely because a subprocess exits or memory delta is positive once.
+- capability truth is server-owned; JavaScript may filter/present it but must not invent support.
+- custom test-set files are data, not executable scorer/plugin definitions.
+
+## Acceptance still pending
+
+Before primary UX surfaces can be marked DONE:
+
+- keyboard-only navigation through shell, forms, tables and lifecycle controls;
+- visible focus and semantic labels for icon-only actions;
+- status not conveyed by color alone;
+- contrast verification in supported light/dark modes;
+- 200% zoom usability;
+- responsive checks at representative phone/tablet/desktop widths;
+- source failure/loading/empty/warning/error/success fixture coverage;
+- real runtime screenshots for public documentation;
+- representative hardware evidence for resource/performance claims.
 
 ## Update rule
 
