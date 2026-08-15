@@ -19,6 +19,7 @@ from .evaluation_service import (
 )
 from .live_evidence import manager_evidence_payload
 from .resource_policy import ResourcePolicySettings, resource_policy_snapshot
+from .scheduler_evidence import scheduler_evidence_payload
 from .transcription import ResidentTranscriptionService, TranscriptionRequest
 
 _MAX_TRANSCRIPTION_BYTES = 100 * 1024 * 1024
@@ -112,6 +113,9 @@ def install_product_api(
     def get_evidence(request: Request):
         return manager_evidence_payload(request.app.state.runtime_manager)
 
+    async def get_scheduler_state(request: Request):
+        return await scheduler_evidence_payload(request.app)
+
     def list_test_sets(request: Request):
         service = EvaluationService(
             request.app.state.runtime_manager,
@@ -159,6 +163,13 @@ def install_product_api(
         methods=["GET"],
         tags=["Observability"],
         name="get_runtime_evidence",
+    )
+    application.add_api_route(
+        "/api/v1/scheduler",
+        get_scheduler_state,
+        methods=["GET"],
+        tags=["Observability"],
+        name="get_scheduler_state",
     )
     application.add_api_route(
         "/api/v1/evaluation/test-sets",
