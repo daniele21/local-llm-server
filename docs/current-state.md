@@ -7,205 +7,216 @@ Canonical scope: state.repository
 Read when: determining the integrated baseline, open blockers or immediate next implementation block
 Last reviewed: 2026-08-15
 
-This is the single operational ledger for the Local LLM Server evolution program. Target behavior belongs in [`implementation-plan.md`](implementation-plan.md) and focused specifications. Capability sequencing and parallel work belong in [`roadmap.md`](roadmap.md).
+This is the single operational ledger for the Local LLM Server evolution program. Target behavior belongs in [`implementation-plan.md`](implementation-plan.md); sequencing and parallel work belong in [`roadmap.md`](roadmap.md).
 
-## Active program
+## Active direction
 
-The active direction is to evolve Local LLM Server from a useful multi-backend local model server into a **resource-aware, observable local AI control plane and harness** for product-grade text, vision and audio workloads.
-
-The positioning target is:
-
-> One trustworthy local control plane that knows what can run, what is resident, what resources it consumes, how requests are scheduled, how it performed, and which exact runtime/artifact produced each result.
-
-The server orchestrates specialized inference runtimes rather than reimplementing their tensor execution.
+Local LLM Server is evolving into a **resource-aware, observable local AI control plane and evaluation harness** for product-grade text, vision and audio workloads. The server orchestrates specialist runtimes rather than reimplementing their inference engines.
 
 ## Integrated baseline
 
-### Repository reliability and delivery
+### Delivery and repository discipline
+
+- pytest is blocking on Python 3.10/3.11/3.12;
+- CI no longer suppresses test failures;
+- Ruff blocks syntax and high-confidence correctness errors;
+- pre-existing style/modernization debt remains separate from the correctness gate;
+- the integration branch is validated through cumulative PRs;
+- unit/CI evidence is merge evidence only, not physical-hardware performance evidence.
+
+### Product/API foundation
+
+Existing public behavior remains:
+
+- OpenAI-compatible `/v1/chat/completions` with streaming/non-streaming responses;
+- explicit registry-key/model-ID routing;
+- multiple resident runtimes on one server;
+- loopback-first binding and opt-in admin routes;
+- Python client helpers and Local LLM Studio.
+
+New canonical foundation now integrated:
+
+- backend-neutral `TaskType`, `InferenceRequest`, `InferenceResult`, generation/output contracts, terminal reasons and typed errors;
+- compatibility translator from current OpenAI/legacy request shapes;
+- `request_pipeline.py` that canonicalizes requests, applies remote-media policy, checks current modality compatibility and produces bounded typed public errors.
+
+Remaining API gap:
+
+- `server.py` still executes through its historical parser. The new request pipeline is tested and integrated but has not yet replaced that duplicate route logic.
+
+### Privacy and consumer boundaries
 
 Integrated:
 
-- pytest failures are blocking rather than suppressed;
-- deterministic CI runs on Python 3.10, 3.11 and 3.12;
-- CI installs the deterministic Hugging Face test dependency required by existing source-resolution tests;
-- Ruff is blocking for syntax and high-confidence correctness rules (`E9,F63,F7,F82`);
-- the program integration line can be validated cumulatively;
-- pre-existing broad Ruff style/modernization debt is intentionally not hidden, but is not part of the current correctness gate.
-
-Current evidence boundary:
-
-- deterministic CI is merge evidence only;
-- real runtime, memory, throughput and hardware claims still require representative physical hardware.
-
-### Public product boundary
-
-Integrated:
-
-- OpenAI-compatible `/v1/chat/completions` API;
-- streaming and non-streaming chat completions;
-- explicit routing by registry key or model ID;
-- multiple simultaneously resident runtimes behind one public server port;
-- loopback-first default binding;
-- opt-in administrative API;
-- bundled Local LLM Studio web UI;
-- Python client helpers for text, image and audio-oriented calls.
-
-New Batch 1 foundation:
-
-- backend-neutral core types now define `TaskType`, `InferenceRequest`, `InferenceResult`, generation options, output constraints, terminal reasons and typed errors;
-- a compatibility translator can map current OpenAI/legacy chat payloads into canonical requests;
-- canonical task vocabulary currently covers chat, structured generation, vision-language and transcription.
-
-Remaining boundary gap:
-
-- the existing HTTP request path does not yet execute through the canonical request translator; until that wiring lands, the new types are a stable foundation rather than the sole execution path.
-
-### Runtime lifecycle
-
-Integrated:
-
-- `ModelRuntimeManager` owns loaded runtimes;
-- `READY`, `DRAINING`, `STOPPED` and `FAILED` state vocabulary exists;
-- per-runtime admission semaphore;
-- request leases prevent unload while inference is active;
-- reload preserves the previous runtime if replacement load fails;
-- aliases are validated for collisions;
-- managed subprocesses use bounded log tails and terminate process groups on shutdown;
-- private subprocess ports are assigned per managed backend.
-
-Known limitation:
-
-- lifecycle removal is stronger than memory reclamation for in-process backends because current `LlamaCppEngine.close()` and `MLXEngine.close()` do not yet provide a demonstrated release guarantee.
-
-### Model sources and registry
-
-Integrated:
-
-- built-in plus user YAML registry;
-- generic opt-in external YAML/JSON registry layers through explicit paths or `LOCAL_LLM_REGISTRY_PATHS`;
-- precedence is built-in < external layers < user registry;
-- core infrastructure no longer reads or names ClosedRoom-specific Application Support state;
-- LM Studio model discovery;
-- Hugging Face cache discovery for supported MLX paths;
-- managed GGUF download with `.part`, resume, retry and atomic rename;
-- MLX snapshot completeness validation;
-- multimodal/projector validation;
-- model modality and thinking-mode validation.
-
-Known limitations:
-
-- artifact identity is not yet cryptographically pinned as a first-class runtime contract;
-- `size_gb` metadata is descriptive and not used for resource admission.
-
-### Privacy and media lifecycle
-
-Integrated:
-
-- `trust_remote_code` is fail-closed by default and requires explicit config/environment opt-in;
-- the trust decision is propagated explicitly into MLX tokenizer configuration rather than relying on backend defaults;
-- `allow_remote_media` is fail-closed by default;
-- a pure media-policy validator rejects HTTP(S) image/audio references unless explicitly allowed;
-- generated temporary WAV files owned by audio-message preparation are removed deterministically;
-- tests cover fail-closed defaults, opt-in behavior and temporary-file cleanup.
+- core registry no longer reads or names ClosedRoom-specific Application Support state;
+- external registry layers are explicit YAML/JSON inputs with built-in < external < user precedence;
+- `trust_remote_code=false` by default with explicit opt-in;
+- MLX tokenizer trust receives the resolved policy explicitly;
+- `allow_remote_media=false` by default;
+- HTTP(S) media validator rejects remote media unless explicitly allowed;
+- generated temporary WAV files owned by preprocessing are cleaned deterministically.
 
 Remaining privacy gap:
 
-- the HTTP inference path has not yet wired the media-policy validator before backend execution. The policy exists and is tested, but server enforcement is not complete until that integration lands.
+- route-level enforcement becomes complete only when `server.py` calls the integrated request pipeline.
 
-### Modalities and capabilities
+### Resource observation foundation
+
+Integrated in `resources.py`:
+
+- `ResourceValue` distinguishes `measured`, `estimated`, `configured` and `unavailable`;
+- unavailable data is represented as `None`, never fake zero;
+- `SystemResourceSnapshot` and `RuntimeResourceProfile` contracts;
+- explicit `ResourceBudget` limit/headroom semantics;
+- `ResourcePressure` vocabulary and deterministic classification;
+- observer protocol;
+- best-effort Linux standard-library memory/RSS adapter;
+- deterministic tests for budget, pressure and source semantics.
+
+Remaining B1 work:
+
+- add trustworthy Apple/macOS host and unified-memory observation where available;
+- connect observations to runtime lifecycle/evidence rather than only exposing the contract;
+- representative hardware validation remains required.
+
+B2 ResourceManager contract work is now unblocked because the reservation/budget layer can consume B1 types without waiting for every platform adapter.
+
+### Capability foundation
+
+Integrated in `core/capabilities.py`:
+
+- task set, input/output modality set and feature set;
+- conservative legacy-registry translation;
+- first-class `supports(request)` decision;
+- client-safe stable serialization;
+- validation such as image requirement for vision-language and audio requirement for transcription;
+- audio modality alone does **not** imply first-class transcription support.
+
+Remaining C2 work:
+
+- add explicit capability fields to registry validation/migration;
+- expose capability descriptors through model/catalog API sources;
+- use capability rejection in the canonical request path before backend execution.
+
+### Observability vocabulary
+
+D1 foundation is integrated:
+
+- admitted/queued/started/first-output/completed/failed/cancelled phase vocabulary;
+- queue/load/prefill/TTFT/decode/total durations;
+- input/output token counts kept distinct from output chunk counts;
+- token/sec and chunk/sec kept as separate units;
+- cache/load classification;
+- unsupported metrics serialize as unavailable, not zero;
+- public metric serialization excludes prompts/output.
+
+The historical runtime counter named `tokens_generated` is still compatibility debt; D2 adapters must stop treating output chunks as true tokens.
+
+### Artifact identity
+
+D3a foundation is integrated:
+
+- source kind and verification state;
+- path-free stable serialization;
+- explicit SHA-256 verification for concrete local files;
+- stable identity key;
+- Hugging Face source/revision metadata without falsely claiming directory verification;
+- expensive hashing is explicit, not performed on every request/UI refresh.
+
+Remaining D3 work:
+
+- backend version identity;
+- resolved configuration digest;
+- hardware profile;
+- final runtime fingerprint assembly and evidence linkage.
+
+### Runtime lifecycle
+
+Existing lifecycle remains:
+
+- `ModelRuntimeManager` owns loaded runtimes;
+- leases prevent unload while requests are active;
+- per-runtime admission semaphore;
+- reload preserves the old runtime if replacement load fails;
+- managed subprocesses use bounded logs and process-group termination.
+
+Major remaining differentiation:
+
+- B2 resource-aware admission;
+- B3 demonstrable memory reclamation/worker boundary;
+- B4 zero-resident semantics;
+- B5 bounded scheduling/deadlines/cancellation;
+- B6 pin/LRU/TTL eviction.
+
+### UX/UI
 
 Integrated:
 
-- text generation through `llama-cpp-python` and MLX-LM;
-- GGUF multimodal execution through managed `llama-server`;
-- MLX vision-language execution through managed `mlx_vlm.server`;
-- image helpers with local data-URL encoding and size/type validation;
-- audio preprocessing and OpenAI-style `input_audio` message construction;
-- canonical task vocabulary distinguishes transcription from audio-language/chat intent.
+- shared design-system tokens/primitives;
+- incremental control-plane shell module;
+- top-level destinations now exist for Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System/Diagnostics and Settings;
+- existing real Chat/Models/Logs flows remain available during migration;
+- dependency-gated areas show explicit unavailable states instead of fabricated values;
+- Endpoints links to real Swagger/examples;
+- responsive shell styles are separated from the legacy `index.html` monolith.
 
-Known limitations:
+Remaining UX work:
 
-- registry capability representation is still primarily `modalities` plus thinking/backend metadata rather than task + input/output + feature contracts;
-- audio transcription is not yet exposed as a first-class canonical ASR API;
-- large audio paths may incur redundant decoded/WAV/base64/JSON memory copies.
+- E3a real Models & Runtimes lifecycle composition;
+- E4a real Overview health/runtime summary;
+- current Playground/Diagnostics migration into the new shell modules;
+- resource/capability/metric/fingerprint panels as their contracts are wired;
+- screen-level accessibility and visual-regression evidence.
 
-### Observability
+## Program status
 
-Integrated:
-
-- `/health` and `/status` surfaces;
-- per-runtime active-request state;
-- bounded log stream buffer;
-- response usage normalization when backend usage exists;
-- deterministic response cache for greedy non-streaming calls;
-- basic runtime timing/status fields.
-
-Known limitations:
-
-- `tokens_generated` currently tracks output chunks for compatibility and is not a truthful token counter;
-- queue wait, prompt/prefill, TTFT, decode, memory peak, cache reuse and termination reason are not normalized across backends;
-- there is no stable runtime fingerprint tying result to artifact hash, backend version, resolved config and hardware profile.
-
-### UX/UI and positioning
-
-Integrated:
-
-- Local LLM Studio web surface with chat, model/runtime configuration, logs, examples and Swagger;
-- shared `design-system.css` with brand/surface/status tokens, dark/light semantics, typography, spacing, radius and focus/reduced-motion foundations;
-- reusable card, button, field, metric, status, empty-state and table primitives;
-- positioning now describes Local LLM Server as a **resource-aware local AI control plane for product-grade inference**;
-- README explicitly states that the product orchestrates specialist runtimes rather than replacing them;
-- README distinguishes current integrated capability from roadmap targets.
-
-Known UX limitations:
-
-- existing product screens have not yet migrated to the new information architecture or shared primitives;
-- memory budget, capability, benchmark and fingerprint UI remain dependency-gated by source contracts;
-- there is no formal visual-regression/accessibility matrix yet.
-
-## Batch 1 completion state
-
-| Task | Status | Integrated outcome | Remaining work |
+| Task | Status | Integrated outcome | Remaining gate |
 | --- | --- | --- | --- |
-| A1 — truthful CI | DONE | blocking pytest matrix + correctness Ruff gate | broader historical Ruff debt later |
-| A2 — privacy/security defaults | PARTIAL | remote-code/media fail-closed policy + temp cleanup | enforce media policy in HTTP/canonical request path |
-| A3 — consumer decoupling | DONE | no ClosedRoom-specific core registry read | consumer integration stays external |
-| C1 — canonical request vocabulary | PARTIAL | core contracts + compatibility translator | route existing HTTP path through translator |
-| E1 — design-system foundation | PARTIAL | tokens/primitives loaded by Studio | migrate shell/screens + visual/accessibility evidence |
-| F1 — positioning | DONE | README/package description aligned | future promotion only as capabilities actually ship |
+| A1 truthful CI | DONE | blocking deterministic matrix | broader Ruff debt later |
+| A2 privacy defaults | PARTIAL | fail-closed config/policy + cleanup | `server.py` enforcement via request pipeline |
+| A3 consumer decoupling | DONE | generic registry sources | consumer-specific integration stays external |
+| C1 canonical request vocabulary | PARTIAL | contracts + translator + request pipeline | make HTTP route use pipeline |
+| E1 design system | PARTIAL | tokens/primitives | screen migration + evidence |
+| F1 positioning | DONE | README/package positioning | promote future claims only after shipping |
+| B1 resource observation | PARTIAL | truthful contracts + Linux observer | macOS/runtime wiring/evidence |
+| C2 capabilities | PARTIAL | conservative descriptor + supports() | registry/API/request wiring |
+| D1 metric vocabulary | DONE | precise canonical schema | D2 backend adapters |
+| D3a artifact identity | DONE | path-free source/hash identity | final runtime fingerprint D3 |
+| E2 shell/navigation | PARTIAL | new IA + incremental shell | migrate real screens + UX evidence |
+| AC1 request/security adapter | PARTIAL | canonical policy adapter | replace historical parser in `server.py` |
 
-## Immediate next block
+## Immediate next parallel wave
 
-Proceed with **Batch 2** from [`roadmap.md`](roadmap.md) using isolated ownership boundaries.
+Start these ownership-isolated streams together:
 
-Parallel streams that can start together:
+1. **B2 ResourceManager foundation** — reservation ledger, budget checks, typed admission decision and rollback using B1 types.
+2. **B1b macOS resource adapter** — trustworthy total/available/unified-memory sources with explicit unavailable behavior where unsupported.
+3. **C2b registry/API capability wiring** — validate explicit capability declarations and expose descriptors without changing backend execution yet.
+4. **D2 metric adapters foundation** — start with current runtime/llama sources behind D1; do not invent unavailable TTFT/token data.
+5. **E3a/E4a source-backed UX** — Models inventory + Overview health/runtime summaries behind the E2 shell.
+6. **D4a evaluation schema** — versioned test-set/sample/scorer/run-report contracts independent of final execution metrics.
+7. **AC1b server wiring** — exclusive `server.py` ownership; replace duplicate request normalization with `request_pipeline.py` and enforce remote-media policy before backend invocation.
 
-1. **B1 Resource observation contract** — system/hardware snapshot, runtime resource profile, estimate vs observation, budget/headroom and unavailable semantics.
-2. **C2 Capability descriptor** — tasks, inputs, outputs and feature flags with registry migration/validation.
-3. **D1 Metric vocabulary** — exact lifecycle/latency/token/resource terminology and unavailable semantics.
-4. **E2 Application shell/navigation** — new control-plane information architecture built on the integrated design-system foundation using only current source-backed values.
-5. **D3a Artifact identity foundation** — content hash/revision/source identity contract without waiting for final metric/hardware fingerprint assembly.
-6. **A2/C1 request-path integration** — one exclusive `server.py` stream that translates the current request into the canonical request and applies media policy before backend execution.
+### Parallelization constraints
 
-### Parallelization constraint
+- AC1b exclusively owns broad `server.py` request-path changes.
+- C2b may edit registry/model metadata modules but should not edit the request route.
+- D2 adapters live behind D1 and should avoid changing UI labels directly.
+- E3a/E4a consume only current source-backed APIs; resource/capability/performance cards remain unavailable until their corresponding wiring lands.
+- B2 does not claim memory is reclaimable; admission and reclamation remain separate concerns until B3 evidence exists.
 
-Do **not** run separate A2 and C1 branches against `server.py`. Their remaining work shares the same request normalization/execution boundary, so it is one coherent integration slice. B1, C2, D1, E2 and D3a should avoid `server.py` wherever possible and can progress concurrently.
+## Newly unblocked dependencies
 
-## Current blockers and dependencies
-
-- B2 ResourceManager waits for B1 resource observation types.
-- Automatic eviction waits for B2 admission plus demonstrated unload/reclamation semantics.
-- Memory-budget UI must not present authoritative values until B1/B2 exist.
-- C3 first-class transcription waits for C2 capability contracts and completion of the canonical request boundary.
-- Final metric labels and benchmark comparisons wait for D1/D2 normalization; chunk counts must not be presented as truthful token throughput.
-- Full runtime fingerprint waits for artifact identity, backend/config identity and hardware-profile contracts.
-- Benchmark execution comparisons wait for stable metric semantics and execution identity.
-- Any cloud-routing/fallback feature remains deferred until local execution, capability and privacy boundaries are explicit.
+- B1 contract -> B2 can start.
+- D1 -> D2 backend adapters can start.
+- E2 -> E3a/E4a/current Playground/Diagnostics module migration can start.
+- D3a -> backend/config/hardware identity work can proceed toward D3.
+- C2 contract -> registry/API capability wiring can start; C3 still waits for that wiring plus AC1b.
 
 ## Evidence boundary
 
-Passing unit tests or mock-backed UI tests establishes merge readiness only for the covered contract. Claims about memory reclamation, model residency, throughput, latency, thermal behavior or Apple unified-memory behavior require representative hardware evidence.
+No unit test can establish macOS unified-memory reclamation, real TTFT, true token throughput or model unload memory recovery. Those require representative runtime/device evidence after the corresponding adapters and lifecycle paths are integrated.
 
 ## Update rule
 
-When any item above changes in integrated reality, update this file in the same integration change. Do not use this file as a historical changelog: remove resolved blockers, move durable target behavior to the owning specification, and keep only the current baseline plus immediate next block.
+Update this file in the same integration cycle whenever task state, blockers or the immediate next wave changes. It is an operational ledger, not a historical changelog.
