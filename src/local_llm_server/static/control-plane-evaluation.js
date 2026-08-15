@@ -1,5 +1,6 @@
 (() => {
     let running = false;
+    let importing = false;
 
     async function fetchJson(path, options = {}) {
         const response = await fetch(path, {
@@ -82,16 +83,28 @@
     }
 
     function renderForm(view, testSets, models, runIds) {
-        const usableTestSets = testSets.filter((item) => Number(item?.sample_count) >= 10);
+        const usableTestSets = testSets.filter((item) => {
+            const count = finiteNumber(item?.sample_count);
+            return count !== null && count >= 10;
+        });
         const selectedTest = usableTestSets[0] || null;
         const modelOptions = models.map((model) => `
             <option value="${escapeHtml(model.key || model.id)}">
                 ${escapeHtml(model.id || model.key)} · ${escapeHtml(model.backend || 'backend unavailable')}
             </option>`).join('');
-        const testOptions = usableTestSets.map((item) => `
-            <option value="${escapeHtml(item.id)}" data-count="${Number(item.sample_count)}">
-                ${escapeHtml(item.id)} v${escapeHtml(item.version)} · ${Number(item.sample_count)} samples
-            </option>`).join('');
+        const testOptions = usableTestSets.map((item, index) => {
+            const count = finiteNumber(item.sample_count);
+            const selector = `${item.id}@@${item.version}`;
+            return `
+                <option value="${escapeHtml(selector)}"
+                        data-id="${escapeHtml(item.id)}"
+                        data-version="${escapeHtml(item.version)}"
+                        data-count="${count === null ? '' : count}"
+                        data-source="${escapeHtml(item.source || 'unknown')}"
+                        ${index === 0 ? 'selected' : ''}>
+                    ${escapeHtml(item.id)} v${escapeHtml(item.version)} · ${count === null ? 'Unavailable' : count} samples · ${escapeHtml(item.source || 'source unavailable')}
+                </option>`;
+        }).join('');
 
         view.innerHTML = `
             <div class="control-plane-header">
@@ -131,11 +144,22 @@
                         </label>
                     </div>
                     <div class="evaluation-note">
-                        Sample counts use valid multiples of 10 only. The current built-in general-purpose set contains deterministic objective checks; no LLM judge is used.
+                        Sample counts use valid multiples of 10 only. Built-in and uploaded sets use deterministic objective checks; no LLM judge is used.
                     </div>
                     <button class="ds-button ds-button--primary" type="submit" data-evaluation-start ${models.length && selectedTest ? '' : 'disabled'}>
                         Run evaluation
                     </button>
+
+                    <div class="evaluation-import">
+                        <div>
+                            <span class="evaluation-eyebrow">Custom dataset</span>
+                            <strong>Import a versioned JSON test set</strong>
+                            <small>Data-only schema. Minimum 10 samples; supported checks are exact, exact_ci, contains, word_count, comma_count and json.</small>
+                        </div>
+                        <input type="file" accept="application/json,.json" data-evaluation-import-file>
+                        <button class="ds-button" type="button" data-evaluation-import>Import test set</button>
+                        <div class="evaluation-import-status" data-evaluation-import-status aria-live="polite"></div>
+                    </div>
                 </form>
 
                 <aside class="ds-card evaluation-context">
@@ -144,6 +168,7 @@
                     <dl class="evaluation-definition-list">
                         <div><dt>Quality</dt><dd>Mean deterministic scorer value across scored samples.</dd></div>
                         <div><dt>Success</dt><dd>Samples that completed inference, independently from whether the answer scored well.</dd></div>
+                        <div><dt>Dataset identity</dt><dd>Includes version plus sample task, prompt and expected checks; changed content becomes a different identity.</dd></div>
                         <div><dt>Evidence-grade</dt><dd>Runtime fingerprint attached to the exact run.</dd></div>
                         <div><dt>Exploratory</dt><dd>Run executed successfully but exact runtime identity is incomplete.</dd></div>
                     </dl>
@@ -161,11 +186,18 @@
         const testSelect = view.querySelector('[data-evaluation-test-set]');
         const sampleSelect = view.querySelector('[data-evaluation-samples]');
         const startButton = view.querySelector('[data-evaluation-start]');
+        const importButton = view.querySelector('[data-evaluation-import]');
         syncSampleOptions(testSelect, sampleSelect);
         testSelect?.addEventListener('change', () => syncSampleOptions(testSelect, sampleSelect));
+        importButton?.addEventListener('click', () => importTestSet(view));
         form?.addEventListener('submit', async (event) => {
             event.preventDefault();
             if (running) return;
+            const selectedOption = testSelect?.selectedOptions?.[0];
+            const testSetId = selectedOption?.dataset?.id;
+            const testSetVersion = selectedOption?.dataset?.version;
+            if (!testSetId || !testSetVersion) return;
+
             running = true;
             startButton.disabled = true;
             const resultHost = view.querySelector('[data-evaluation-result]');
@@ -183,7 +215,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         model: view.querySelector('[data-evaluation-model]').value,
-                        test_set_id: testSelect.value,
+                        test_set_id: testSetId,
+                        test_set_version: testSetVersion,
                         sample_count: Number(sampleSelect.value),
                         seed: Number(view.querySelector('[data-evaluation-seed]').value || 0),
                     }),
@@ -201,13 +234,46 @@
         });
     }
 
+    async function importTestSet(view) {
+        if (importing) return;
+        const fileInput = view.querySelector('[data-evaluation-import-file]');
+        const button = view.querySelector('[data-evaluation-import]');
+        const status = view.querySelector('[data-evaluation-import-status]');
+        const file = fileInput?.files?.[0];
+        if (!file) {
+            if (status) status.textContent = 'Choose a JSON file first.';
+            return;
+        }
+        importing = true;
+        if (button) button.disabled = true;
+        if (status) status.textContent = 'Validating and importing locally…';
+        try {
+            const body = new FormData();
+            body.append('file', file);
+            const payload = await fetchJson('/api/v1/evaluation/test-sets/import', {
+                method: 'POST',
+                body,
+            });
+            const testSet = payload?.test_set || {};
+            if (status) status.textContent = `Imported ${testSet.id || 'test set'} v${testSet.version || ''}. Refreshing catalog…`;
+            await boot();
+        } catch (error) {
+            if (status) status.textContent = `Import failed: ${error?.message || 'unknown error'}`;
+        } finally {
+            importing = false;
+            if (button && document.body.contains(button)) button.disabled = false;
+        }
+    }
+
     function syncSampleOptions(testSelect, sampleSelect) {
         if (!testSelect || !sampleSelect) return;
         const option = testSelect.selectedOptions?.[0];
-        const count = Number(option?.dataset?.count || 0);
+        const count = finiteNumber(option?.dataset?.count);
         const values = [];
-        for (let value = 10; value <= count; value += 10) values.push(value);
-        sampleSelect.innerHTML = values.map((value) => `<option value="${value}" ${value === count ? 'selected' : ''}>${value}</option>`).join('');
+        if (count !== null) {
+            for (let value = 10; value <= count; value += 10) values.push(value);
+        }
+        sampleSelect.innerHTML = values.map((value) => `<option value="${value}" ${value === values.at(-1) ? 'selected' : ''}>${value}</option>`).join('');
         sampleSelect.disabled = values.length === 0;
     }
 
@@ -217,11 +283,11 @@
         const results = Array.isArray(report.results) ? report.results : [];
         const succeeded = results.filter((item) => item?.succeeded).length;
         const scores = results.flatMap((item) => Array.isArray(item?.scores) ? item.scores : [])
-            .map((score) => Number(score?.value))
-            .filter((value) => Number.isFinite(value));
+            .map((score) => finiteNumber(score?.value))
+            .filter((value) => value !== null);
         const quality = scores.length ? scores.reduce((sum, value) => sum + value, 0) / scores.length : null;
-        const wallTimes = results.map((item) => Number(item?.metrics?.wall_time_seconds))
-            .filter((value) => Number.isFinite(value) && value >= 0);
+        const wallTimes = results.map((item) => finiteNumber(item?.metrics?.wall_time_seconds))
+            .filter((value) => value !== null && value >= 0);
         const avgWall = wallTimes.length ? wallTimes.reduce((sum, value) => sum + value, 0) / wallTimes.length : null;
         const inputTokens = sumMetric(results, 'prompt_tokens', 'input_tokens');
         const outputTokens = sumMetric(results, 'completion_tokens', 'output_tokens');
@@ -240,11 +306,12 @@
             <div class="evaluation-metrics">
                 ${metricCard('Objective quality', quality === null ? 'Unavailable' : `${(quality * 100).toFixed(1)}%`, `${scores.length} scored checks`)}
                 ${metricCard('Inference success', results.length ? `${succeeded}/${results.length}` : 'Unavailable', 'Completed samples')}
-                ${metricCard('Avg. wall time', avgWall === null ? 'Unavailable' : `${avgWall.toFixed(3)} s`, 'Per sample, client-side report metric')}
+                ${metricCard('Avg. wall time', avgWall === null ? 'Unavailable' : `${avgWall.toFixed(3)} s`, 'Per sample, report metric')}
                 ${metricCard('Token usage', inputTokens === null && outputTokens === null ? 'Unavailable' : `${formatMaybe(inputTokens)} in / ${formatMaybe(outputTokens)} out`, 'Only when backend usage exists')}
             </div>
             <div class="ds-card evaluation-manifest">
                 <div><span>Test set</span><strong>${escapeHtml(manifest.test_set_id || '')} v${escapeHtml(manifest.test_set_version || '')}</strong></div>
+                <div><span>Dataset identity</span><code>${escapeHtml(manifest.test_set_identity || 'Unavailable')}</code></div>
                 <div><span>Model</span><strong>${escapeHtml(manifest.model || '')}</strong></div>
                 <div><span>Seed</span><strong>${escapeHtml(manifest.seed ?? '')}</strong></div>
                 <div><span>Runtime fingerprint</span><code>${escapeHtml(manifest.runtime_fingerprint || 'Unavailable')}</code></div>
@@ -263,14 +330,14 @@
 
     function sampleRow(item) {
         const sampleScores = Array.isArray(item?.scores) ? item.scores : [];
-        const values = sampleScores.map((score) => Number(score?.value)).filter(Number.isFinite);
+        const values = sampleScores.map((score) => finiteNumber(score?.value)).filter((value) => value !== null);
         const score = values.length ? `${(values.reduce((sum, value) => sum + value, 0) / values.length * 100).toFixed(0)}%` : 'Unavailable';
-        const wall = Number(item?.metrics?.wall_time_seconds);
+        const wall = finiteNumber(item?.metrics?.wall_time_seconds);
         return `<tr>
             <td><code>${escapeHtml(item?.sample_id || '')}</code></td>
             <td>${statusBadge(item?.succeeded ? 'Succeeded' : 'Failed', item?.succeeded ? 'ready' : 'error')}</td>
             <td>${escapeHtml(score)}</td>
-            <td>${Number.isFinite(wall) ? `${wall.toFixed(3)} s` : 'Unavailable'}</td>
+            <td>${wall !== null && wall >= 0 ? `${wall.toFixed(3)} s` : 'Unavailable'}</td>
             <td>${escapeHtml(item?.error_code || '—')}</td>
         </tr>`;
     }
@@ -285,8 +352,8 @@
         results.forEach((item) => {
             const metrics = item?.metrics || {};
             for (const key of keys) {
-                const value = Number(metrics[key]);
-                if (Number.isFinite(value) && value >= 0) {
+                const value = finiteNumber(metrics[key]);
+                if (value !== null && value >= 0) {
                     total += value;
                     found = true;
                     break;
@@ -294,6 +361,12 @@
             }
         });
         return found ? total : null;
+    }
+
+    function finiteNumber(value) {
+        if (value === null || value === undefined || value === '') return null;
+        const number = Number(value);
+        return Number.isFinite(number) ? number : null;
     }
 
     function formatMaybe(value) {
