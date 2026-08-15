@@ -114,6 +114,7 @@ def test_control_plane_routes_require_admin_api(tmp_path: Path):
     assert client.get("/api/v1/resources").status_code == 404
     assert client.get("/api/v1/evidence").status_code == 404
     assert client.get("/api/v1/evaluation/test-sets").status_code == 404
+    assert client.get("/api/v1/evaluation/history").status_code == 404
 
 
 def test_resource_and_evidence_routes_are_public_safe_when_admin_enabled(tmp_path: Path):
@@ -161,6 +162,44 @@ def test_evaluation_routes_list_dataset_run_ten_samples_and_persist(tmp_path: Pa
     run_ids = client.get("/api/v1/evaluation/runs")
     assert run_ids.status_code == 200
     assert run_ids.json()["run_ids"] == [payload["report"]["manifest"]["run_id"]]
+
+    history = client.get("/api/v1/evaluation/history")
+    assert history.status_code == 200
+    assert history.json()["runs"][0]["run_id"] == payload["report"]["manifest"]["run_id"]
+    assert history.json()["runs"][0]["runtime_fingerprint"] == "a" * 64
+
+
+def test_evaluation_history_comparison_is_attribution_safe_for_matched_runs(tmp_path: Path):
+    application, _, text_engine, _ = _app(tmp_path, admin=True)
+    client = TestClient(application)
+    first = client.post(
+        "/api/v1/evaluation/runs",
+        json={"model": "text", "sample_count": 10, "seed": 11},
+    )
+    second = client.post(
+        "/api/v1/evaluation/runs",
+        json={"model": "text", "sample_count": 10, "seed": 11},
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert text_engine.calls == 20
+
+    baseline = first.json()["report"]["manifest"]["run_id"]
+    candidate = second.json()["report"]["manifest"]["run_id"]
+    comparison = client.get(
+        "/api/v1/evaluation/history/compare",
+        params={"baseline": baseline, "candidate": candidate},
+    )
+    assert comparison.status_code == 200
+    payload = comparison.json()
+    assert payload["comparable"] is True
+    assert payload["evidence_grade"] is True
+    assert payload["attribution_safe"] is True
+    assert payload["deltas"]["objective_quality_mean"] == 0
+
+    persisted = client.get(f"/api/v1/evaluation/history/{baseline}")
+    assert persisted.status_code == 200
+    assert persisted.json()["manifest"]["run_id"] == baseline
 
 
 def test_evaluation_rejects_non_multiple_sample_count(tmp_path: Path):
