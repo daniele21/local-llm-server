@@ -5,7 +5,7 @@ import json
 import os
 import time
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -19,7 +19,6 @@ from .core.contracts import (
 )
 from .evaluation import (
     EvaluationReport,
-    EvaluationRunManifest,
     EvaluationSampleResult,
     SampleSelection,
     Score,
@@ -28,11 +27,12 @@ from .evaluation import (
 )
 from .evaluation_builtin import DeterministicObjectiveScorer, GENERAL_PURPOSE_V1
 from .evaluation_runner import EvaluationRunner
+from .evaluation_testsets import CustomTestSetStore
 from .runtime_evidence import attached_runtime_identity
 
 
-_BUILTIN_TEST_SETS: dict[str, TestSet] = {
-    GENERAL_PURPOSE_V1.test_set_id: GENERAL_PURPOSE_V1,
+_BUILTIN_TEST_SETS: dict[tuple[str, str], TestSet] = {
+    (GENERAL_PURPOSE_V1.test_set_id, GENERAL_PURPOSE_V1.version): GENERAL_PURPOSE_V1,
 }
 
 
@@ -40,12 +40,15 @@ _BUILTIN_TEST_SETS: dict[str, TestSet] = {
 class EvaluationRunRequest:
     model: str
     test_set_id: str = "general-purpose"
+    test_set_version: str | None = None
     sample_count: int = 20
     seed: int = 0
 
     def __post_init__(self) -> None:
         if not self.model.strip():
             raise ValueError("model must be non-empty")
+        if self.test_set_version is not None and not self.test_set_version.strip():
+            raise ValueError("test_set_version must be non-empty when provided")
         if self.sample_count < 10 or self.sample_count % 10 != 0:
             raise ValueError("sample_count must be a positive multiple of 10")
 
@@ -165,11 +168,26 @@ class EvaluationStore:
 
 
 class EvaluationService:
-    def __init__(self, manager: Any, *, store: EvaluationStore | None = None) -> None:
+    def __init__(
+        self,
+        manager: Any,
+        *,
+        store: EvaluationStore | None = None,
+        test_set_store: CustomTestSetStore | None = None,
+    ) -> None:
         self.manager = manager
         self.store = store
+        self.test_set_store = test_set_store
 
     def list_test_sets(self) -> tuple[dict[str, object], ...]:
+        entries: list[tuple[TestSet, str]] = [
+            (test_set, "built-in") for test_set in _BUILTIN_TEST_SETS.values()
+        ]
+        if self.test_set_store is not None:
+            entries.extend(
+                (test_set, "custom")
+                for test_set in self.test_set_store.list_test_sets()
+            )
         return tuple(
             {
                 "id": test_set.test_set_id,
@@ -177,14 +195,16 @@ class EvaluationService:
                 "identity": test_set.identity,
                 "sample_count": len(test_set.samples),
                 "provenance": dict(test_set.provenance),
+                "source": source,
             }
-            for test_set in sorted(_BUILTIN_TEST_SETS.values(), key=lambda item: item.test_set_id)
+            for test_set, source in sorted(
+                entries,
+                key=lambda item: (item[0].test_set_id, item[0].version, item[1]),
+            )
         )
 
     def run(self, request: EvaluationRunRequest) -> EvaluationRunOutcome:
-        test_set = _BUILTIN_TEST_SETS.get(request.test_set_id)
-        if test_set is None:
-            raise ValueError(f"unknown test set: {request.test_set_id}")
+        test_set = self._resolve_test_set(request.test_set_id, request.test_set_version)
         if request.sample_count > len(test_set.samples):
             raise ValueError(
                 f"sample_count {request.sample_count} exceeds dataset size {len(test_set.samples)}"
@@ -221,6 +241,25 @@ class EvaluationService:
             evidence_grade=fingerprint is not None,
             persisted_path=str(path) if path is not None else None,
         )
+
+    def _resolve_test_set(self, test_set_id: str, version: str | None) -> TestSet:
+        built_matches = [
+            test_set
+            for (current_id, current_version), test_set in _BUILTIN_TEST_SETS.items()
+            if current_id == test_set_id and (version is None or current_version == version)
+        ]
+        if version is None and len(built_matches) == 1:
+            return built_matches[0]
+        if version is not None and built_matches:
+            return built_matches[0]
+
+        if self.test_set_store is not None:
+            custom = self.test_set_store.resolve(test_set_id, version)
+            if custom is not None:
+                return custom
+
+        suffix = f"@{version}" if version else ""
+        raise ValueError(f"unknown test set: {test_set_id}{suffix}")
 
 
 def report_to_dict(report: EvaluationReport) -> dict[str, object]:
