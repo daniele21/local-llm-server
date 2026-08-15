@@ -234,7 +234,7 @@
         }
 
         setButtonVisibility(attach, state.imageSupported);
-        if (imageInput) imageInput.disabled = !state.imageSupported;
+        setSimpleAvailability(imageInput, state.imageSupported);
         if (!state.imageSupported && removeImage) removeImage.click();
         setCheckboxAvailability(json, state.structuredSupported);
         setCheckboxAvailability(thinking, state.thinkingSupported);
@@ -242,18 +242,45 @@
         setComposerAvailability(textarea, send, state.chatSupported);
     }
 
+    function markManaged(control) {
+        if (!control) return;
+        if (control.dataset.capabilityManaged !== 'true') {
+            control.dataset.capabilityManaged = 'true';
+            control.dataset.capabilityOriginalDisabled = control.disabled ? 'true' : 'false';
+            if (control.id === 'attach-image-btn') {
+                control.dataset.capabilityOriginalDisplay = control.style.display || '';
+            }
+            if (control.id === 'chat-textarea') {
+                control.dataset.capabilityOriginalPlaceholder = control.placeholder || '';
+            }
+        }
+    }
+
+    function markGroupManaged(group) {
+        if (!group || group.dataset.capabilityManaged === 'true') return;
+        group.dataset.capabilityManaged = 'true';
+        group.dataset.capabilityOriginalHidden = group.hidden ? 'true' : 'false';
+    }
+
     function setButtonVisibility(button, supported) {
         if (!button) return;
-        button.dataset.capabilityManaged = 'true';
+        markManaged(button);
         button.style.display = supported ? 'inline-flex' : 'none';
         button.disabled = !supported;
     }
 
+    function setSimpleAvailability(control, supported) {
+        if (!control) return;
+        markManaged(control);
+        control.disabled = !supported;
+    }
+
     function setCheckboxAvailability(control, supported) {
         if (!control) return;
-        control.dataset.capabilityManaged = 'true';
+        markManaged(control);
         control.disabled = !supported;
         const group = control.closest('.checkbox-group') || control.parentElement;
+        markGroupManaged(group);
         if (group) group.hidden = !supported;
         if (!supported && control.checked) {
             control.checked = false;
@@ -264,27 +291,33 @@
     function setComposerAvailability(textarea, send, supported) {
         [textarea, send].forEach((control) => {
             if (!control) return;
-            if (!supported) {
-                control.dataset.capabilityDisabled = 'true';
-                control.disabled = true;
-            } else if (control.dataset.capabilityDisabled === 'true') {
-                delete control.dataset.capabilityDisabled;
-                control.disabled = false;
-            }
+            markManaged(control);
+            control.disabled = !supported;
         });
         if (textarea) textarea.placeholder = supported
-            ? 'Scrivi un messaggio…'
+            ? (textarea.dataset.capabilityOriginalPlaceholder || 'Scrivi un messaggio…')
             : 'Il runtime selezionato non espone un task chat compatibile.';
     }
 
     function restoreCapabilityControl(control) {
         if (!control || control.dataset.capabilityManaged !== 'true') return;
-        control.disabled = false;
-        if (control.id === 'attach-image-btn') control.style.display = '';
+        control.disabled = control.dataset.capabilityOriginalDisabled === 'true';
+        if (control.id === 'attach-image-btn') {
+            control.style.display = control.dataset.capabilityOriginalDisplay || '';
+        }
+        if (control.id === 'chat-textarea') {
+            control.placeholder = control.dataset.capabilityOriginalPlaceholder || '';
+        }
         const group = control.closest?.('.checkbox-group') || null;
-        if (group) group.hidden = false;
+        if (group?.dataset.capabilityManaged === 'true') {
+            group.hidden = group.dataset.capabilityOriginalHidden === 'true';
+            delete group.dataset.capabilityManaged;
+            delete group.dataset.capabilityOriginalHidden;
+        }
         delete control.dataset.capabilityManaged;
-        delete control.dataset.capabilityDisabled;
+        delete control.dataset.capabilityOriginalDisabled;
+        delete control.dataset.capabilityOriginalDisplay;
+        delete control.dataset.capabilityOriginalPlaceholder;
     }
 
     function transcriptionMarkup() {
