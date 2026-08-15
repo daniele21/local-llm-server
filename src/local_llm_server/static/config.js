@@ -2,6 +2,17 @@
  * config.js — Frontend Configuration for Local LLM Studio
  */
 
+(function ensureDesignSystemStylesheet() {
+    if (typeof document === 'undefined') return;
+    if (document.querySelector('link[data-local-llm-design-system]')) return;
+
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/static/design-system.css';
+    link.dataset.localLlmDesignSystem = 'true';
+    document.head.appendChild(link);
+})();
+
 const APP_CONFIG = {
     // Basic settings
     theme: {
