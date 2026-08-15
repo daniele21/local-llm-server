@@ -179,7 +179,8 @@ def download_model(model: str) -> None:
 
 
 def list_models() -> list[dict]:
-    """Return the list of models from the merged registry."""
+    """Return the merged registry with source and capability metadata."""
+    from .capability_catalog import capability_catalog_item
     from .model_sources import resolve_registry_model
     from .registry import load_registry
 
@@ -191,6 +192,7 @@ def list_models() -> list[dict]:
             str(key), entry, models_dir,
             backend=str(entry.get("backend") or "llama_cpp"),
         )
+        capability = capability_catalog_item(str(key), entry)
         result.append(
             {
                 "key": key,
@@ -200,6 +202,8 @@ def list_models() -> list[dict]:
                 "backend": entry.get("backend", "llama_cpp"),
                 "multimodal": bool(entry.get("multimodal", False)),
                 "modalities": entry.get("modalities", []),
+                "capabilities": capability["capabilities"],
+                "capability_source": capability["capability_source"],
                 "downloaded": resolved.downloaded,
                 "path": resolved.model_path,
                 "source": resolved.source_type,
