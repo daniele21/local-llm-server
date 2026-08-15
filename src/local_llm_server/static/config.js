@@ -9,6 +9,7 @@
         ['data-local-llm-design-system', '/static/design-system.css'],
         ['data-local-llm-control-plane-shell', '/static/control-plane-shell.css'],
         ['data-local-llm-control-plane-capabilities', '/static/control-plane-capabilities.css'],
+        ['data-local-llm-control-plane-system', '/static/control-plane-system.css'],
         ['data-local-llm-control-plane-evaluation', '/static/control-plane-evaluation.css'],
         ['data-local-llm-control-plane-evaluation-history', '/static/control-plane-evaluation-history.css'],
     ];
@@ -26,6 +27,7 @@
         ['localLlmControlPlaneLive', '/static/control-plane-live.js'],
         ['localLlmControlPlaneModels', '/static/control-plane-models.js'],
         ['localLlmControlPlaneCapabilities', '/static/control-plane-capabilities.js'],
+        ['localLlmControlPlaneSystem', '/static/control-plane-system.js'],
         ['localLlmControlPlaneEvaluation', '/static/control-plane-evaluation.js'],
         ['localLlmControlPlaneEvaluationHistory', '/static/control-plane-evaluation-history.js'],
     ];
