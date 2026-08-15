@@ -9,6 +9,9 @@ from enum import Enum
 from collections.abc import Iterator
 from typing import Any
 
+from .resource_manager import AdmissionDecision, AdmissionResult, ResourceManager
+from .runtime_admission import admission_metadata, estimated_runtime_load_bytes
+
 
 def _close_engine(engine: Any) -> None:
     close = getattr(engine, "close", None) or getattr(engine, "shutdown", None)
@@ -63,6 +66,14 @@ class RuntimeState(str, Enum):
     FAILED = "failed"
 
 
+class ResourceAdmissionError(RuntimeError):
+    """Raised before/after load when configured resource admission rejects it."""
+
+    def __init__(self, result: AdmissionResult) -> None:
+        self.result = result
+        super().__init__(result.reason)
+
+
 @dataclass
 class ModelRuntime:
     key: str
@@ -74,6 +85,7 @@ class ModelRuntime:
     loaded_at: float = field(default_factory=time.time)
     state: RuntimeState = RuntimeState.READY
     active_requests: int = 0
+    resource_reservation_id: str | None = None
 
     def __post_init__(self) -> None:
         concurrency = max(1, int(self.cfg.get("max_concurrent_requests") or 1))
@@ -99,6 +111,10 @@ class ModelRuntime:
         result["active_requests"] = self.active_requests
         result["max_concurrent_requests"] = int(
             self.cfg.get("max_concurrent_requests") or 1
+        )
+        resource_admission = self.cfg.get("resource_admission")
+        result["resource_admission"] = (
+            dict(resource_admission) if isinstance(resource_admission, dict) else None
         )
         return result
 
@@ -149,14 +165,25 @@ class ModelRuntimeManager:
         "mlx_vlm_server": "mlx_vlm_server_port",
     }
 
-    def __init__(self, default_model: str | None = None) -> None:
+    def __init__(
+        self,
+        default_model: str | None = None,
+        *,
+        resource_manager: ResourceManager | None = None,
+    ) -> None:
         self._runtimes: dict[str, ModelRuntime] = {}
         self._aliases: dict[str, str] = {}
         self._loading: set[str] = set()
         self._reserved_ports: set[int] = set()
         self._manager_lock = threading.RLock()
         self._condition = threading.Condition(self._manager_lock)
+        self._resource_manager = resource_manager
+        self._reservation_counter = 0
         self.default_model = default_model
+
+    @property
+    def resource_manager(self) -> ResourceManager | None:
+        return self._resource_manager
 
     def add(self, cfg: dict[str, Any], engine: Any, *, key: str | None = None) -> ModelRuntime:
         runtime_key = str(key or cfg["model"])
@@ -200,13 +227,26 @@ class ModelRuntimeManager:
                 self._reserved_ports.add(reserved_port)
             self._loading.add(model)
 
+        reservation_id: str | None = None
+        engine = None
         try:
+            reservation_id = self._reserve_runtime_load(model, cfg)
             engine = load_llm(cfg)
+            self._commit_runtime_load(reservation_id, cfg)
             try:
-                return self.add(cfg, engine, key=model), True
+                runtime = self.add(cfg, engine, key=model)
             except Exception:
                 _close_engine(engine)
+                engine = None
+                self._rollback_runtime_load(reservation_id)
                 raise
+            runtime.resource_reservation_id = reservation_id
+            return runtime, True
+        except Exception:
+            if engine is not None:
+                _close_engine(engine)
+            self._rollback_runtime_load(reservation_id)
+            raise
         finally:
             with self._manager_lock:
                 self._loading.discard(model)
@@ -264,13 +304,22 @@ class ModelRuntimeManager:
             if current.active_requests:
                 raise RuntimeError(f"Model '{current.key}' has an active request.")
             current.state = RuntimeState.DRAINING
+
         new_engine = None
+        reservation_id: str | None = None
         try:
             cfg = build_config(model=current.key, **explicit)
             with self._manager_lock:
                 self._assign_private_port(cfg)
+            reservation_id = self._reserve_runtime_load(current.key, cfg)
             new_engine = load_llm(cfg)
-            replacement = ModelRuntime(current.key, cfg, new_engine)
+            self._commit_runtime_load(reservation_id, cfg)
+            replacement = ModelRuntime(
+                current.key,
+                cfg,
+                new_engine,
+                resource_reservation_id=reservation_id,
+            )
             with self._manager_lock:
                 if self._runtimes.get(current.key) is not current:
                     raise RuntimeError(f"Model '{current.key}' changed while reloading.")
@@ -287,11 +336,13 @@ class ModelRuntimeManager:
                 self._aliases[current.key] = current.key
                 self._aliases[replacement.model_id] = current.key
             _close_engine(current.engine)
+            self._release_runtime_load(current.resource_reservation_id)
             current.state = RuntimeState.STOPPED
             return replacement
         except Exception:
             if new_engine is not None:
                 _close_engine(new_engine)
+            self._rollback_runtime_load(reservation_id)
             with self._manager_lock:
                 if self._runtimes.get(current.key) is current:
                     current.state = RuntimeState.READY
@@ -320,6 +371,7 @@ class ModelRuntimeManager:
             if self.default_model == runtime.key:
                 self.default_model = next(iter(self._runtimes), None)
         _close_engine(runtime.engine)
+        self._release_runtime_load(runtime.resource_reservation_id)
         runtime.state = RuntimeState.STOPPED
         return runtime
 
@@ -335,7 +387,52 @@ class ModelRuntimeManager:
                 self._condition.wait()
         for runtime in runtimes:
             _close_engine(runtime.engine)
+            self._release_runtime_load(runtime.resource_reservation_id)
             runtime.state = RuntimeState.STOPPED
+
+    def _reserve_runtime_load(self, runtime_key: str, cfg: dict[str, Any]) -> str | None:
+        estimate = estimated_runtime_load_bytes(cfg)
+        manager = self._resource_manager
+        if manager is None or estimate is None:
+            cfg["resource_admission"] = admission_metadata(None, estimate_bytes=estimate)
+            return None
+
+        reservation_id = self._next_reservation_id(runtime_key)
+        result = manager.reserve(reservation_id, estimate)
+        cfg["resource_admission"] = admission_metadata(result, estimate_bytes=estimate)
+        if result.decision is AdmissionDecision.REJECT:
+            raise ResourceAdmissionError(result)
+        if result.decision is AdmissionDecision.UNKNOWN:
+            # ResourceManager intentionally does not create a reservation when
+            # there is no enforceable configured budget.
+            return None
+        return reservation_id
+
+    def _commit_runtime_load(self, reservation_id: str | None, cfg: dict[str, Any]) -> None:
+        manager = self._resource_manager
+        if reservation_id is None or manager is None:
+            return
+        result = manager.commit(reservation_id)
+        cfg["resource_admission"] = admission_metadata(
+            result,
+            estimate_bytes=estimated_runtime_load_bytes(cfg),
+        )
+        if result.decision is AdmissionDecision.REJECT:
+            manager.rollback(reservation_id)
+            raise ResourceAdmissionError(result)
+
+    def _rollback_runtime_load(self, reservation_id: str | None) -> None:
+        if reservation_id is not None and self._resource_manager is not None:
+            self._resource_manager.rollback(reservation_id)
+
+    def _release_runtime_load(self, reservation_id: str | None) -> None:
+        if reservation_id is not None and self._resource_manager is not None:
+            self._resource_manager.release(reservation_id)
+
+    def _next_reservation_id(self, runtime_key: str) -> str:
+        with self._manager_lock:
+            self._reservation_counter += 1
+            return f"runtime:{runtime_key}:{self._reservation_counter}"
 
     def _assign_private_port(self, cfg: dict[str, Any]) -> None:
         field_name = self._PORT_FIELDS.get(str(cfg.get("backend")))

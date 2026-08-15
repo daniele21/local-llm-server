@@ -159,6 +159,11 @@ def build_config(
     cfg["mmproj_filename"] = entry.get("mmproj_filename")
     cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")
+    # Resource metadata remains explicitly an estimate until reconciled with a
+    # measured runtime footprint. Keep it in the resolved config so B2 can make
+    # a pre-load admission decision without reopening the registry.
+    cfg["size_gb"] = entry.get("size_gb")
+    cfg["resource_estimate_bytes"] = explicit.get("resource_estimate_bytes")
 
     # MLX currently reads tokenizer_config directly. Supplying it here makes
     # the trust decision explicit and fail-closed instead of relying on the
