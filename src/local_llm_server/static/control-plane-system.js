@@ -38,28 +38,30 @@
                 fetchJson('/api/v1/scheduler'),
                 fetchJson('/api/v1/evidence'),
             ]);
-
             renderSettings(
                 settingsSurface(),
-                policyResult.status === 'fulfilled' ? policyResult.value : null,
-                resourceResult.status === 'fulfilled' ? resourceResult.value : null,
-                residencyResult.status === 'fulfilled' ? residencyResult.value : null,
-                schedulerResult.status === 'fulfilled' ? schedulerResult.value : null,
+                fulfilled(policyResult),
+                fulfilled(resourceResult),
+                fulfilled(residencyResult),
+                fulfilled(schedulerResult),
             );
             renderDiagnostics(
                 ensureDiagnosticsSurface(),
-                resourceResult.status === 'fulfilled' ? resourceResult.value : null,
-                schedulerResult.status === 'fulfilled' ? schedulerResult.value : null,
-                evidenceResult.status === 'fulfilled' ? evidenceResult.value : null,
+                fulfilled(resourceResult),
+                fulfilled(schedulerResult),
+                fulfilled(evidenceResult),
             );
         } finally {
             refreshing = false;
         }
     }
 
+    function fulfilled(result) {
+        return result.status === 'fulfilled' ? result.value : null;
+    }
+
     function renderSettings(host, policy, resources, residency, scheduler) {
         if (!host) return;
-        const policyAvailable = Boolean(policy);
         const runtimePolicies = Array.isArray(policy?.runtimes) ? policy.runtimes : [];
         const schedulerEnabled = scheduler?.policy?.enabled === true;
         const residencyRuntimes = Array.isArray(residency?.runtimes) ? residency.runtimes : [];
@@ -72,7 +74,7 @@
                     <h2>Settings</h2>
                     <p>Effective local policy state. This view is read-only: it does not invent configuration mutations that the server does not own yet.</p>
                 </div>
-                ${statusBadge(policyAvailable ? 'Policy evidence connected' : 'Policy evidence unavailable', policyAvailable ? 'ready' : 'unavailable')}
+                ${statusBadge(policy ? 'Policy evidence connected' : 'Policy evidence unavailable', policy ? 'ready' : 'unavailable')}
             </div>
             <div class="control-plane-grid control-plane-grid--two system-policy-grid">
                 <article class="ds-card control-plane-card">
@@ -80,7 +82,7 @@
                         <h3>Request privacy</h3>
                         ${statusBadge(policy?.canonical_request_policy_installed === true ? 'Enforced' : 'Unavailable', policy?.canonical_request_policy_installed === true ? 'ready' : 'unavailable')}
                     </div>
-                    ${policyAvailable ? `
+                    ${policy ? `
                         <dl class="system-definition-list">
                             <div><dt>Remote media default</dt><dd>${escapeHtml(policy.remote_media_default || 'Unavailable')}</dd></div>
                             <div><dt>Remote model code default</dt><dd>${policy.trust_remote_code_default === false ? 'Blocked' : 'Unavailable'}</dd></div>
@@ -114,7 +116,7 @@
                             <div><dt>Cold</dt><dd>${residency.cold === true ? 'Yes' : 'No'}</dd></div>
                             <div><dt>Default route</dt><dd>${escapeHtml(residency.resident_default_model || 'Unavailable')}</dd></div>
                         </dl>
-                        <p class="system-policy-note">Pinning and explicit LRU/TTL selection are admission/residency policy only. They do not prove host-memory reclamation.</p>
+                        <p class="system-policy-note">Pinning and explicit LRU/TTL selection are residency policy only. They do not prove host-memory reclamation.</p>
                     ` : unavailable('Residency policy source did not respond.')}
                 </article>
                 <article class="ds-card control-plane-card">
@@ -131,10 +133,11 @@
         if (!host) return;
         const runtimes = Array.isArray(evidence?.runtimes) ? evidence.runtimes : [];
         const schedulerRuntimes = Array.isArray(scheduler?.runtimes) ? scheduler.runtimes : [];
-        const verified = runtimes.filter((item) => Boolean(item?.identity?.fingerprint)).length;
-        const active = runtimes.reduce((sum, item) => sum + safeNumber(item?.runtime?.active_requests), 0);
-        const queued = schedulerRuntimes.reduce((sum, item) => sum + safeNumber(item?.queued), 0);
-        const inflight = schedulerRuntimes.reduce((sum, item) => sum + safeNumber(item?.inflight), 0);
+        const verified = evidence ? runtimes.filter((item) => Boolean(item?.identity?.fingerprint)).length : null;
+        const active = evidence ? sumComplete(runtimes, (item) => item?.runtime?.active_requests) : null;
+        const schedulerEnabled = scheduler?.policy?.enabled === true;
+        const queued = schedulerEnabled ? sumComplete(schedulerRuntimes, (item) => item?.queued) : null;
+        const inflight = schedulerEnabled ? sumComplete(schedulerRuntimes, (item) => item?.inflight) : null;
 
         host.innerHTML = `
             <div class="control-plane-header">
@@ -145,9 +148,9 @@
                 ${statusBadge(evidence ? (evidence.cold === true ? 'Cold / healthy' : 'Runtime evidence connected') : 'Evidence unavailable', evidence ? 'ready' : 'unavailable')}
             </div>
             <div class="control-plane-grid system-diagnostics-grid">
-                ${diagnosticCard('Resident runtimes', evidence ? String(evidence.runtime_count ?? runtimes.length) : 'Unavailable', evidence ? `${active} active request${active === 1 ? '' : 's'}` : 'Runtime evidence source unavailable')}
+                ${diagnosticCard('Resident runtimes', evidence ? formatMaybeNumber(evidence.runtime_count ?? runtimes.length) : 'Unavailable', evidence ? `${formatMaybeNumber(active)} active request(s)` : 'Runtime evidence source unavailable')}
                 ${diagnosticCard('Verified identity', evidence ? `${verified}/${runtimes.length}` : 'Unavailable', 'Exact runtime fingerprints currently attached')}
-                ${diagnosticCard('Scheduler', scheduler ? `${inflight} inflight / ${queued} queued` : 'Unavailable', scheduler?.policy?.enabled === true ? 'Bounded admission enabled' : (scheduler ? 'Admission queue disabled' : 'Scheduler source unavailable'))}
+                ${diagnosticCard('Scheduler', scheduler ? (schedulerEnabled ? `${formatMaybeNumber(inflight)} inflight / ${formatMaybeNumber(queued)} queued` : 'Disabled') : 'Unavailable', schedulerEnabled ? 'Bounded admission enabled' : (scheduler ? 'Admission queue disabled' : 'Scheduler source unavailable'))}
                 ${diagnosticCard('Resource remaining', resources ? formatBytes(resources.remaining_bytes) : 'Unavailable', resources?.enabled === true ? 'Configured AI memory budget' : (resources ? 'Resource budget disabled' : 'Resource source unavailable'))}
             </div>
             <div class="system-runtime-evidence">
@@ -184,6 +187,8 @@
     function runtimeEvidenceRow(item) {
         const runtime = item?.runtime || {};
         const metrics = item?.metrics || {};
+        const durations = metrics?.durations_ms || {};
+        const throughput = metrics?.throughput || {};
         const fingerprint = item?.identity?.fingerprint || null;
         return `
             <article class="ds-card system-runtime-row">
@@ -192,9 +197,9 @@
                     <small>${escapeHtml(runtime.backend || 'Backend unavailable')} · ${escapeHtml(runtime.state || 'state unavailable')}</small>
                 </div>
                 <div><span>Fingerprint</span><code>${fingerprint ? escapeHtml(shortFingerprint(fingerprint)) : 'Unavailable'}</code></div>
-                <div><span>Queue wait</span><strong>${formatMetricMs(metrics.queue_wait_seconds)}</strong></div>
-                <div><span>TTFT</span><strong>${formatMetricMs(metrics.time_to_first_token_seconds)}</strong></div>
-                <div><span>Decode rate</span><strong>${formatRate(metrics.output_tokens_per_second)}</strong></div>
+                <div><span>Queue wait</span><strong>${formatMaybeMs(durations.queue_wait)}</strong></div>
+                <div><span>TTFT</span><strong>${formatMaybeMs(durations.ttft)}</strong></div>
+                <div><span>Decode rate</span><strong>${formatRate(throughput.decode_tokens_per_second)}</strong></div>
             </article>`;
     }
 
@@ -210,16 +215,20 @@
         return `<span class="ds-status" data-status="${escapeHtml(status)}">${escapeHtml(label)}</span>`;
     }
 
-    function safeNumber(value) {
-        if (value === null || value === undefined || value === '') return 0;
-        const number = Number(value);
-        return Number.isFinite(number) ? number : 0;
-    }
-
     function nullableNumber(value) {
         if (value === null || value === undefined || value === '') return null;
         const number = Number(value);
         return Number.isFinite(number) ? number : null;
+    }
+
+    function sumComplete(items, getValue) {
+        let total = 0;
+        for (const item of items) {
+            const value = nullableNumber(getValue(item));
+            if (value === null) return null;
+            total += value;
+        }
+        return total;
     }
 
     function formatBytes(value) {
@@ -243,12 +252,7 @@
 
     function formatMaybeMs(value) {
         const number = nullableNumber(value);
-        return number === null ? 'Unavailable' : `${number} ms`;
-    }
-
-    function formatMetricMs(seconds) {
-        const number = nullableNumber(seconds);
-        return number === null ? 'Unavailable' : `${(number * 1000).toFixed(1)} ms`;
+        return number === null ? 'Unavailable' : `${number.toFixed(number >= 10 ? 1 : 2)} ms`;
     }
 
     function formatRate(value) {
