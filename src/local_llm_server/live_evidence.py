@@ -6,10 +6,11 @@ from typing import Any
 from .metrics import InferenceMetrics
 from .metrics_adapters import metrics_from_runtime_status
 from .runtime_evidence import attached_runtime_identity
+from .transcription_metrics import latest_transcription_metrics
 
 
 def record_runtime_metrics(runtime: Any, metrics: InferenceMetrics) -> InferenceMetrics:
-    """Attach the latest canonical metrics only when a producer measured them."""
+    """Attach the latest canonical generation metrics when a producer measured them."""
     runtime.latest_inference_metrics = metrics
     return metrics
 
@@ -26,7 +27,12 @@ def runtime_evidence_payload(runtime: Any) -> dict[str, object]:
     status = runtime.snapshot_status()
     identity = attached_runtime_identity(runtime)
     metrics = latest_runtime_metrics(runtime)
+    transcription = latest_transcription_metrics(runtime)
     resource_admission = status.get("resource_admission")
+
+    task_metrics: dict[str, object] = {}
+    if transcription is not None:
+        task_metrics["transcription"] = transcription.to_public_dict()
 
     return {
         "runtime": {
@@ -42,6 +48,7 @@ def runtime_evidence_payload(runtime: Any) -> dict[str, object]:
             dict(resource_admission) if isinstance(resource_admission, dict) else None
         ),
         "metrics": metrics.to_public_dict(),
+        "task_metrics": task_metrics,
         "identity": identity.to_public_dict() if identity is not None else None,
     }
 
