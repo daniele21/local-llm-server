@@ -17,7 +17,6 @@ from typing import Any
 from .model_sources import resolve_registry_model
 from .registry import load_registry
 
-# ── Hardcoded fallbacks ────────────────────────────────────────────────────────
 _FALLBACKS: dict[str, Any] = {
     "host": "127.0.0.1",
     "port": 1235,
@@ -56,7 +55,6 @@ _FALLBACKS: dict[str, Any] = {
     "allow_remote_media": False,
 }
 
-# ── Env-var names ──────────────────────────────────────────────────────────────
 _ENV_MAP: dict[str, str] = {
     "host": "LOCAL_LLM_HOST",
     "port": "LOCAL_LLM_PORT",
@@ -159,15 +157,19 @@ def build_config(
     cfg["mmproj_filename"] = entry.get("mmproj_filename")
     cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")
-    # Resource metadata remains explicitly an estimate until reconciled with a
-    # measured runtime footprint. Keep it in the resolved config so B2 can make
-    # a pre-load admission decision without reopening the registry.
     cfg["size_gb"] = entry.get("size_gb")
     cfg["resource_estimate_bytes"] = explicit.get("resource_estimate_bytes")
+    # Immutable identity metadata is optional. Absence means the runtime can
+    # still execute, but automatic evidence-grade identity is intentionally not
+    # claimed. Explicit kwargs allow controlled direct-path deployments to pin
+    # an artifact without adding private paths to public identity.
+    cfg["artifact_sha256"] = explicit.get("artifact_sha256") or entry.get("sha256")
+    cfg["artifact_revision"] = (
+        explicit.get("artifact_revision")
+        or entry.get("revision")
+        or entry.get("hf_revision")
+    )
 
-    # MLX currently reads tokenizer_config directly. Supplying it here makes
-    # the trust decision explicit and fail-closed instead of relying on the
-    # backend's historical trust_remote_code=True fallback.
     cfg["tokenizer_config"] = {
         "trust_remote_code": bool(cfg.get("trust_remote_code", False))
     }
@@ -209,5 +211,10 @@ def build_config(
         cfg["multimodal"] = bool(entry["multimodal"])
     if "modalities" in entry and "modalities" not in explicit:
         cfg["modalities"] = list(entry.get("modalities") or [])
+    for capability_key in (
+        "tasks", "input_modalities", "output_modalities", "features"
+    ):
+        if capability_key in entry and capability_key not in explicit:
+            cfg[capability_key] = list(entry.get(capability_key) or [])
 
     return cfg
