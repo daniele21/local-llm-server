@@ -53,6 +53,78 @@ def test_duplicate_sample_ids_are_rejected():
         TestSet("duplicate", "1", (sample, sample))
 
 
+def test_test_set_identity_changes_when_sample_content_changes():
+    base = TestSet(
+        "custom",
+        "1",
+        (
+            EvaluationSample(
+                "same-id",
+                TaskType.CHAT,
+                {"input": "original prompt"},
+                {"exact": "A"},
+                ("tag",),
+            ),
+        ),
+        {"source": "upload"},
+    )
+    changed_payload = TestSet(
+        "custom",
+        "1",
+        (
+            EvaluationSample(
+                "same-id",
+                TaskType.CHAT,
+                {"input": "changed prompt"},
+                {"exact": "A"},
+                ("tag",),
+            ),
+        ),
+        {"source": "upload"},
+    )
+    changed_expected = TestSet(
+        "custom",
+        "1",
+        (
+            EvaluationSample(
+                "same-id",
+                TaskType.CHAT,
+                {"input": "original prompt"},
+                {"exact": "B"},
+                ("tag",),
+            ),
+        ),
+        {"source": "upload"},
+    )
+    changed_task = TestSet(
+        "custom",
+        "1",
+        (
+            EvaluationSample(
+                "same-id",
+                TaskType.STRUCTURED_GENERATION,
+                {"input": "original prompt"},
+                {"exact": "A"},
+                ("tag",),
+            ),
+        ),
+        {"source": "upload"},
+    )
+
+    assert base.identity != changed_payload.identity
+    assert base.identity != changed_expected.identity
+    assert base.identity != changed_task.identity
+
+
+def test_test_set_identity_is_independent_of_sample_tuple_order():
+    first = EvaluationSample("a", TaskType.CHAT, {"input": "A"}, {"exact": "A"})
+    second = EvaluationSample("b", TaskType.CHAT, {"input": "B"}, {"exact": "B"})
+    left = TestSet("ordered", "1", (first, second), {"source": "test"})
+    right = TestSet("ordered", "1", (second, first), {"source": "test"})
+
+    assert left.identity == right.identity
+
+
 def test_manifest_records_exact_test_set_selection_identity():
     test_set = _test_set()
     manifest = build_run_manifest(
