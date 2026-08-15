@@ -9,6 +9,7 @@
         ['data-local-llm-design-system', '/static/design-system.css'],
         ['data-local-llm-control-plane-shell', '/static/control-plane-shell.css'],
         ['data-local-llm-control-plane-evaluation', '/static/control-plane-evaluation.css'],
+        ['data-local-llm-control-plane-evaluation-history', '/static/control-plane-evaluation-history.css'],
     ];
     stylesheets.forEach(([marker, href]) => {
         if (document.querySelector(`link[${marker}]`)) return;
@@ -24,6 +25,7 @@
         ['localLlmControlPlaneLive', '/static/control-plane-live.js'],
         ['localLlmControlPlaneModels', '/static/control-plane-models.js'],
         ['localLlmControlPlaneEvaluation', '/static/control-plane-evaluation.js'],
+        ['localLlmControlPlaneEvaluationHistory', '/static/control-plane-evaluation-history.js'],
     ];
     scripts.forEach(([marker, src]) => {
         if (document.querySelector(`script[data-${marker.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`)) return;
