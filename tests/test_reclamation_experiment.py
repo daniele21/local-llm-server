@@ -122,7 +122,7 @@ def test_repeated_experiment_reports_observation_counts_not_verdicts():
         _snapshot(available=1_500, rss=100, clock=5),
         _snapshot(available=1_100, rss=400, clock=6),
         _snapshot(available=1_000, rss=500, clock=7),
-        _snapshot(available=1_050, rss=410, clock=8),
+        _snapshot(available=1_050, rss=510, clock=8),
     ])
 
     report = run_reclamation_experiment(
