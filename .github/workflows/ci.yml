@@ -4,7 +4,6 @@ on:
   push:
     branches: ["main", "master"]
   pull_request:
-    branches: ["main", "master"]
 
 jobs:
   lint:
@@ -16,12 +15,14 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install ruff
-      - run: ruff check src/
+      - name: Run Ruff
+        run: ruff check src/ tests/
 
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
@@ -29,11 +30,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install package with dev dependencies
-        # llama-cpp-python has a heavy native build; skip it in CI
-        # by installing everything else and mocking it out in tests.
+      - name: Install package with test dependencies
+        # llama-cpp-python has a heavy native build; install the package without
+        # transitive runtime dependencies and provide only deterministic test deps.
         run: |
-          pip install ".[dev]" --no-deps
-          pip install pyyaml pytest httpx ruff
-      - name: Run tests
-        run: pytest tests/ -v --tb=short || true   # tolerate empty test suite for now
+          python -m pip install --upgrade pip
+          pip install -e . --no-deps
+          pip install pyyaml fastapi uvicorn pytest httpx ruff
+      - name: Run deterministic unit tests
+        run: pytest tests/ -v --tb=short
