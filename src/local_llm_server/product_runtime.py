@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
 
+from .product_runtime_manager import ProductRuntimeManager
 from .resource_policy import (
     ResourcePolicySettings,
     build_resource_manager,
@@ -13,7 +14,7 @@ from .runtime import ModelRuntimeManager
 
 @dataclass(frozen=True, slots=True)
 class ProductRuntimeBootstrap:
-    manager: ModelRuntimeManager
+    manager: ProductRuntimeManager
     cfg: dict[str, Any]
     engine: Any
     resource_policy: ResourcePolicySettings
@@ -52,7 +53,7 @@ def bootstrap_product_runtimes(
     else:
         startup_models = [selected_default]
 
-    manager = ModelRuntimeManager(
+    manager = ProductRuntimeManager(
         default_model=selected_default,
         resource_manager=resource_manager,
     )
