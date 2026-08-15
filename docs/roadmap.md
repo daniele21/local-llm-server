@@ -19,11 +19,11 @@ Evolve Local LLM Server into a **resource-aware, observable local AI control pla
 | --- | --- | --- |
 | M0 documentation governance | DONE | keep plan synchronized |
 | M1 trustworthy foundation | PARTIAL | retire legacy direct-app/parser boundary + final UX evidence |
-| M2 resource-aware runtime | PARTIAL | worker adoption, pin/LRU/TTL and representative reclamation evidence |
-| M3 multi-task control plane | PARTIAL | capability-driven UX + wider specialist runtime evidence |
+| M2 resource-aware runtime | PARTIAL | broader worker adoption + real pressure/reclamation evidence |
+| M3 multi-task control plane | PARTIAL | broader specialist runtime evidence |
 | M4 evidence-grade observability | PARTIAL | wider backend metric/identity coverage + representative device evidence |
-| M5 control-plane UX | PARTIAL | Playground/Endpoints/Diagnostics migration + accessibility/visual regression |
-| M6 evaluation harness | PARTIAL | custom-dataset UI + richer workload/cold-warm orchestration |
+| M5 control-plane UX | PARTIAL | accessibility, visual regression and legacy-internal cleanup |
+| M6 evaluation harness | PARTIAL | richer workload families + cold/warm orchestration |
 | M7 product-grade candidate | BLOCKED | hardware matrix, hardening and integration-to-main release gate |
 
 ## Integrated waves
@@ -39,7 +39,7 @@ Integrated:
 - capability descriptors/catalog exposure;
 - truthful metric adapters and runtime identity contracts;
 - deterministic built-in evaluation runner;
-- source-backed control-plane shell and Models & Runtimes view.
+- source-backed control-plane shell and Models & Runtimes foundation.
 
 ### Wave 5 — product exposure
 
@@ -50,7 +50,7 @@ Integrated:
 - first-class `/v1/audio/transcriptions` with explicit ASR capability;
 - zero-resident/cold product state;
 - verified runtime identity auto-capture;
-- source-backed Overview with resources, metrics and fingerprint evidence;
+- source-backed Overview;
 - real Benchmark & Evaluation setup/run/results UI.
 
 ### Wave 6 — observability, scheduling and regression loop
@@ -65,7 +65,7 @@ Integrated:
 
 ### Wave 7 — custom evaluation datasets
 
-Integrated backend boundary:
+Integrated:
 
 - content-sensitive test-set identity;
 - validated `schema_version=1` JSON parser and atomic local custom test-set store;
@@ -75,95 +75,102 @@ Integrated backend boundary:
 - admin-only import endpoint and catalog integration;
 - custom sets execute through the same resident evaluation service.
 
-Remaining Wave 7 UI boundary: upload/catalog/version selection in the Benchmark & Evaluation screen.
+### Wave 8 — evaluation UX, capability UX and residency policy
 
-## Immediate parallel wave 8
+Integrated:
 
-### E6b — Custom test-set UI
+- custom JSON test-set upload, source labeling, catalog refresh and explicit version propagation in Evaluation;
+- capability-driven Endpoints and Playground derived from public server-owned descriptors;
+- first-class transcription mini-playground over the real multipart endpoint;
+- conservative capability-source fallback that restores legacy controls instead of leaving stale disabled state;
+- explicit runtime pin/unpin policy and `/api/v1/residency` evidence;
+- deterministic LRU/TTL candidate ranking with current resident default protected by default;
+- explicit eviction preview/execution APIs with no automatic pressure trigger and no reclamation claim;
+- repeated reclamation lifecycle experiment harness over before/ready/peak/after-stop checkpoints;
+- Models & Runtimes now consumes resource, runtime-identity and residency-policy sources and exposes pin/unpin controls.
+
+### Wave 9 — Settings and Diagnostics source completion
+
+Integrated:
+
+- bounded read-only `/api/v1/policies` evidence source;
+- effective remote-media/remote-code flags per resident runtime without paths/content/secrets;
+- Settings consumes request privacy, resource, residency and scheduler policy sources;
+- System / Diagnostics consumes runtime identity, canonical metrics, scheduler and resource evidence while preserving existing live logs;
+- shell fallbacks no longer contain obsolete milestone blocker text.
+
+## Immediate parallel wave 10 — evidence and hardening
+
+### B3e — Worker adoption and real reclamation evidence
 Status: `READY`
-Dependencies: integrated custom dataset import/catalog API
-Ownership: evaluation control-plane UI only
+Dependencies: worker transport + repeated reclamation harness
+Ownership: backend process boundary + evidence
 
-- JSON file picker and explicit import action;
-- clear built-in vs custom source label;
-- refresh catalog after successful import;
-- preserve `id + version + identity` semantics;
-- include `test_set_version` in run request;
-- duplicate conflict shown explicitly; no silent replace;
-- no client-side execution/scoring interpretation.
+- select runtimes where process ownership materially improves cleanup/failure isolation;
+- bind lifecycle callbacks to real start/ready/infer/stop operations;
+- run repeated cycles on representative macOS/Linux hardware;
+- capture OS/device/artifact/backend/config identity with raw evidence;
+- preserve `inconclusive` when observations cannot support a claim.
 
-### E5b — Capability-driven Playground and Endpoints
-Status: `READY`
-Dependencies: public capability descriptors + pre-backend enforcement + transcription API
-Ownership: frontend composition; runtime truth remains server-owned
+### B6c — Pressure-policy validation
+Status: `READY`, automatic trigger remains disabled
+Dependencies: B6 pinning + LRU/TTL selection + scheduler leases + ResourceManager pressure state
+Ownership: residency policy, not memory-proof semantics
 
-- derive task availability from public capability metadata;
-- text/image/audio controls only when supported;
-- transcription presented as its own task rather than generic chat;
-- endpoint compatibility view per resident/configured runtime;
-- explicit unsupported/unavailable states;
-- preserve legacy working chat path during migration.
-
-### B6a — Residency policy metadata and pinning
-Status: `READY`
-Dependencies: ResourceManager + zero-resident + scheduler leases
-Ownership: runtime residency policy
-
-- explicit pinned/evictable state;
-- pinned runtimes excluded from automatic eviction;
-- state visible through admin/runtime evidence;
-- no automatic memory-reclamation claim.
-
-### B6b — Lease-safe LRU/TTL eviction
-Status: `BLOCKED` on B6a and evidence review
-Dependencies: B6a + scheduler/runtime leases + resource pressure semantics
-
-- deterministic candidate ranking;
-- never evict an active leased runtime;
-- observable eviction reason;
-- pressure-triggered policy remains bounded;
-- hardware evidence required before production-grade claim.
-
-### B3d/H3 — Worker integration and reclamation evidence
-Status: `READY` in controlled backend slices
-Dependencies: existing worker transport + reclamation recorder
-Ownership: backend process boundary + hardware evidence
-
-- route selected dynamic runtimes through worker ownership where isolation materially improves cleanup/failure containment;
-- capture before-start/after-ready/peak/after-stop resource snapshots;
-- repeat load/infer/unload cycles;
-- preserve `inconclusive` when observations cannot support a reclamation claim;
-- record OS/device/backend/artifact/config identity with every evidence run.
+- define deterministic pressure transition and candidate-selection rules;
+- never target active or pinned runtimes;
+- keep resident-default protection explicit;
+- record eviction reason and failed/skipped attempts;
+- enable automatic pressure-triggered behavior only after representative evidence review.
 
 ### D2e/D3e — Backend evidence coverage
 Status: `READY`
-Dependencies: canonical metrics/identity producers
+Dependencies: canonical metrics/identity contracts
 
-- MLX text/VLM/ASR adapters map only explicit evidence;
-- unavailable metrics remain unavailable;
-- broaden verified artifact/backend version capture;
-- add cancellation/termination evidence where backend semantics support it.
+- extend explicit metric mappings across MLX text/VLM/ASR;
+- broaden artifact/backend version capture;
+- include cancellation/termination evidence where backend semantics support it;
+- unavailable values remain unavailable.
 
-### H1/H2/H4 — Product hardening
-Status: `READY` in parallel with backend evidence
+### A2 final — Canonical route migration
+Status: `READY with regression risk`
+Dependencies: canonical middleware/task policy already integrated
 
-- keyboard/focus/status/contrast/200%-zoom acceptance;
-- responsive and visual regression states;
-- privacy-policy/settings presentation;
-- representative runtime screenshots only from real states;
-- release documentation and examples synchronized with supported entrypoints.
+- retire duplicate historical request parsing where the canonical prepared request can own behavior;
+- formalize/deprecate direct `server:app` compatibility path;
+- preserve OpenAI/client compatibility and pre-backend fail-closed policy;
+- keep route migration behind deterministic compatibility tests.
+
+### H1/H2 — UX hardening
+Status: `READY`
+
+- keyboard-only navigation and visible focus;
+- semantic labels for icon-only actions;
+- status not conveyed only by color;
+- contrast checks in supported light/dark modes;
+- 200% zoom and representative phone/tablet/desktop widths;
+- stable loading/empty/unavailable/warning/error/success fixture states;
+- visual-regression screenshots from deterministic source-backed fixtures.
+
+### H3/H4 — Representative evidence and release documentation
+Status: `BLOCKED` only by access to representative runtime/hardware evidence
+
+- execute text/vision/transcription smoke/evidence procedures where compatible runtimes are available;
+- collect real screenshots only from implemented states;
+- synchronize README/API examples with supported product entrypoints;
+- label hardware-dependent or backend-incomplete claims `experimental`/`evidence pending`;
+- produce a release evidence matrix tied to exact runtime fingerprints.
 
 ## Dependency release points
 
 | Completion | Unlocks |
 | --- | --- |
-| E6b | complete first custom-dataset evaluation workflow |
-| E5b | task-aware user workflow and truthful endpoint discovery |
-| B6a | safe candidate set for automatic residency policy |
-| B6b + H3 | credible automatic eviction under real pressure |
-| B3d + hardware evidence | stronger unload/reclamation and failure-isolation claims |
+| B3e representative cycles | stronger unload/reclamation and failure-isolation claims |
+| B6c + B3e evidence | candidate for bounded automatic eviction under pressure |
 | D2e/D3e | broader evidence-grade cross-runtime evaluation |
-| H1/H2/H4 | release-candidate UX/documentation gate |
+| A2 final | cleaner single request-contract architecture |
+| H1/H2 | primary UX screens eligible for DONE review |
+| H3/H4 | release-candidate evidence/documentation gate |
 
 ## Integration-to-main gate
 
@@ -174,14 +181,15 @@ The long-lived `docs/control-plane-positioning-ux-plan` integration branch shoul
 3. no known P0/P1 regression in supported product entrypoints;
 4. release-facing README examples aligned with real supported entrypoints;
 5. explicit list of evidence-pending claims that remain experimental;
-6. representative smoke test for text + vision path already supported and first-class transcription where a compatible runtime is available;
-7. review of migration/deprecation boundary for direct legacy `server:app` use.
+6. representative smoke/evidence coverage for implemented task families where compatible hardware/runtime is available;
+7. review of migration/deprecation boundary for direct legacy `server:app` use;
+8. primary UX accessibility/responsive gate reviewed.
 
-Hardware-dependent claims may remain experimental after merge, but must be labelled as such rather than treated as DONE.
+Hardware-dependent claims may remain experimental after a code merge, but they must be labelled as such rather than treated as DONE.
 
 ## Active concurrency plan
 
-Run E6b, E5b, B6a, controlled B3d/H3 backend work, D2e/D3e and H1/H2/H4 concurrently behind narrow owners. Do not start automatic LRU/TTL eviction until pin/lease/resource semantics are explicit. Finish each coherent wave with a cumulative state/roadmap synchronization change.
+Run B3e, B6c design/tests, D2e/D3e, A2 migration preparation and H1/H2 in parallel behind narrow owners. H3/H4 hardware evidence proceeds whenever representative devices/runtimes are available. Do not enable pressure-triggered automatic eviction merely because deterministic candidate selection passes CI.
 
 ## Evidence boundary
 
