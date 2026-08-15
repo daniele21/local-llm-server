@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from .cold_state import install_cold_state
 from .core.contracts import ErrorCode, InferenceError
+from .evaluation_history_api import install_evaluation_history_api
 from .evaluation_service import (
     EvaluationRunRequest,
     EvaluationService,
@@ -180,6 +181,7 @@ def install_product_api(
         tags=["Evaluation"],
         name="run_evaluation",
     )
+    install_evaluation_history_api(application, root=root)
     return application
 
 
