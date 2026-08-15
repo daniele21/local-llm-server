@@ -18,182 +18,164 @@ Evolve Local LLM Server into a **resource-aware, observable local AI control pla
 | Milestone | Status | Remaining outcome |
 | --- | --- | --- |
 | M0 documentation governance | DONE | keep plan synchronized |
-| M1 trustworthy foundation | PARTIAL | retire legacy direct-app/parser boundary + final UX evidence |
-| M2 resource-aware runtime | PARTIAL | broader worker adoption + real pressure/reclamation evidence |
+| M1 trustworthy foundation | PARTIAL | route/direct-app cleanup + release review |
+| M2 resource-aware runtime | PARTIAL | representative worker/pressure evidence + optional streaming isolation |
 | M3 multi-task control plane | PARTIAL | broader specialist runtime evidence |
-| M4 evidence-grade observability | PARTIAL | wider backend metric/identity coverage + representative device evidence |
-| M5 control-plane UX | PARTIAL | accessibility, visual regression and legacy-internal cleanup |
-| M6 evaluation harness | PARTIAL | richer workload families + cold/warm orchestration |
-| M7 product-grade candidate | BLOCKED | hardware matrix, hardening and integration-to-main release gate |
+| M4 evidence-grade observability | PARTIAL | wider VLM/ASR/device evidence |
+| M5 control-plane UX | EVIDENCE | manual contrast/zoom + visual regression + legacy cleanup |
+| M6 evaluation harness | PARTIAL | richer workloads + cold/warm orchestration |
+| M7 product-grade candidate | BLOCKED | retained hardware matrix, release docs and integration-to-main gate |
 
 ## Integrated waves
 
-### Foundation through Wave 4
+### Foundation through Wave 7
 
 Integrated:
 
 - deterministic CI matrix and correctness gate;
-- canonical request/media policy on supported product entrypoints;
-- ResourceManager contracts and load/reload/unload accounting;
+- canonical request/media/capability contracts on supported product entrypoints;
+- ResourceManager accounting, zero-resident semantics and bounded scheduler admission;
 - worker protocol + bounded subprocess transport;
-- capability descriptors/catalog exposure;
-- truthful metric adapters and runtime identity contracts;
-- deterministic built-in evaluation runner;
-- source-backed control-plane shell and Models & Runtimes foundation.
+- public capability descriptors and truthful metric/runtime identity contracts;
+- deterministic built-in evaluation, persistence, history/comparison and validated custom datasets;
+- source-backed control-plane shell, Overview and evaluation workflow.
 
-### Wave 5 — product exposure
-
-Integrated:
-
-- resource-policy-aware product bootstrap and `/api/v1/resources`;
-- modular `/api/v1/evidence` and evaluation run/test-set APIs;
-- first-class `/v1/audio/transcriptions` with explicit ASR capability;
-- zero-resident/cold product state;
-- verified runtime identity auto-capture;
-- source-backed Overview;
-- real Benchmark & Evaluation setup/run/results UI.
-
-### Wave 6 — observability, scheduling and regression loop
+### Wave 8 — evaluation/capability UX and residency policy
 
 Integrated:
 
-- persisted evaluation history and compatibility-aware comparison API/UI;
-- streaming first-content TTFT producer and product wiring;
-- async FIFO scheduler plus request-path bounded admission;
-- queue timeout/overflow semantics and scheduler evidence UI;
-- bounded non-streaming completion metrics with explicit usage/timing mapping.
-
-### Wave 7 — custom evaluation datasets
-
-Integrated:
-
-- content-sensitive test-set identity;
-- validated `schema_version=1` JSON parser and atomic local custom test-set store;
-- no Python/template/plugin execution from uploaded datasets;
-- deterministic chat and structured-generation samples with allowlisted objective expectations;
-- version coexistence and explicit version disambiguation;
-- admin-only import endpoint and catalog integration;
-- custom sets execute through the same resident evaluation service.
-
-### Wave 8 — evaluation UX, capability UX and residency policy
-
-Integrated:
-
-- custom JSON test-set upload, source labeling, catalog refresh and explicit version propagation in Evaluation;
-- capability-driven Endpoints and Playground derived from public server-owned descriptors;
-- first-class transcription mini-playground over the real multipart endpoint;
-- conservative capability-source fallback that restores legacy controls instead of leaving stale disabled state;
-- explicit runtime pin/unpin policy and `/api/v1/residency` evidence;
-- deterministic LRU/TTL candidate ranking with current resident default protected by default;
-- explicit eviction preview/execution APIs with no automatic pressure trigger and no reclamation claim;
-- repeated reclamation lifecycle experiment harness over before/ready/peak/after-stop checkpoints;
-- Models & Runtimes now consumes resource, runtime-identity and residency-policy sources and exposes pin/unpin controls.
+- custom test-set upload/version propagation in Evaluation;
+- capability-driven Endpoints/Playground and first-class transcription UX;
+- pin/unpin plus current evictability evidence;
+- deterministic explicit LRU/TTL selection with resident-default protection;
+- explicit eviction preview/execution with no automatic pressure trigger;
+- repeated reclamation checkpoint harness;
+- resource/identity/residency-backed Models & Runtimes UI.
 
 ### Wave 9 — Settings and Diagnostics source completion
 
 Integrated:
 
-- bounded read-only `/api/v1/policies` evidence source;
-- effective remote-media/remote-code flags per resident runtime without paths/content/secrets;
-- Settings consumes request privacy, resource, residency and scheduler policy sources;
-- System / Diagnostics consumes runtime identity, canonical metrics, scheduler and resource evidence while preserving existing live logs;
-- shell fallbacks no longer contain obsolete milestone blocker text.
+- bounded read-only policy evidence;
+- source-backed Settings;
+- canonical runtime/resource/scheduler/identity Diagnostics above existing live logs;
+- truthful shell fallbacks.
 
-## Immediate parallel wave 10 — evidence and hardening
+### Wave 10 — evidence execution and deterministic hardening
 
-### B3e — Worker adoption and real reclamation evidence
-Status: `READY`
-Dependencies: worker transport + repeated reclamation harness
-Ownership: backend process boundary + evidence
+Integrated:
 
-- select runtimes where process ownership materially improves cleanup/failure isolation;
-- bind lifecycle callbacks to real start/ready/infer/stop operations;
-- run repeated cycles on representative macOS/Linux hardware;
-- capture OS/device/artifact/backend/config identity with raw evidence;
-- preserve `inconclusive` when observations cannot support a claim.
+- hysteretic pressure-policy evaluator with bounded one-attempt-per-episode semantics; UNKNOWN pressure is fail-conservative and automatic eviction remains disabled;
+- canonical `InferenceRequest -> PreparedBackendRequest` translation owner, preserving current engine defaults/aliases/structured-output/thinking behavior;
+- streaming SSE evidence now retains explicit cumulative backend usage/timings alongside HTTP-boundary TTFT;
+- explicit MLX generation metrics adapter using only backend-supplied token/rate evidence;
+- broader runtime identity via explicit specialist backend versions plus conservative llama-server build+commit probing;
+- isolated non-streaming `WorkerBackedEngine` and child JSON-line entrypoint;
+- repeated worker reclamation procedure wired to real start/health/infer/stop lifecycle;
+- `local-llm evidence-reclamation` hardware runner with atomic privacy-safe JSON reports, exact procedure identity, host resource snapshots and child-PID RSS during live worker stages;
+- ARIA tablist/tabpanel navigation, roving keyboard focus, skip link, visible focus expansion, reduced-motion and narrow/zoom-resilient layout contracts.
 
-### B6c — Pressure-policy validation
-Status: `READY`, automatic trigger remains disabled
-Dependencies: B6 pinning + LRU/TTL selection + scheduler leases + ResourceManager pressure state
-Ownership: residency policy, not memory-proof semantics
+## Immediate parallel Wave 11 — representative validation and consolidation
 
-- define deterministic pressure transition and candidate-selection rules;
-- never target active or pinned runtimes;
-- keep resident-default protection explicit;
-- record eviction reason and failed/skipped attempts;
-- enable automatic pressure-triggered behavior only after representative evidence review.
+### H3a — Execute representative hardware matrix
+Status: `READY`, requires real devices/runtimes
+Dependencies: integrated worker hardware runner
+Ownership: evidence, not policy
 
-### D2e/D3e — Backend evidence coverage
-Status: `READY`
-Dependencies: canonical metrics/identity contracts
+- agree a minimum Mac/Linux device matrix and representative text/backend artifacts;
+- run repeated `local-llm evidence-reclamation` cycles with exact artifact/backend/config identity;
+- preserve raw JSON reports and note OS/device/backend limitations;
+- compare repeated available-memory recovery, live child RSS and lifecycle error rate;
+- keep results observational when the evidence window is incomplete or noisy;
+- do not enable automatic pressure eviction solely from a single positive run.
 
-- extend explicit metric mappings across MLX text/VLM/ASR;
-- broaden artifact/backend version capture;
-- include cancellation/termination evidence where backend semantics support it;
-- unavailable values remain unavailable.
-
-### A2 final — Canonical route migration
+### A2 final — Canonical route cutover
 Status: `READY with regression risk`
-Dependencies: canonical middleware/task policy already integrated
+Dependencies: canonical prepared backend contract now integrated
+Ownership: request compatibility layer
 
-- retire duplicate historical request parsing where the canonical prepared request can own behavior;
-- formalize/deprecate direct `server:app` compatibility path;
-- preserve OpenAI/client compatibility and pre-backend fail-closed policy;
-- keep route migration behind deterministic compatibility tests.
+- replace historical route-side message/kwargs reconstruction with `request.state.prepared_inference_request.backend`;
+- preserve cache, stream/non-stream response construction and public compatibility;
+- delete/deprecate duplicate parsing only after parity tests are green;
+- formalize the supported-vs-legacy `server:app` boundary.
 
-### H1/H2 — UX hardening
+### B6d — Pressure integration review
+Status: `BLOCKED on H3a evidence for automatic action`
+Dependencies: hysteretic evaluator + residency selection + hardware reports
+
+- define the actual sampled pressure source/cadence for supported platforms;
+- run dry-run/preview mode first and retain reason/candidate evidence;
+- keep active/pinned/default protections mandatory;
+- only then decide whether an opt-in automatic unload mode has a defensible safety envelope.
+
+### D2f/D3f — Specialist evidence coverage
 Status: `READY`
 
-- keyboard-only navigation and visible focus;
-- semantic labels for icon-only actions;
-- status not conveyed only by color;
-- contrast checks in supported light/dark modes;
-- 200% zoom and representative phone/tablet/desktop widths;
-- stable loading/empty/unavailable/warning/error/success fixture states;
-- visual-regression screenshots from deterministic source-backed fixtures.
+- map explicit VLM/ASR timing/token/termination data where backend APIs expose it;
+- strengthen backend/artifact version capture per specialist runtime;
+- keep unavailable fields unavailable;
+- add cancellation/termination evidence only where the backend really supports it.
 
-### H3/H4 — Representative evidence and release documentation
-Status: `BLOCKED` only by access to representative runtime/hardware evidence
+### B3f — Worker protocol streaming/cancellation decision
+Status: `DESIGN DECISION`
 
-- execute text/vision/transcription smoke/evidence procedures where compatible runtimes are available;
-- collect real screenshots only from implemented states;
-- synchronize README/API examples with supported product entrypoints;
-- label hardware-dependent or backend-incomplete claims `experimental`/`evidence pending`;
-- produce a release evidence matrix tied to exact runtime fingerprints.
+- decide whether interactive process isolation is a product requirement or worker isolation remains evidence/batch focused;
+- if required, design true incremental events and interrupt ownership before adding `stream()`/cancel claims;
+- never convert buffered completed output into fake streaming.
+
+### H1/H2b — Manual accessibility + visual regression
+Status: `READY`
+
+- light/dark contrast review;
+- real keyboard traversal across forms/tables/lifecycle controls;
+- 200% zoom and phone/tablet/desktop reference widths;
+- destructive-action confirmation/feedback audit;
+- deterministic fixture states for loading/empty/unavailable/warning/error/success;
+- stable visual-regression screenshots clearly distinguished from real runtime evidence.
+
+### H4 — Release documentation and evidence matrix
+Status: `READY in parallel`, final status depends on H3a
+
+- update README/API examples to current supported product paths and hardware evidence CLI;
+- remove stale “roadmap” wording for capabilities already integrated;
+- publish representative screenshots only from real implemented states;
+- list evidence-pending/experimental claims explicitly;
+- assemble release matrix linking task/backend/artifact/hardware/procedure/result references.
 
 ## Dependency release points
 
 | Completion | Unlocks |
 | --- | --- |
-| B3e representative cycles | stronger unload/reclamation and failure-isolation claims |
-| B6c + B3e evidence | candidate for bounded automatic eviction under pressure |
-| D2e/D3e | broader evidence-grade cross-runtime evaluation |
-| A2 final | cleaner single request-contract architecture |
-| H1/H2 | primary UX screens eligible for DONE review |
-| H3/H4 | release-candidate evidence/documentation gate |
+| H3a repeated hardware reports | evidence review for B3 reclamation and B6 automatic-pressure policy |
+| A2 final | single canonical request-to-backend path and clearer deprecation boundary |
+| D2f/D3f | broader evidence-grade cross-runtime evaluation |
+| B3f decision | either bounded worker streaming work or explicit batch-only worker scope |
+| H1/H2b | primary UX eligible for DONE review |
+| H4 + H3a | product-grade/release-candidate evidence review |
 
 ## Integration-to-main gate
 
-The long-lived `docs/control-plane-positioning-ux-plan` integration branch should not be promoted to `main` solely because feature PRs are merged. Consolidation requires:
+The long-lived `docs/control-plane-positioning-ux-plan` branch should not be promoted to `main` solely because feature PRs are merged. Consolidation requires:
 
 1. cumulative CI green on the integration head;
-2. living plan/current-state/workstream trackers synchronized;
-3. no known P0/P1 regression in supported product entrypoints;
-4. release-facing README examples aligned with real supported entrypoints;
-5. explicit list of evidence-pending claims that remain experimental;
-6. representative smoke/evidence coverage for implemented task families where compatible hardware/runtime is available;
-7. review of migration/deprecation boundary for direct legacy `server:app` use;
-8. primary UX accessibility/responsive gate reviewed.
+2. living state/roadmap/workstream docs synchronized;
+3. no known P0/P1 regression in supported entrypoints;
+4. release-facing README/API examples aligned with real supported behavior;
+5. explicit experimental/evidence-pending claim list;
+6. representative smoke/evidence coverage for implemented task families where compatible hardware exists;
+7. reviewed direct `server:app` migration/deprecation boundary;
+8. primary UX accessibility/responsive gate reviewed;
+9. retained representative hardware reports before any memory-reclamation/auto-eviction production claim.
 
-Hardware-dependent claims may remain experimental after a code merge, but they must be labelled as such rather than treated as DONE.
+Hardware-dependent capabilities may remain experimental after a code merge, but documentation must say so explicitly.
 
 ## Active concurrency plan
 
-Run B3e, B6c design/tests, D2e/D3e, A2 migration preparation and H1/H2 in parallel behind narrow owners. H3/H4 hardware evidence proceeds whenever representative devices/runtimes are available. Do not enable pressure-triggered automatic eviction merely because deterministic candidate selection passes CI.
+Run H3a device evidence, A2 cutover preparation, D2f/D3f specialist adapters, H1/H2b manual/visual hardening and H4 documentation concurrently. B6d automatic action remains blocked until H3a review. B3f is an explicit product/architecture decision rather than an assumed requirement.
 
 ## Evidence boundary
 
-Automated tests prove deterministic contract and workflow behavior, not real unified-memory reclamation, unload recovery, thermal behavior, device-specific throughput or safe auto-eviction under pressure. Representative hardware evidence remains a release-quality gate for those claims.
+Automated tests prove deterministic contracts and the hardware runner makes real testing reproducible. CI does not prove unified-memory reclamation, unload recovery, thermal behavior, device throughput or safe automatic pressure eviction. Retained representative hardware reports remain the release-quality source for those claims.
 
 ## Plan maintenance
 
