@@ -54,7 +54,7 @@ def test_list_models_preserves_explicit_capability_provenance(monkeypatch, tmp_p
                 "backend": "mlx",
                 "tasks": ["chat", "structured_generation"],
                 "input_modalities": ["text"],
-                "output_modalities": ["text", "json"],
+                "output_modalities": ["text"],
                 "features": ["structured_output"],
             }
         },
@@ -73,4 +73,5 @@ def test_list_models_preserves_explicit_capability_provenance(monkeypatch, tmp_p
     [model] = local_llm_server.list_models()
     assert model["capability_source"] == "explicit"
     assert model["capabilities"]["tasks"] == ["chat", "structured_generation"]
+    assert model["capabilities"]["output_modalities"] == ["text"]
     assert model["capabilities"]["features"] == ["structured_output"]
