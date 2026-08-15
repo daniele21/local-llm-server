@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 
+from .cold_state import install_cold_state
 from .core.contracts import ErrorCode, InferenceError
 from .evaluation_service import (
     EvaluationRunRequest,
@@ -34,10 +35,11 @@ def install_product_api(
     *,
     evaluation_root: Path | None = None,
 ) -> FastAPI:
-    """Install product routes exactly once after runtime configuration."""
+    """Install product routes and cold-state behavior exactly once."""
     if getattr(application.state, "product_api_installed", False):
         return application
     application.state.product_api_installed = True
+    install_cold_state(application)
 
     root = evaluation_root or Path(
         os.getenv(

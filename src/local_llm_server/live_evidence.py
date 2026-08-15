@@ -49,7 +49,11 @@ def runtime_evidence_payload(runtime: Any) -> dict[str, object]:
 def manager_evidence_payload(manager: Any) -> dict[str, object]:
     runtimes = manager.list()
     return {
+        "configured_default_model": getattr(
+            manager, "configured_default_model", manager.default_model
+        ),
         "default_model": manager.default_model,
         "runtime_count": len(runtimes),
+        "cold": len(runtimes) == 0,
         "runtimes": [runtime_evidence_payload(runtime) for runtime in runtimes],
     }
