@@ -39,13 +39,18 @@ class StreamTimingRecorder:
                 observed = True
         return observed
 
-    def finish(self, *, completed: bool) -> InferenceMetrics | None:
+    def finish(
+        self,
+        *,
+        completed: bool,
+        queue_wait_ms: float | None = None,
+    ) -> InferenceMetrics | None:
         if self._line_buffer:
             self._observe_line(self._line_buffer)
             self._line_buffer = ""
 
         finished_at = self.clock()
-        if self.first_output_at is None and not completed:
+        if self.first_output_at is None and not completed and queue_wait_ms is None:
             return None
 
         ttft_ms = (
@@ -55,13 +60,19 @@ class StreamTimingRecorder:
         )
         total_ms = (finished_at - self.started_at) * 1000.0 if completed else None
         sources: dict[str, str] = {}
+        if queue_wait_ms is not None:
+            sources["queue_wait_ms"] = "request_scheduler.admission_wall_clock"
         if ttft_ms is not None:
             sources["ttft_ms"] = "http_stream.first_content_delta_wall_clock"
         if total_ms is not None:
             sources["total_ms"] = "http_stream.completed_body_wall_clock"
 
         return InferenceMetrics(
-            durations=DurationMetrics(ttft_ms=ttft_ms, total_ms=total_ms),
+            durations=DurationMetrics(
+                queue_wait_ms=queue_wait_ms,
+                ttft_ms=ttft_ms,
+                total_ms=total_ms,
+            ),
             sources=sources,
         )
 
@@ -102,6 +113,7 @@ def install_streaming_metrics(application: FastAPI) -> FastAPI:
             return response
 
         recorder = StreamTimingRecorder(started_at=started_at)
+        queue_wait_ms = getattr(request.state, "queue_wait_ms", None)
         original_iterator = response.body_iterator
 
         async def observed_body():
@@ -112,7 +124,10 @@ def install_streaming_metrics(application: FastAPI) -> FastAPI:
                     yield chunk
                 completed = True
             finally:
-                metrics = recorder.finish(completed=completed)
+                metrics = recorder.finish(
+                    completed=completed,
+                    queue_wait_ms=queue_wait_ms,
+                )
                 if metrics is not None:
                     # This snapshot belongs to this request only. Do not merge in
                     # token counts from a previous request or cumulative runtime state.
