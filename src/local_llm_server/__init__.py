@@ -42,27 +42,12 @@ def serve(
     cors_origins: list[str] | None = None,
     **kwargs,
 ) -> "ServerHandle | None":
-    """
-    Start the local LLM server.
-
-    Parameters
-    ----------
-    model:       Key from the built-in or user registry (e.g. "qwen3-8b").
-    model_path:  Direct path to a .gguf file (bypasses registry).
-    host:        Bind address.
-    port:        HTTP port.
-    background:  If True, starts the server in a background thread and
-                 returns a ServerHandle with a .shutdown() method.
-                 If False (default), blocks until SIGINT/SIGTERM.
-    no_download: Raise an error instead of auto-downloading a missing model.
-    enable_admin_api: Register model management, registry, and log-stream endpoints.
-    cors_origins: Browser origins allowed to call the API. Disabled by default.
-    **kwargs:    Extra inference params (ctx_size, n_gpu_layers, …).
-    """
+    """Start the supported resource-aware local LLM product server."""
     import threading
     import uvicorn
-    from .config import build_config
-    from .engine import load_llm
+
+    from .control_plane_api import install_product_api
+    from .product_runtime import bootstrap_product_runtimes
     from .request_middleware import install_request_policy
     from .server import (
         ServerSettings,
@@ -70,40 +55,26 @@ def serve(
         configure_runtime,
         create_app,
     )
-    from .runtime import ModelRuntimeManager
 
-    startup_models = list(models or [])
-    if startup_models:
-        selected_default = default_model or model or startup_models[0]
-        if selected_default not in startup_models:
-            startup_models.insert(0, selected_default)
-        manager = ModelRuntimeManager(default_model=selected_default)
-        try:
-            for model_key in startup_models:
-                manager.load(
-                    model_key,
-                    host=host,
-                    port=port,
-                    no_download=no_download,
-                    **kwargs,
-                )
-        except Exception:
-            manager.shutdown()
-            raise
-        default_runtime = manager.resolve()
-        cfg, llm = default_runtime.cfg, default_runtime.engine
-    else:
-        cfg = build_config(
-            model=model,
-            model_path=model_path,
-            host=host,
-            port=port,
-            no_download=no_download,
-            **kwargs,
-        )
-        llm = load_llm(cfg)
-        manager = ModelRuntimeManager(default_model=str(cfg["model"]))
-        manager.add(cfg, llm)
+    explicit = dict(kwargs)
+    explicit.update(
+        {
+            "host": host,
+            "port": port,
+            "no_download": no_download,
+        }
+    )
+    bootstrap = bootstrap_product_runtimes(
+        model=model,
+        model_path=model_path,
+        models=models,
+        default_model=default_model,
+        explicit=explicit,
+    )
+    manager = bootstrap.manager
+    cfg = bootstrap.cfg
+    llm = bootstrap.engine
+
     application = create_app(
         settings=ServerSettings(
             enable_admin_api=enable_admin_api,
@@ -111,7 +82,9 @@ def serve(
         )
     )
     configure_runtime(cfg, llm, manager, target_app=application)
+    application.state.resource_policy_settings = bootstrap.resource_policy
     install_request_policy(application)
+    install_product_api(application)
 
     config = uvicorn.Config(
         application,
