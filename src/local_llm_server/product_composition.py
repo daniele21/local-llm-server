@@ -5,6 +5,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
+from .completion_metrics import install_completion_metrics
 from .control_plane_api import install_product_api
 from .request_middleware import install_request_policy
 from .request_scheduler import install_request_scheduler
@@ -18,17 +19,18 @@ def install_product_http_stack(
     evaluation_root: Path | None = None,
     scheduler_settings: RequestSchedulerSettings | None = None,
 ) -> FastAPI:
-    """Install request admission, policy, live timing and modular product APIs.
+    """Install admission, policy, truthful timing and modular product APIs.
 
     Starlette executes the last-added HTTP middleware outermost. Registration is
-    therefore intentionally scheduler -> canonical policy -> streaming timing:
-    streaming timing observes the whole request, canonical policy prepares the
-    backend-neutral request, and the scheduler consumes that prepared request
-    before the route acquires the runtime lease. Product API installs cold-state
-    handling last as the outer product-state layer.
+    intentionally scheduler -> canonical policy -> completion metrics -> stream
+    metrics. At execution time stream timing is outermost, completion metrics
+    handles only non-stream requests, policy prepares the canonical request and
+    scheduler gates it before the route/runtime lease. Product API installs the
+    cold-state layer last.
     """
     install_request_scheduler(application, settings=scheduler_settings)
     install_request_policy(application)
+    install_completion_metrics(application)
     install_streaming_metrics(application)
     install_product_api(application, evaluation_root=evaluation_root)
     return application
