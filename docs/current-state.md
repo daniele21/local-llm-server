@@ -7,216 +7,188 @@ Canonical scope: state.repository
 Read when: determining the integrated baseline, open blockers or immediate next implementation block
 Last reviewed: 2026-08-15
 
-This is the single operational ledger for the Local LLM Server evolution program. Target behavior belongs in [`implementation-plan.md`](implementation-plan.md); sequencing and parallel work belong in [`roadmap.md`](roadmap.md).
+This is the operational ledger for the Local LLM Server evolution program. Target behavior belongs in [`implementation-plan.md`](implementation-plan.md); sequencing belongs in [`roadmap.md`](roadmap.md).
 
 ## Active direction
 
-Local LLM Server is evolving into a **resource-aware, observable local AI control plane and evaluation harness** for product-grade text, vision and audio workloads. The server orchestrates specialist runtimes rather than reimplementing their inference engines.
+Local LLM Server is evolving into a **resource-aware, observable local AI control plane and evaluation harness** for product-grade text, vision and audio workloads. Specialist inference engines retain backend execution ownership.
 
 ## Integrated baseline
 
-### Delivery and repository discipline
+### Delivery
 
 - pytest is blocking on Python 3.10/3.11/3.12;
-- CI no longer suppresses test failures;
-- Ruff blocks syntax and high-confidence correctness errors;
-- pre-existing style/modernization debt remains separate from the correctness gate;
-- the integration branch is validated through cumulative PRs;
-- unit/CI evidence is merge evidence only, not physical-hardware performance evidence.
+- Ruff blocks syntax/high-confidence correctness errors;
+- cumulative program PRs validate the integration line;
+- CI remains merge evidence, not physical-hardware performance evidence.
 
-### Product/API foundation
-
-Existing public behavior remains:
-
-- OpenAI-compatible `/v1/chat/completions` with streaming/non-streaming responses;
-- explicit registry-key/model-ID routing;
-- multiple resident runtimes on one server;
-- loopback-first binding and opt-in admin routes;
-- Python client helpers and Local LLM Studio.
-
-New canonical foundation now integrated:
-
-- backend-neutral `TaskType`, `InferenceRequest`, `InferenceResult`, generation/output contracts, terminal reasons and typed errors;
-- compatibility translator from current OpenAI/legacy request shapes;
-- `request_pipeline.py` that canonicalizes requests, applies remote-media policy, checks current modality compatibility and produces bounded typed public errors.
-
-Remaining API gap:
-
-- `server.py` still executes through its historical parser. The new request pipeline is tested and integrated but has not yet replaced that duplicate route logic.
-
-### Privacy and consumer boundaries
+### Canonical request and privacy foundation
 
 Integrated:
 
-- core registry no longer reads or names ClosedRoom-specific Application Support state;
-- external registry layers are explicit YAML/JSON inputs with built-in < external < user precedence;
-- `trust_remote_code=false` by default with explicit opt-in;
-- MLX tokenizer trust receives the resolved policy explicitly;
-- `allow_remote_media=false` by default;
-- HTTP(S) media validator rejects remote media unless explicitly allowed;
-- generated temporary WAV files owned by preprocessing are cleaned deterministically.
+- backend-neutral task/request/result/error contracts;
+- compatibility translation from current OpenAI/legacy request shapes;
+- `request_pipeline.py` canonicalization, modality policy and fail-closed HTTP(S) media validation;
+- `trust_remote_code=false` and `allow_remote_media=false` defaults;
+- deterministic temporary WAV cleanup;
+- bounded public policy errors;
+- core registry no longer reads ClosedRoom-specific state.
 
-Remaining privacy gap:
+Remaining:
 
-- route-level enforcement becomes complete only when `server.py` calls the integrated request pipeline.
+- `server.py` still uses its historical duplicate parser. AC1b must make the route call the integrated request pipeline before backend execution.
 
-### Resource observation foundation
+### Resource observation and admission
 
-Integrated in `resources.py`:
+Integrated:
 
-- `ResourceValue` distinguishes `measured`, `estimated`, `configured` and `unavailable`;
-- unavailable data is represented as `None`, never fake zero;
-- `SystemResourceSnapshot` and `RuntimeResourceProfile` contracts;
-- explicit `ResourceBudget` limit/headroom semantics;
-- `ResourcePressure` vocabulary and deterministic classification;
-- observer protocol;
-- best-effort Linux standard-library memory/RSS adapter;
-- deterministic tests for budget, pressure and source semantics.
+- measured/estimated/configured/unavailable resource source semantics;
+- `SystemResourceSnapshot`, `RuntimeResourceProfile`, budget/headroom and pressure vocabulary;
+- Linux total/available/RSS observation where available;
+- macOS total memory from `hw.memsize`;
+- macOS reclaimable-memory estimate from measured free/inactive/speculative `vm_stat` pages;
+- Apple Silicon accelerator memory remains explicitly unavailable rather than inventing a separate VRAM pool;
+- `ResourceManager` reservation ledger with `ADMIT`, `REJECT`, `UNKNOWN` decisions;
+- reserved/committed accounting, rollback/release and observed-footprint reconciliation;
+- unconfigured budget returns `UNKNOWN` and does not pretend the load was admitted.
 
-Remaining B1 work:
+Remaining:
 
-- add trustworthy Apple/macOS host and unified-memory observation where available;
-- connect observations to runtime lifecycle/evidence rather than only exposing the contract;
-- representative hardware validation remains required.
+- runtime load/reload is not yet wired through ResourceManager;
+- observer snapshots are not yet persisted/exposed as product evidence;
+- memory reclamation after unload is not demonstrated and remains B3.
 
-B2 ResourceManager contract work is now unblocked because the reservation/budget layer can consume B1 types without waiting for every platform adapter.
+### Capabilities
 
-### Capability foundation
+Integrated:
 
-Integrated in `core/capabilities.py`:
+- task/input/output/feature descriptors;
+- conservative legacy-registry mapping;
+- `supports(request)` decision and consistency validation;
+- audio modality alone does not imply first-class transcription;
+- capability catalog projection with explicit vs legacy-conservative provenance.
 
-- task set, input/output modality set and feature set;
-- conservative legacy-registry translation;
-- first-class `supports(request)` decision;
-- client-safe stable serialization;
-- validation such as image requirement for vision-language and audio requirement for transcription;
-- audio modality alone does **not** imply first-class transcription support.
+Remaining:
 
-Remaining C2 work:
+- capability projection is not yet included in the public/admin model listing;
+- canonical request execution does not yet reject via the descriptor before backend invocation;
+- C3 first-class transcription remains dependency-gated.
 
-- add explicit capability fields to registry validation/migration;
-- expose capability descriptors through model/catalog API sources;
-- use capability rejection in the canonical request path before backend execution.
+### Observability
 
-### Observability vocabulary
+Integrated:
 
-D1 foundation is integrated:
+- precise D1 lifecycle/duration/count/throughput vocabulary;
+- token counts and chunk counts are structurally distinct;
+- unsupported fields serialize as unavailable rather than zero;
+- D2a runtime-status adapter maps only trustworthy `output_chunks` / `chunks_per_second`;
+- historical `tokens_generated` / `tokens_per_second` aliases are deliberately ignored by the canonical adapter because they are chunk-backed.
 
-- admitted/queued/started/first-output/completed/failed/cancelled phase vocabulary;
-- queue/load/prefill/TTFT/decode/total durations;
-- input/output token counts kept distinct from output chunk counts;
-- token/sec and chunk/sec kept as separate units;
-- cache/load classification;
-- unsupported metrics serialize as unavailable, not zero;
-- public metric serialization excludes prompts/output.
+Remaining:
 
-The historical runtime counter named `tokens_generated` is still compatibility debt; D2 adapters must stop treating output chunks as true tokens.
+- richer backend adapters for real prompt tokens, output tokens, TTFT, prefill and decode timing;
+- product API/UI exposure of canonical metrics;
+- removal/deprecation of misleading historical field names after consumers migrate.
 
-### Artifact identity
+### Artifact and execution identity
 
-D3a foundation is integrated:
+Integrated:
 
-- source kind and verification state;
-- path-free stable serialization;
-- explicit SHA-256 verification for concrete local files;
-- stable identity key;
-- Hugging Face source/revision metadata without falsely claiming directory verification;
-- expensive hashing is explicit, not performed on every request/UI refresh.
+- path-free artifact source identity;
+- explicit verification state and optional local-file SHA-256;
+- stable artifact key;
+- Hugging Face source/revision metadata without false verification claims.
 
-Remaining D3 work:
+Remaining D3:
 
 - backend version identity;
-- resolved configuration digest;
+- resolved config digest;
 - hardware profile;
-- final runtime fingerprint assembly and evidence linkage.
+- final runtime fingerprint composition.
 
-### Runtime lifecycle
+### Evaluation harness foundation
 
-Existing lifecycle remains:
+Integrated:
 
-- `ModelRuntimeManager` owns loaded runtimes;
-- leases prevent unload while requests are active;
-- per-runtime admission semaphore;
-- reload preserves the old runtime if replacement load fails;
-- managed subprocesses use bounded logs and process-group termination.
+- versioned `TestSet` and stable sample IDs;
+- task-typed `EvaluationSample` with provenance/tags;
+- deterministic seeded sample selection;
+- scorer protocol and score schema;
+- run manifest with exact selected sample IDs and optional runtime fingerprint;
+- sample result/report schema and exact completeness checks.
 
-Major remaining differentiation:
+Remaining:
 
-- B2 resource-aware admission;
-- B3 demonstrable memory reclamation/worker boundary;
-- B4 zero-resident semantics;
-- B5 bounded scheduling/deadlines/cancellation;
-- B6 pin/LRU/TTL eviction.
+- built-in general-purpose starter dataset;
+- concrete scorers;
+- execution engine after D2/D3 identity is stable;
+- history/regression after D4 execution is complete.
 
 ### UX/UI
 
 Integrated:
 
-- shared design-system tokens/primitives;
-- incremental control-plane shell module;
-- top-level destinations now exist for Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System/Diagnostics and Settings;
-- existing real Chat/Models/Logs flows remain available during migration;
-- dependency-gated areas show explicit unavailable states instead of fabricated values;
-- Endpoints links to real Swagger/examples;
-- responsive shell styles are separated from the legacy `index.html` monolith.
+- shared design-system foundation;
+- incremental control-plane shell with Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System/Diagnostics and Settings;
+- existing real Chat/Models/Logs flows preserved during migration;
+- Overview now polls real `/health`, `/status` and `/v1/models` sources;
+- server readiness, backend, default route, resident count and active-request values render only when their source exists;
+- failed/missing sources render `Unavailable` rather than fake zero/stale data;
+- resource pressure remains explicitly unavailable until resource observation is product-exposed.
 
-Remaining UX work:
+Remaining:
 
-- E3a real Models & Runtimes lifecycle composition;
-- E4a real Overview health/runtime summary;
-- current Playground/Diagnostics migration into the new shell modules;
-- resource/capability/metric/fingerprint panels as their contracts are wired;
-- screen-level accessibility and visual-regression evidence.
+- Models & Runtimes lifecycle composition beyond the legacy view;
+- capability/resource/metric/fingerprint panels as their sources become public;
+- Playground/Diagnostics modular migration;
+- accessibility and visual-regression evidence.
 
 ## Program status
 
 | Task | Status | Integrated outcome | Remaining gate |
 | --- | --- | --- | --- |
-| A1 truthful CI | DONE | blocking deterministic matrix | broader Ruff debt later |
-| A2 privacy defaults | PARTIAL | fail-closed config/policy + cleanup | `server.py` enforcement via request pipeline |
-| A3 consumer decoupling | DONE | generic registry sources | consumer-specific integration stays external |
-| C1 canonical request vocabulary | PARTIAL | contracts + translator + request pipeline | make HTTP route use pipeline |
-| E1 design system | PARTIAL | tokens/primitives | screen migration + evidence |
-| F1 positioning | DONE | README/package positioning | promote future claims only after shipping |
-| B1 resource observation | PARTIAL | truthful contracts + Linux observer | macOS/runtime wiring/evidence |
-| C2 capabilities | PARTIAL | conservative descriptor + supports() | registry/API/request wiring |
-| D1 metric vocabulary | DONE | precise canonical schema | D2 backend adapters |
-| D3a artifact identity | DONE | path-free source/hash identity | final runtime fingerprint D3 |
-| E2 shell/navigation | PARTIAL | new IA + incremental shell | migrate real screens + UX evidence |
-| AC1 request/security adapter | PARTIAL | canonical policy adapter | replace historical parser in `server.py` |
+| A1 truthful CI | DONE | blocking deterministic matrix | broad Ruff debt later |
+| A2 privacy defaults | PARTIAL | fail-closed policy + cleanup | route enforcement AC1b |
+| A3 consumer decoupling | DONE | generic registry sources | — |
+| C1 canonical requests | PARTIAL | contracts + translator + policy adapter | route wiring AC1b |
+| E1 design system | PARTIAL | tokens/primitives | screen adoption/evidence |
+| F1 positioning | DONE | README/package positioning | — |
+| B1 resource observation | PARTIAL | Linux + macOS source adapters | runtime/API wiring + hardware evidence |
+| B2 ResourceManager | PARTIAL | reservation/admission accounting | load/reload wiring |
+| C2 capabilities | PARTIAL | descriptor + catalog projection | list/API/request wiring |
+| D1 metric vocabulary | DONE | canonical truthful schema | — |
+| D2 metrics | PARTIAL | runtime chunk adapter | backend timings/tokens + API exposure |
+| D3a artifact identity | DONE | stable path-free identity | D3 runtime fingerprint |
+| D4a evaluation schema | DONE | test-set/selection/scorer/run contracts | dataset + execution engine |
+| E2 shell/navigation | PARTIAL | new IA | full screen migration/evidence |
+| E4a Overview | PARTIAL | source-backed health/runtime summary | resources/metrics/fingerprint panels |
+| AC1 request/security | PARTIAL | tested request pipeline | replace historical route parser |
 
 ## Immediate next parallel wave
 
-Start these ownership-isolated streams together:
+Run these streams together with the stated ownership boundaries:
 
-1. **B2 ResourceManager foundation** — reservation ledger, budget checks, typed admission decision and rollback using B1 types.
-2. **B1b macOS resource adapter** — trustworthy total/available/unified-memory sources with explicit unavailable behavior where unsupported.
-3. **C2b registry/API capability wiring** — validate explicit capability declarations and expose descriptors without changing backend execution yet.
-4. **D2 metric adapters foundation** — start with current runtime/llama sources behind D1; do not invent unavailable TTFT/token data.
-5. **E3a/E4a source-backed UX** — Models inventory + Overview health/runtime summaries behind the E2 shell.
-6. **D4a evaluation schema** — versioned test-set/sample/scorer/run-report contracts independent of final execution metrics.
-7. **AC1b server wiring** — exclusive `server.py` ownership; replace duplicate request normalization with `request_pipeline.py` and enforce remote-media policy before backend invocation.
+1. **B2b runtime admission wiring** — connect model load/reload reservations to ResourceManager without claiming reclamation.
+2. **B3 worker/reclamation protocol** — define isolatable runtime worker lifecycle and evidence hooks; implementation may begin independently from final B2 wiring.
+3. **C2c public capability exposure** — add capability projection to model listing/admin sources, still avoiding request-route edits.
+4. **D3b execution identity** — backend version + resolved-config digest + hardware profile contract toward runtime fingerprint.
+5. **D4b built-in general-purpose test set** — create the first curated local test set and deterministic baseline scorers on top of D4a.
+6. **E3a Models & Runtimes source-backed redesign** — consume current registry/residency facts; capability/resource sections stay unavailable until their APIs land.
+7. **AC1b route wiring** — exclusive `server.py` ownership; make the existing OpenAI endpoint execute through `request_pipeline.py` and enforce remote-media policy.
 
 ### Parallelization constraints
 
-- AC1b exclusively owns broad `server.py` request-path changes.
-- C2b may edit registry/model metadata modules but should not edit the request route.
-- D2 adapters live behind D1 and should avoid changing UI labels directly.
-- E3a/E4a consume only current source-backed APIs; resource/capability/performance cards remain unavailable until their corresponding wiring lands.
-- B2 does not claim memory is reclaimable; admission and reclamation remain separate concerns until B3 evidence exists.
-
-## Newly unblocked dependencies
-
-- B1 contract -> B2 can start.
-- D1 -> D2 backend adapters can start.
-- E2 -> E3a/E4a/current Playground/Diagnostics module migration can start.
-- D3a -> backend/config/hardware identity work can proceed toward D3.
-- C2 contract -> registry/API capability wiring can start; C3 still waits for that wiring plus AC1b.
+- AC1b exclusively owns broad request-path changes in `server.py`.
+- B2b owns runtime admission integration; B3 owns reclamation/worker isolation and must not treat accounting as proof of memory release.
+- C2c changes model/catalog presentation, not the inference route.
+- D3b remains a pure identity contract first; hashing/version probes must not run implicitly on every request.
+- D4b is local harness data/scoring work and must not depend on live runtime execution yet.
+- E3a shows only source-backed state and explicit unavailable placeholders.
 
 ## Evidence boundary
 
-No unit test can establish macOS unified-memory reclamation, real TTFT, true token throughput or model unload memory recovery. Those require representative runtime/device evidence after the corresponding adapters and lifecycle paths are integrated.
+The current automated suite proves contract behavior. It does **not** prove real Apple unified-memory reclaimability, model unload memory recovery, true backend token throughput or final TTFT. Those remain representative-hardware evidence tasks.
 
 ## Update rule
 
-Update this file in the same integration cycle whenever task state, blockers or the immediate next wave changes. It is an operational ledger, not a historical changelog.
+Update this file in the same integration cycle whenever task state, blockers or the next wave changes. Keep it current rather than historical.
