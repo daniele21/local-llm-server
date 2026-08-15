@@ -6,13 +6,16 @@ Subcommands:
   local-llm models               — list available models
   local-llm download             — download a model without starting the server
   local-llm evidence-reclamation — run isolated repeated lifecycle evidence
+  local-llm evidence-review      — review compatible repeated hardware reports
 """
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from pathlib import Path
+from typing import Any, Mapping
 
 
 def main() -> None:
@@ -147,6 +150,42 @@ def main() -> None:
         help="Fail if required model artifacts are not already available locally.",
     )
 
+    p_review = sub.add_parser(
+        "evidence-review",
+        help="Review repeated compatible hardware evidence reports without producing an auto-eviction recommendation.",
+    )
+    p_review.add_argument(
+        "reports",
+        nargs="+",
+        help="Two or more worker reclamation JSON reports by default.",
+    )
+    p_review.add_argument("--min-reports", type=int, default=2, dest="min_reports")
+    p_review.add_argument(
+        "--min-complete-cycles",
+        type=int,
+        default=6,
+        dest="min_complete_cycles",
+    )
+    p_review.add_argument(
+        "--allow-exploratory-identity",
+        action="store_true",
+        default=False,
+        dest="allow_exploratory_identity",
+        help="Permit exploratory identity for descriptive review only.",
+    )
+    p_review.add_argument(
+        "--allow-error-cycles",
+        action="store_true",
+        default=False,
+        dest="allow_error_cycles",
+        help="Do not make lifecycle error cycles an insufficiency gate for exploratory analysis.",
+    )
+    p_review.add_argument(
+        "--output",
+        default=None,
+        help="Optional destination JSON. Without it the review is printed to stdout.",
+    )
+
     args = parser.parse_args()
 
     if args.command == "serve":
@@ -157,6 +196,8 @@ def main() -> None:
         _cmd_download(args.model)
     elif args.command == "evidence-reclamation":
         _cmd_evidence_reclamation(args)
+    elif args.command == "evidence-review":
+        _cmd_evidence_review(args)
 
 
 def _cmd_serve(args: argparse.Namespace) -> None:
@@ -264,3 +305,40 @@ def _cmd_evidence_reclamation(args: argparse.Namespace) -> None:
         print(f"Evidence run failed: {exc}", file=sys.stderr)
         sys.exit(1)
     print(f"Evidence report written to {output.expanduser().resolve()}")
+
+
+def _cmd_evidence_review(args: argparse.Namespace) -> None:
+    from .hardware_evidence import write_evidence_report
+    from .hardware_evidence_review import EvidenceReviewSettings, review_hardware_evidence
+
+    try:
+        reports = _load_evidence_reports([Path(value) for value in args.reports])
+        review = review_hardware_evidence(
+            reports,
+            settings=EvidenceReviewSettings(
+                min_reports=args.min_reports,
+                min_complete_cycles=args.min_complete_cycles,
+                require_verified_identity=not args.allow_exploratory_identity,
+                require_zero_error_cycles=not args.allow_error_cycles,
+            ),
+        ).to_public_dict()
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(f"Evidence review failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.output:
+        output = Path(args.output)
+        write_evidence_report(output, review)
+        print(f"Evidence review written to {output.expanduser().resolve()}")
+    else:
+        print(json.dumps(review, indent=2, sort_keys=True, ensure_ascii=False))
+
+
+def _load_evidence_reports(paths: list[Path]) -> list[Mapping[str, Any]]:
+    reports: list[Mapping[str, Any]] = []
+    for path in paths:
+        payload = json.loads(path.expanduser().read_text(encoding="utf-8"))
+        if not isinstance(payload, Mapping):
+            raise ValueError(f"evidence report must contain a JSON object: {path}")
+        reports.append(payload)
+    return reports
