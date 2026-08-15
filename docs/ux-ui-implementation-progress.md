@@ -17,124 +17,154 @@ Canonical target specification: [`ux-ui-implementation-plan.md`](ux-ui-implement
 
 | Workstream | Status | Integrated boundary | Remaining gate |
 | --- | --- | --- | --- |
-| Existing Studio workflows | PARTIAL | real Chat, Models, Logs, examples and Swagger preserved | modular migration without regression |
-| Design system | PARTIAL | tokens/primitives/focus/reduced-motion/light-dark | full screen adoption + accessibility evidence |
-| Shell/navigation | PARTIAL | seven control-plane destinations navigable | screen-level responsive/keyboard evidence |
-| Overview | PARTIAL | health/status/models + resource/evidence/scheduler sources | representative hardware evidence + final diagnostics composition |
-| Models & Runtimes | PARTIAL | resident/catalog/capability/cold/default source-backed view | pin/eviction controls + lifecycle UX evidence |
+| Existing Studio workflows | PARTIAL | real Chat, Models lifecycle, Logs, examples and Swagger preserved during migration | legacy-internal cleanup without regression |
+| Design system | PARTIAL | tokens/primitives/focus/reduced-motion/light-dark | full accessibility/contrast evidence |
+| Shell/navigation | PARTIAL | seven control-plane destinations navigable with truthful neutral fallbacks | keyboard/responsive evidence |
+| Overview | PARTIAL | health/status/models + resource/evidence/scheduler sources | representative runtime/hardware evidence |
+| Models & Runtimes | PARTIAL | catalog/resident/capability/resource/identity/residency sources + pin UX | lifecycle/accessibility/hardware evidence |
 | Resource budget/pressure | PARTIAL | configured product policy and `/api/v1/resources` | measured reconciliation + hardware evidence |
-| Capability UX | PARTIAL | descriptors public and rendered in Models | capability-driven Playground/Endpoints |
-| Pin/auto-evict | PENDING | no B6 policy yet | B6a pin metadata then lease-safe LRU/TTL |
-| Runtime fingerprint | PARTIAL | verified auto-capture + `/api/v1/evidence` + Overview | broader artifact/backend coverage |
-| Endpoints | PARTIAL | real Swagger/examples + public capability metadata | task/model compatibility composition |
-| Playground text | PARTIAL | real chat + canonical policy/capability enforcement | modular capability-driven controls + live evidence presentation |
-| Playground vision | PARTIAL | real multimodal path + fail-closed remote media | capability-driven model/controls + regression evidence |
-| Playground transcription | PARTIAL | first-class `/v1/audio/transcriptions` backend/API | dedicated UI workflow + compatible runtime evidence |
-| Benchmark & Evaluation | PARTIAL | real run/results/history/comparison + custom dataset backend | custom upload/version-selection UI |
-| System/Diagnostics | PARTIAL | real logs/status preserved; evidence sources exist | modular source-backed diagnostics screen |
-| Settings/privacy | PARTIAL | supported entrypoints enforce remote-media policy | source-backed policy state/configuration presentation |
-| Responsive | PARTIAL | major control-plane grids collapse responsively | full screen/reference-width verification |
-| Accessibility | PARTIAL | primitive-level focus/status/reduced motion | keyboard/focus/contrast/zoom matrix |
-| Visual regression | PENDING | no stable screenshot suite | stable source-backed states + fixture strategy |
-| Hardware UX evidence | PENDING | no representative reclamation/performance matrix | B3d/H3 representative hardware runs |
+| Capability UX | PARTIAL | server descriptors drive Endpoints and Playground controls | broader backend/task evidence + accessibility |
+| Pin/auto-evict | PARTIAL | pin/unpin + explicit evictable state + deterministic LRU/TTL preview/execution | pressure-trigger validation + hardware evidence before automation |
+| Runtime fingerprint | PARTIAL | verified auto-capture + Overview/Models/Diagnostics presentation | broader artifact/backend coverage |
+| Endpoints | PARTIAL | task/model compatibility matrix from real capability sources | accessibility/regression evidence |
+| Playground text | PARTIAL | real chat + canonical capability-driven controls | legacy-internal cleanup + accessibility/evidence |
+| Playground vision | PARTIAL | real multimodal path + capability-driven image control + fail-closed remote media | regression/hardware evidence |
+| Playground transcription | PARTIAL | first-class multipart transcription API + capability-driven mini-playground | compatible backend/hardware evidence |
+| Benchmark & Evaluation | PARTIAL | run/results/history/comparison + custom JSON import/version selection | richer experiments + accessibility/visual evidence |
+| System/Diagnostics | PARTIAL | canonical runtime/resource/scheduler/identity summary above real live logs | accessibility/visual/hardware evidence |
+| Settings/privacy | PARTIAL | read-only effective policy/resource/residency/scheduler state | accessibility + future mutation semantics only if product requires them |
+| Responsive | PARTIAL | primary control-plane grids include responsive collapse rules | reference-width + 200% zoom verification |
+| Accessibility | PARTIAL | primitive-level focus/status/reduced motion | full keyboard/focus/contrast/zoom matrix |
+| Visual regression | PENDING | no stable screenshot suite yet | deterministic source-state fixtures + screenshot gate |
+| Hardware UX evidence | PENDING | deterministic lifecycle experiment harness exists | representative reclamation/performance runs |
 
 ## Source-backed product state now available
 
 ### Overview
 
-The Overview consumes real `/health`, `/status`, `/v1/models`, `/api/v1/resources`, `/api/v1/evidence` and `/api/v1/scheduler` sources where available. It distinguishes:
-
-- configured default identity from resident default route;
-- cold/zero-resident state from failure;
-- configured/disabled/unavailable resource policy;
-- measured values from unavailable values;
-- queue wait from runtime execution timing;
-- verified runtime fingerprint from exploratory/no-fingerprint state.
-
-`null`/missing values remain **Unavailable**; the UI does not coerce them to zero.
+The Overview consumes real `/health`, `/status`, `/v1/models`, `/api/v1/resources`, `/api/v1/evidence` and `/api/v1/scheduler` sources where available. It distinguishes configured default identity from resident default route, cold state from failure, resource policy state, queue wait and verified/exploratory identity. Missing values remain **Unavailable**.
 
 ### Models & Runtimes
 
-The control-plane Models view combines:
+The Models view now combines:
 
 - `/v1/models` for resident identity;
-- `/status` for default route, lifecycle and active-request state;
-- `/api/v1/models/registry` for configured catalog and capability descriptors when enabled.
+- `/status` for route/lifecycle/active-request state;
+- `/api/v1/models/registry` for configured catalog and capability descriptors;
+- `/api/v1/resources` for global resource admission state;
+- `/api/v1/evidence` for verified runtime identity;
+- `/api/v1/residency` for pin/evictability/last-used state.
 
-Configured identity, resident/cold state, backend, active requests and capability summary are source-backed. The remaining major lifecycle UX gap is explicit pin/evictability/automatic-eviction policy.
+Pin/unpin is a real admin action. `Evictable` means policy eligibility only; it is not presented as proof of resource reclamation.
+
+### Endpoints and Playground
+
+The capability layer consumes server-owned descriptors rather than named-model heuristics:
+
+- chat, vision-language, structured-generation and transcription availability are derived from declared tasks;
+- text/image controls follow declared input modalities;
+- structured-output/thinking controls follow declared features;
+- only resident runtimes are presented as immediately executable;
+- transcription is a distinct audio -> text flow over `/v1/audio/transcriptions`;
+- when capability metadata is unavailable, legacy controls are restored instead of being left stale/disabled.
 
 ### Benchmark & Evaluation
 
-The evaluation screen now supports:
+The evaluation screen supports:
 
-- real resident-model selection;
-- versioned test-set selection;
+- resident model selection;
+- versioned built-in/custom test sets;
 - valid sample multiples of 10 and deterministic seed;
-- real evaluation execution;
+- validated JSON custom test-set import;
+- explicit id + version propagation into runs;
+- duplicate conflict without silent replace;
 - objective quality, execution success, per-sample result/error and sourced timing/token evidence;
 - evidence-grade vs exploratory run state based on runtime fingerprint;
-- persisted history inspection;
-- compatibility-aware baseline/candidate comparison with `Not comparable`, `Exploratory comparison`, `Descriptive only` and attribution-safe states;
+- persisted history inspection and compatibility-aware baseline/candidate comparison;
 - no automatic better/worse verdict.
 
-The backend additionally supports validated custom test-set import and multiple versions. The UI still needs the upload/catalog/version-selection slice.
+### System / Diagnostics
 
-## Immediate UX wave
+Diagnostics now prepends source-backed operational evidence to the existing real log workflow:
 
-### E6b — Custom test-set workflow
+- resident runtime/active-request state;
+- verified identity coverage;
+- scheduler inflight/queue state;
+- remaining configured resource budget;
+- canonical queue-wait/TTFT/decode-throughput values from `durations_ms` and `throughput` only when sourced.
 
-Implement now:
+Prompt/generated content is not copied into the diagnostics evidence layer.
 
-- JSON file picker and import action;
-- built-in/custom source badge;
-- catalog refresh after import;
-- explicit version in option identity;
-- send `test_set_version` on evaluation runs;
-- surface 409 duplicate conflict without silently replacing;
-- optional explicit replace action only if the user knowingly chooses it later;
-- preserve source-backed/no-client-scoring boundary.
+### Settings
 
-### E5b — Capability-driven Playground and Endpoints
+Settings is intentionally read-only and source-backed. It shows:
 
-Implement in parallel:
+- whether canonical request policy is installed;
+- remote-media and remote-code defaults/effective runtime flags;
+- resource budget state;
+- residency/pinning state;
+- scheduler policy state.
 
-- derive available tasks from public model capability descriptors;
-- keep text controls for text-compatible runtimes;
-- show image controls only for image input support;
-- expose transcription as a distinct audio -> text task when explicit ASR capability exists;
-- feature controls such as streaming/structured output only when declared;
-- endpoint compatibility matrix/card from server-owned capability metadata;
-- unsupported combinations show explicit unavailable state rather than hidden/failing controls.
+The UI does not invent mutation controls for policy settings that lack a defined server-owned mutation contract.
 
-### E7 — Diagnostics and Settings completion
+## Immediate UX hardening wave
 
-After E5b source composition stabilizes:
+### H1 — Accessibility acceptance
 
-- move runtime/resource/scheduler evidence into a coherent Diagnostics surface without duplicating canonical source ownership;
-- expose privacy/resource policy configuration state truthfully;
-- retain Logs as a real operational source, not illustrative content.
+Implement/verify:
+
+- keyboard-only navigation through shell, forms, tables and lifecycle controls;
+- visible focus for all interactive elements;
+- semantic names for icon-only controls;
+- status text in addition to color;
+- light/dark contrast checks;
+- 200% zoom without clipped critical actions/data.
+
+### H2 — Responsive and visual regression
+
+Create deterministic source-state fixtures for:
+
+- loading;
+- empty/cold;
+- unavailable source;
+- warning/pressure/exploratory;
+- error/action failure;
+- success/resident/evidence-grade.
+
+Capture stable reference widths for phone/tablet/desktop and prevent regression without presenting fixture screenshots as real runtime evidence.
+
+### H3 — Representative runtime evidence
+
+Use the repeated lifecycle/reclamation harness and compatible task runtimes to capture real states used by public screenshots and product claims. Hardware evidence remains separate from deterministic UI fixtures.
+
+### H4 — Legacy-internal cleanup
+
+Once acceptance coverage is stable:
+
+- remove obsolete duplicate placeholder/internal markup that overlays have superseded;
+- retain real Chat, Logs and lifecycle behavior until modular replacements prove parity;
+- keep supported product entrypoints aligned with UI documentation.
 
 ## Evidence UX rules
 
 - `0` is valid only when a source measured zero; missing data is `Unavailable`.
-- resource estimate and observed footprint remain visually distinguishable.
+- resource estimate and observed footprint remain distinguishable.
 - chunk throughput is never token throughput.
 - exploratory benchmark runs may execute but are not presented as evidence-grade comparisons.
-- reclamation evidence is not PASS merely because a subprocess exits or memory delta is positive once.
-- capability truth is server-owned; JavaScript may filter/present it but must not invent support.
+- reclamation evidence is not PASS merely because a subprocess exits or one memory delta is positive.
+- capability truth is server-owned; JavaScript presents/filters it but does not invent support.
 - custom test-set files are data, not executable scorer/plugin definitions.
+- explicit eviction success is not presented as a host-memory reclamation guarantee.
 
 ## Acceptance still pending
 
 Before primary UX surfaces can be marked DONE:
 
-- keyboard-only navigation through shell, forms, tables and lifecycle controls;
-- visible focus and semantic labels for icon-only actions;
-- status not conveyed by color alone;
+- keyboard/focus/semantic-label audit;
 - contrast verification in supported light/dark modes;
-- 200% zoom usability;
-- responsive checks at representative phone/tablet/desktop widths;
-- source failure/loading/empty/warning/error/success fixture coverage;
+- 200% zoom and representative width usability;
+- stable source-state visual regression suite;
+- action confirmation/feedback review for destructive lifecycle operations;
 - real runtime screenshots for public documentation;
 - representative hardware evidence for resource/performance claims.
 
