@@ -54,6 +54,27 @@ def test_worker_system_observer_never_labels_parent_rss_as_worker_rss():
     assert snapshot.process_rss_bytes.source is ResourceValueSource.UNAVAILABLE
 
 
+def test_worker_system_observer_measures_only_bound_live_worker_pid(monkeypatch):
+    observed_pids = []
+    monkeypatch.setattr(
+        "local_llm_server.hardware_evidence._read_process_rss_for_pid",
+        lambda pid: observed_pids.append(pid) or _measured(987654),
+    )
+    observer = WorkerSystemResourceObserver(_Observer())
+    worker = SimpleNamespace(pid=4321)
+
+    observer.bind_worker(worker)
+    bound = observer.snapshot()
+    observer.unbind_worker(worker)
+    stopped = observer.snapshot()
+
+    assert observed_pids == [4321]
+    assert bound.process_rss_bytes.value == 987654
+    assert bound.process_rss_bytes.source is ResourceValueSource.MEASURED
+    assert stopped.process_rss_bytes.value is None
+    assert stopped.process_rss_bytes.source is ResourceValueSource.UNAVAILABLE
+
+
 def test_execute_hardware_evidence_uses_canonical_backend_request_and_omits_prompt_from_report():
     captured = {}
 
