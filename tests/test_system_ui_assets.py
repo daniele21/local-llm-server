@@ -58,14 +58,31 @@ def test_settings_exposes_reclamation_boundary_and_policy_truth():
     assert "do not prove host-memory reclamation" in script
 
 
+def test_shell_fallbacks_do_not_repeat_obsolete_milestone_blockers():
+    shell = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
+    for stale in (
+        "until B1/B2",
+        "until C2",
+        "No benchmark engine is connected yet",
+        "request-path enforcement is still being connected",
+        "unavailable until B1/B2/B6",
+    ):
+        assert stale not in shell
+    assert "Loading source-backed Overview state" in shell
+    assert "Loading capability-backed endpoint compatibility" in shell
+    assert "Loading evaluation sources" in shell
+    assert "Loading source-backed policy state" in shell
+
+
 def test_system_javascript_is_syntactically_valid_when_node_is_available():
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed in this test environment")
-    completed = subprocess.run(
-        [node, "--check", str(STATIC / "control-plane-system.js")],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert completed.returncode == 0, completed.stderr
+    for filename in ("control-plane-system.js", "control-plane-shell.js"):
+        completed = subprocess.run(
+            [node, "--check", str(STATIC / filename)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, completed.stderr
