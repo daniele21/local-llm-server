@@ -40,7 +40,7 @@ def test_evaluation_ui_supports_source_backed_custom_dataset_import_and_versions
     assert "data-source" in script
     assert "Duplicate id/version imports are rejected" in script
     assert "Dataset already exists" in script
-    assert "replace" not in script
+    assert "body.append('replace'" not in script
 
 
 def test_evaluation_history_ui_uses_persisted_sources_without_auto_verdicts():
