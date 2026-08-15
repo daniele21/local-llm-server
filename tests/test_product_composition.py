@@ -38,7 +38,11 @@ def test_product_http_stack_installs_policy_stream_metrics_and_product_api_once(
     assert app.state.canonical_request_policy_installed is True
     assert app.state.streaming_metrics_installed is True
     assert app.state.product_api_installed is True
-    route_paths = [route.path for route in app.routes]
+    route_paths = [
+        path
+        for route in app.routes
+        if (path := getattr(route, "path", None)) is not None
+    ]
     assert route_paths.count("/v1/audio/transcriptions") == 1
 
 
