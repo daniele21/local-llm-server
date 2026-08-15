@@ -7,13 +7,11 @@ Canonical scope: roadmap.repository
 Read when: selecting the next capability milestone, understanding dependencies or parallelizing implementation
 Last reviewed: 2026-08-15
 
-This roadmap tracks capability milestones, hard dependencies and parallel delivery lanes for the Local LLM Server repositioning and UX/UI evolution. It does not own branch narratives or detailed current implementation truth; those belong in [`current-state.md`](current-state.md).
+This roadmap tracks capability milestones, hard dependencies and parallel delivery lanes for the Local LLM Server repositioning and UX/UI evolution. Integrated truth and the immediate implementation block belong in [`current-state.md`](current-state.md).
 
 ## 1. Delivery objective
 
 Move from the current multi-backend local model server toward a **resource-aware, observable local AI control plane and evaluation harness** with a coherent product experience for text, vision and audio.
-
-The active program has six parallel lanes:
 
 | Lane | Scope | Primary owner boundary |
 | --- | --- | --- |
@@ -40,290 +38,397 @@ The active program has six parallel lanes:
 | Milestone | Status | Hard completion outcome |
 | --- | --- | --- |
 | M0 — Planning and documentation governance | DONE | Canonical target/state/roadmap/UX/brand/completion docs exist and are maintained |
-| M1 — Trustworthy foundation | READY | Blocking CI, privacy defaults, consumer decoupling and stable core contracts |
-| M2 — Resource-aware runtime | PENDING | ResourceManager, verifiable unload, zero-resident state and bounded lifecycle |
-| M3 — Multi-task control plane | PENDING | Task/capability model, first-class ASR and scheduler/admission |
-| M4 — Evidence-grade observability | PENDING | Precise metrics, artifact/runtime fingerprint and representative resource evidence |
-| M5 — Redesigned control-plane UX | PENDING | Overview, Models & Runtimes, Playground/Endpoints, Diagnostics use source-backed state |
-| M6 — Benchmark & Evaluation harness | PENDING | Reproducible test sets/runs/comparisons tied to exact runtime identity |
-| M7 — Product-grade release candidate | PENDING | Completion policy satisfied on representative macOS/Linux hardware |
+| M1 — Trustworthy foundation | PARTIAL | A1/A3/F1 done; A2/C1 request-path integration and E1 screen adoption remain |
+| M2 — Resource-aware runtime | IN_PROGRESS | Batch 2 begins with B1; ResourceManager/reclamation/zero-resident remain |
+| M3 — Multi-task control plane | IN_PROGRESS | canonical task vocabulary exists; C2 capability model starts next |
+| M4 — Evidence-grade observability | READY | D1 metric vocabulary and D3 artifact identity can start independently |
+| M5 — Redesigned control-plane UX | IN_PROGRESS | design-system foundation exists; E2 shell starts next |
+| M6 — Benchmark & Evaluation harness | PENDING | reproducible test sets/runs/comparisons tied to exact runtime identity |
+| M7 — Product-grade release candidate | PENDING | completion policy satisfied on representative macOS/Linux hardware |
 
 ## 4. Dependency graph
 
 ```text
-M0 Planning
- |
- +----------------------------+-----------------------------+
- |                            |                             |
- v                            v                             v
-A1 CI gate                C1 Canonical request         E1 Design system
-A2 privacy hardening      C2 Capability model          F1 positioning copy
-A3 consumer decoupling          |                             |
- |                              |                             |
- +------------+-----------------+-----------------------------+
-              |
-              v
-         B1 Resource observation ---- D1 metric vocabulary
-              |                         |
-              v                         v
-         B2 ResourceManager        D2 metric normalization
-              |
-      +-------+-------+
-      |               |
-      v               v
- B3 worker/reclaim   B4 zero-resident
-      |               |
-      +-------+-------+
-              v
-         B5 scheduler/admission
-              |
-              v
-         B6 LRU/TTL eviction
+Batch 1 integrated foundation
 
-C1 + C2 ------------------> C3 ASR task/API
-C1 + C2 + B5 -------------> C4 task-aware execution routing
+A1 DONE ──────────────┐
+A3 DONE               │
+F1 DONE               │
+A2 PARTIAL ─┐         │
+C1 PARTIAL ─┴─> AC1 request-path integration
+E1 PARTIAL ─────> E2 shell/navigation
+                     
+A1 ─────────────> B1 Resource observation ─> B2 ResourceManager
+C1 vocabulary ──> C2 Capability model ─────> C3 ASR task/API
+C1 lifecycle names -> D1 Metric vocabulary -> D2 normalization
+artifact sources ─> D3a Artifact identity ──┐
+D1/D2 + hardware profile ───────────────────> D3 runtime fingerprint
 
-D2 + artifact integrity ---> D3 runtime fingerprint
-D2 + D3 + B1 -------------> D4 benchmark engine v1
+B1/B2 ───────────> E3 memory/resource panels
+C2 ──────────────> E3/E5 capability-driven UX
+D1/D2 ───────────> E4 truthful metrics
+D3 ──────────────> E3/E4 fingerprint/evidence
 
-E1 + source contracts -----> E2 shell/navigation
-B1/B2 + E1 ----------------> E3 Models & Runtimes UX
-D2 + B1 + E1 -------------> E4 Overview/Diagnostics UX
-C3 + E1 -------------------> E5 audio/endpoint UX
-D4 + E1 -------------------> E6 Benchmark & Evaluation UX
-
-E2..E6 + hardware evidence -> M7 release candidate
+B2 + reclaimable lifecycle -> B5 scheduler -> B6 residency policy
+D2 + D3 + B1 -------------> D4 benchmark engine -> E6 Benchmark UX
 ```
 
-## 5. Parallel Batch 1 — Foundation
+## 5. Batch 1 — Foundation status
 
-**Can start immediately in parallel.** These tasks deliberately touch different ownership boundaries.
+Batch 1 was deliberately developed on isolated branches and integrated sequentially behind a blocking CI baseline.
 
-### Lane A — Reliability/security
-
-#### A1 — Make CI truthful
-Status: `READY`
+### A1 — Make CI truthful
+Status: `DONE`
 Dependencies: none
 
-Deliverables:
+Integrated:
 
-- remove `|| true` from pytest CI command;
-- run lint against `src/` and `tests/` as appropriate;
-- ensure deterministic unit suite passes in Python 3.10/3.11/3.12;
-- explicitly separate mocked CI from real-backend/hardware validation;
-- fail merge checks on actual regression.
+- removed pytest failure suppression;
+- Python 3.10/3.11/3.12 deterministic matrix is blocking;
+- required Hugging Face test dependency is installed;
+- Ruff correctness gate blocks syntax/high-confidence correctness errors;
+- legacy style/modernization debt remains visible but is not conflated with the correctness gate;
+- current FastAPI route-shape compatibility is covered.
 
-Exit gate:
+Remaining non-blocking debt:
 
-- intentionally failing test makes CI red;
-- current green suite passes without suppression.
+- broaden Ruff coverage incrementally after pre-existing violations are paid down.
 
-#### A2 — Privacy/security defaults
-Status: `READY`
+### A2 — Privacy/security defaults
+Status: `PARTIAL`
 Dependencies: none
 
-Deliverables:
+Integrated:
 
 - `trust_remote_code=false` default;
-- opt-in registry/config flag for models that require remote code;
-- remote HTTP(S) media disabled by default in local inference messages;
-- deterministic cleanup of generated temporary audio;
-- tests proving defaults fail closed.
+- explicit opt-in through config/environment;
+- trust decision propagated into MLX tokenizer configuration;
+- `allow_remote_media=false` default;
+- pure HTTP(S) media policy validator with fail-closed tests;
+- deterministic cleanup of temporary WAV files owned by the helper lifecycle.
 
-Exit gate:
+Remaining gate:
 
-- local image/audio helpers leave no avoidable temp artifact after owned lifecycle;
-- remote behavior requires explicit opt-in.
+- enforce the media policy in the canonical HTTP request path before backend execution.
 
-#### A3 — Remove ClosedRoom-specific registry coupling
-Status: `READY`
+### A3 — Remove ClosedRoom-specific registry coupling
+Status: `DONE`
 Dependencies: none
 
-Deliverables:
+Integrated:
 
-- remove direct Application Support/ClosedRoom read from core registry;
-- add explicit registry/provider/config integration point if needed;
-- update ClosedRoom integration guidance separately, without core importing consumer state.
+- removed direct ClosedRoom Application Support reads from core;
+- added generic YAML/JSON external registry layers;
+- explicit paths or `LOCAL_LLM_REGISTRY_PATHS` provide consumer integration;
+- precedence is built-in < external < user;
+- missing external layers fail clearly;
+- merge behavior is covered by tests.
 
-Exit gate:
-
-- core package behavior no longer names or requires ClosedRoom;
-- user/built-in registry merge behavior remains covered.
-
-### Lane C — Contracts
-
-#### C1 — Canonical task/request vocabulary
-Status: `READY`
+### C1 — Canonical task/request vocabulary
+Status: `PARTIAL`
 Dependencies: none
 
-Deliverables:
+Integrated:
 
-- `TaskType`, canonical request/result and termination reason contracts;
-- compatibility adapter from current chat request;
-- typed errors suitable for API/UI.
+- backend-neutral `TaskType`;
+- `InferenceRequest`, `InferenceResult`, generation/output contracts;
+- typed termination/error vocabulary;
+- compatibility translator from current OpenAI/legacy chat payloads;
+- chat, structured generation, vision-language and transcription classification;
+- Python 3.10-compatible contract implementation;
+- no FastAPI/Pydantic/backend dependency in the core types.
 
-Exit gate:
+Remaining gate:
 
-- current text request tests pass through compatibility translation;
-- new core types have no FastAPI/backend dependency.
+- route the existing HTTP execution path through the compatibility translator/canonical request boundary.
 
-#### C2 — Capability descriptor
-Status: `PENDING`
-Dependencies: C1 vocabulary
-
-Can begin in parallel with later C1 implementation once task vocabulary is frozen in a small contract PR.
-
-### Lane E — Design foundation
-
-#### E1 — Design-system tokens and primitives
-Status: `READY`
+### E1 — Design-system tokens and primitives
+Status: `PARTIAL`
 Dependencies: none
 
-Deliverables:
+Integrated:
 
-- implement brand token source for graphite/slate/electric-blue/teal/violet/light-neutral palette;
-- typography and spacing/radius scale;
-- status semantics (`ready`, `resident`, `cold`, `loading`, `warning`, `error`, `unavailable`) not expressed by color alone;
-- reusable card, badge, button, field, metric, empty/unavailable and table primitives;
-- dark-first control-plane shell with a supported light variant where appropriate.
+- brand palette and semantic surface tokens;
+- dark-first and light semantic variants;
+- typography, spacing, radii, control height and focus tokens;
+- status semantics not represented by color alone;
+- reusable card, button, field, metric, status, empty-state and table primitives;
+- reduced-motion foundation;
+- stylesheet loaded by the Studio bundle.
 
-Important constraint:
+Remaining gate:
 
-- design foundation may use static component fixtures for visual tests, but product screens must not present invented runtime values as live data.
+- migrate the real shell/screens and add visual/accessibility regression evidence.
 
-### Lane F — Product/documentation
+### F1 — Positioning and information-language contract
+Status: `DONE`
+Dependencies: target specification
 
-#### F1 — Positioning and information-language contract
-Status: `READY`
-Dependencies: target specification exists
+Integrated:
 
-Deliverables:
-
-- README/homepage positioning aligned to “resource-aware, observable local AI control plane”;
-- clear “orchestrates runtimes; does not replace them” statement;
+- README/package description aligned to resource-aware local AI control-plane positioning;
+- explicit “orchestrates specialist runtimes; does not replace them” statement;
 - local-first/not-local-only language;
-- terminology alignment across README, UI and API docs;
-- product-language rules from [`brand-guidelines.md`](brand-guidelines.md).
+- current-vs-target capability disclaimer;
+- artifact/residency/evidence terminology aligned to the program.
 
-F1 can progress independently from runtime implementation as long as it distinguishes current from target capabilities.
+## 6. Batch 2 — Active parallel implementation
 
-## 6. Parallel Batch 2 — Resource and capability foundation
+Batch 2 starts now. The key rule is **parallelize by ownership boundary, not by task count**.
 
-Start after the narrow foundation contracts land. Several tasks remain parallel.
+### AC1 — Canonical request + security enforcement integration
+Status: `READY`
+Dependencies: A2, C1
+Ownership: API/request path; exclusive `server.py` stream
 
-### Lane B
+Why it is one stream:
 
-#### B1 — Resource observation contract
-Status: `PENDING`
-Dependencies: A1 recommended, not technically hard
+- A2 remote-media enforcement and C1 request translation converge on the same normalization/execution boundary;
+- separate branches editing `server.py` would create avoidable conflicts and duplicated validation.
 
 Deliverables:
 
-- system/hardware resource snapshot;
-- per-runtime resource profile;
-- estimate vs observation distinction;
-- configured budget/headroom model;
-- safe unavailable behavior.
+- translate current `/v1/chat/completions` requests to `InferenceRequest` before execution policy;
+- preserve current OpenAI-compatible behavior and response shape;
+- apply `validate_media_sources()` before backend invocation;
+- resolve `allow_remote_media` from the selected runtime/model configuration;
+- map typed invalid request/policy errors to bounded public errors;
+- keep request normalization free of backend-specific policy where possible;
+- add non-streaming and streaming compatibility tests;
+- add explicit HTTP(S)-media rejected/default and opt-in tests.
 
-#### B2 — ResourceManager admission
-Status: `PENDING`
+Exit gate:
+
+- current API compatibility tests pass through the canonical request boundary;
+- remote media cannot reach a backend unless explicitly enabled;
+- no duplicated request parser becomes a second source of truth.
+
+### B1 — Resource observation contract
+Status: `READY`
+Dependencies: A1 recommended; satisfied
+Ownership: new resource modules, no `server.py` changes in first slice
+
+Deliverables:
+
+- `SystemResourceSnapshot` with timestamp/source/platform metadata;
+- host memory fields with unavailable rather than invented zero semantics;
+- accelerator/unified-memory fields only where measurable;
+- per-runtime `RuntimeResourceProfile` separating configured estimate, observed current and observed peak;
+- configured budget/headroom contract;
+- pressure classification vocabulary;
+- injectable observer interface for deterministic tests;
+- platform adapters kept behind the contract.
+
+Exit gate:
+
+- callers can distinguish estimate, measured value and unavailable value structurally;
+- no cross-platform metric is fabricated;
+- pure contract/tests work on CI without physical hardware.
+
+### C2 — Capability descriptor
+Status: `READY`
+Dependencies: C1 vocabulary; satisfied
+Ownership: core capability/registry validation modules
+
+Deliverables:
+
+- task support set;
+- input modality set;
+- output modality set;
+- feature set such as streaming, thinking, structured output and tool-like extensions only when truly supported;
+- deterministic mapping from current registry metadata to capability descriptors;
+- validation for inconsistent declarations;
+- pre-backend `supports(request)` decision;
+- client/API serialization suitable for future UI consumption.
+
+Migration constraint:
+
+- existing `modalities` remains readable during migration;
+- new capability metadata must not claim support merely because a backend family could theoretically provide it.
+
+Exit gate:
+
+- representative text, VLM and audio-capable registry entries resolve to deterministic descriptors;
+- unsupported task/modalities can be rejected without loading/invoking the backend.
+
+### D1 — Precise metric vocabulary
+Status: `READY`
+Dependencies: coordinate with C1 lifecycle names; satisfied
+Ownership: new observability contract module
+
+Deliverables:
+
+- request admitted/queued/started/first-output/completed/failed/cancelled lifecycle vocabulary;
+- queue wait, load, prompt/prefill, TTFT, decode and total duration fields with precise definitions;
+- input/output token counts only when token semantics are real;
+- separate chunk/event counts from tokens;
+- throughput units tied to a measured denominator;
+- cache/load classification;
+- resource snapshot linkage;
+- unavailable/source semantics;
+- privacy-safe event fields with no prompt/output persistence requirement.
+
+Exit gate:
+
+- schema makes it impossible to silently label chunks as tokens;
+- UI/backend adapters can leave unsupported fields unavailable.
+
+### E2 — New application shell/navigation
+Status: `READY`
+Dependencies: E1 foundation; satisfied
+Ownership: frontend shell/module boundaries
+
+Deliverables:
+
+- control-plane sidebar/top-level information architecture;
+- routes/views for Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System and Settings;
+- shared loading/empty/unavailable/error patterns;
+- existing working Chat/Models/Logs/API functions preserved during migration;
+- module boundaries that reduce collisions for later parallel screen work;
+- design-system primitives used as the visual source of truth;
+- current source-backed values only; future metrics render unavailable/disabled placeholders rather than fake data.
+
+Exit gate:
+
+- all top-level destinations are navigable;
+- legacy workflows remain reachable/functional;
+- shell does not depend on B1/C2/D1 to render truthfully.
+
+### D3a — Artifact identity foundation
+Status: `READY`
+Dependencies: none for artifact portion
+Ownership: model source/artifact metadata contract
+
+Deliverables:
+
+- stable artifact identity schema;
+- local file SHA-256 where a concrete file exists;
+- Hugging Face repository/revision/source metadata where available;
+- source kind and verification state;
+- stable serialization for later runtime fingerprint assembly;
+- no expensive hashing performed implicitly on every UI refresh/request;
+- explicit unknown/unverified state.
+
+Exit gate:
+
+- two artifact identities compare deterministically;
+- identity does not rely on display name alone;
+- later D3 can compose backend/config/hardware identity without changing artifact semantics.
+
+## 7. Batch 2 dependency release points
+
+Batch 2 is designed to unlock follow-on work incrementally instead of waiting for the entire batch.
+
+| Contract landed | Newly unblocked work |
+| --- | --- |
+| AC1 | canonical API policy path; safer C3/C4 endpoint work |
+| B1 | B2 ResourceManager; resource evidence adapters; E3c/E4 resource presentation skeleton |
+| C2 | C3 transcription API; E3b/E5 task-aware model controls |
+| D1 | D2 backend metric adapters; request-lifecycle UI labels |
+| E2 | E3a Models inventory, E4a Overview health, Playground/Diagnostics screen slices in parallel |
+| D3a | backend/config/hardware fingerprint composition work |
+
+## 8. Batch 3 — Resource lifecycle, task API, metrics and source-backed UX
+
+### B2 — ResourceManager admission
+Status: `BLOCKED`
 Dependencies: B1
 
 Deliverables:
 
 - load-time reservation;
-- budget check;
+- budget/headroom check;
 - pressure classification;
-- explicit resource-exhausted decision;
-- reconciliation from estimate to observation.
+- typed resource-exhausted decision;
+- reservation release/rollback;
+- estimate-to-observation reconciliation;
+- deterministic races/overcommit tests.
 
-#### B3 — Worker ownership and memory reclamation
+### B3 — Worker ownership and memory reclamation
 Status: `PENDING`
 Dependencies: lifecycle contract; B1 for measurement/evidence
 
-Implementation may start in parallel with B2 after resource observation types are stable.
+May begin protocol design after B1 types stabilize and proceed in parallel with B2.
 
 Deliverables:
 
 - worker protocol;
-- isolated text runtime path;
+- isolated text runtime path where required for provable reclamation;
 - bounded startup/health/drain/terminate;
 - no orphan processes;
 - repeated unload evidence.
 
-#### B4 — Zero-resident runtime manager
+### B4 — Zero-resident runtime manager
 Status: `PENDING`
-Dependencies: lifecycle semantics, preferably B2 before load-on-demand policy
+Dependencies: lifecycle semantics; B2 preferred before load-on-demand policy
 
 Deliverables:
 
-- server healthy with zero resident models;
-- last model can unload;
-- configured/default model identity survives cold state;
-- registry/residency API semantics separated.
+- server remains healthy with zero resident models;
+- last runtime can unload;
+- configured/default artifact identity survives cold state;
+- registry, route selection and residency are separate concepts.
 
-B4 state/API work may run in parallel with B3; automatic cold-load should wait for B2/B3.
+State/API work can progress in parallel with B3; automatic cold-load waits for admission/reclamation policy.
 
-### Lane C
-
-#### C2 — Capability descriptor
-Status: `PENDING`
-Dependencies: C1
-
-Deliverables:
-
-- tasks/input/output/features schema;
-- registry migration/validation;
-- pre-backend capability rejection;
-- client-visible capability metadata.
-
-#### C3 — First-class transcription task/API
-Status: `PENDING`
-Dependencies: C1, C2
+### C3 — First-class transcription task/API
+Status: `BLOCKED`
+Dependencies: AC1, C2
 
 Deliverables:
 
 - `/v1/audio/transcriptions` compatibility surface;
-- ASR adapter/worker boundary;
-- audio-language chat remains separate;
-- efficient local media transfer and cleanup.
+- ASR-specific request/result contract mapping;
+- audio-language chat stays separate from transcription;
+- efficient local media transfer/cleanup;
+- explicit capability rejection.
 
-C3 can run in parallel with B3/B4 because initial residency may be explicit/manual.
+### D2 — Metric normalization adapters
+Status: `BLOCKED`
+Dependencies: D1
 
-### Lane D
+Parallel adapter slices after D1:
 
-#### D1 — Precise metric vocabulary
-Status: `READY`
-Dependencies: none; coordinate with C1 request lifecycle names
+- D2a llama.cpp / llama-server;
+- D2b MLX text;
+- D2c MLX-VLM;
+- D2d ASR after C3.
 
-Deliverables:
+Exit gate:
 
-- canonical metric schema;
-- correct token/chunk naming;
-- unavailable-source semantics;
-- privacy-safe event fields.
+- UI/client consumes one metric schema;
+- unsupported metrics remain unavailable;
+- token/chunk semantics remain truthful.
 
-D1 should finish before UI metric labels stabilize.
+### E3/E4 early source-backed slices
+Status: `BLOCKED`
+Dependencies: E2; individual panels additionally depend on B1/C2/D1
 
-## 7. Parallel Batch 3 — Scheduling, observability and core UX
+Once E2 lands, parallelize:
 
-### Lane B
+- E3a registry/default/residency table using current real sources;
+- E4a server/runtime health summary using current real sources;
+- current endpoint catalog;
+- Playground text migration;
+- Diagnostics/log migration.
 
-#### B5 — Scheduler, deadlines and cancellation
+## 9. Batch 4 — Scheduling, residency, fingerprint and evaluation foundation
+
+### B5 — Scheduler, deadlines and cancellation
 Status: `PENDING`
-Dependencies: C1, B2, stable lifecycle/worker boundary
+Dependencies: C1/AC1, B2, stable lifecycle/worker boundary
 
 Deliverables:
 
-- bounded request queue;
-- queue state and wait time;
+- bounded queue;
+- queue state/wait duration;
 - deadline expiry;
 - cancellation before/during execution;
 - client disconnect propagation where supported;
 - explicit overload responses;
 - backend-native batching remains backend-owned.
 
-#### B6 — Residency policy: pin/LRU/TTL
+### B6 — Residency policy: pin/LRU/TTL
 Status: `PENDING`
 Dependencies: B2, B3, B4, B5 lease semantics
 
@@ -331,111 +436,51 @@ Deliverables:
 
 - pin/unpin;
 - monotonic idle TTL;
-- LRU candidate ordering;
+- deterministic LRU ordering;
 - eviction reason;
 - no active-runtime eviction;
 - safe no-candidate/resource-exhausted behavior.
 
-### Lane D
-
-#### D2 — Metric normalization adapters
+### D3 — Runtime fingerprint completion
 Status: `PENDING`
-Dependencies: D1; backend-specific implementation can be parallelized by adapter
+Dependencies: D3a plus backend/config/hardware identity; coordinate with D1/D2
 
-Subtasks that can run in parallel:
+Subtasks that can proceed in parallel:
 
-- D2a llama/llama-server metrics;
-- D2b MLX text metrics;
-- D2c MLX-VLM metrics;
-- D2d ASR metrics after C3.
-
-Exit gate:
-
-- UI/client consumes one schema;
-- unsupported metrics remain unavailable.
-
-#### D3 — Artifact integrity and runtime fingerprint
-Status: `PENDING`
-Dependencies: artifact schema work can start early; final fingerprint depends on D1/D2 and hardware-profile contract
-
-Subtasks that can run in parallel:
-
-- SHA/revision metadata and verification;
-- backend version/config digest;
+- backend version and resolved-config digest;
 - hardware profile;
-- fingerprint assembly and stable serialization.
+- artifact identity integration;
+- stable fingerprint serialization and comparison.
 
-### Lane E
+### D4a — Benchmark/test-set foundation
+Status: `READY`
+Dependencies: none for schema preparation
 
-#### E2 — New application shell/navigation
-Status: `PENDING`
-Dependencies: E1
-
-Deliverables:
-
-- sidebar navigation;
-- Overview;
-- Models & Runtimes;
-- Endpoints;
-- Playground;
-- Benchmark & Evaluation placeholder route;
-- System/Settings;
-- consistent loading/unavailable/error patterns.
-
-#### E3 — Models & Runtimes screen
-Status: `PENDING`
-Dependencies: E1; can begin with existing runtime data, but authoritative memory-budget controls require B1/B2
-
-Implementation split:
-
-- E3a registry/residency table and lifecycle state — can start early;
-- E3b capability details — waits for C2;
-- E3c memory budget/pressure — waits for B1/B2;
-- E3d pin/auto-evict controls — waits for B6;
-- E3e runtime fingerprint — waits for D3.
-
-This decomposition is intentionally designed for parallel delivery rather than blocking the entire screen on the final resource manager.
-
-#### E4 — Overview and Diagnostics
-Status: `PENDING`
-Dependencies: E1; each panel has its own data dependency
-
-Parallel subcomponents:
-
-- server/runtime health — current source can be adapted immediately;
-- resident model summary — existing source;
-- activity/request lifecycle — B5/D1;
-- resource pressure — B1/B2;
-- truthful latency/throughput — D2;
-- fingerprint/evidence links — D3.
-
-## 8. Parallel Batch 4 — Evaluation harness and complete product surfaces
-
-### Lane D
-
-#### D4 — Benchmark engine v1
-Status: `PENDING`
-Dependencies: D2, D3; quality datasets can be prepared earlier
+Can progress before final benchmark execution engine.
 
 Deliverables:
 
-- versioned benchmark/test-set definition;
-- sample-size selection;
+- versioned test-set interface;
+- general-purpose starter dataset design;
+- sample-size selection contract;
+- scorer interface;
+- result/report schema draft;
+- deterministic sample IDs and provenance.
+
+### D4 — Benchmark engine v1
+Status: `PENDING`
+Dependencies: D2, D3; D4a prepared earlier
+
+Deliverables:
+
 - deterministic run manifest;
 - cold/warm distinction;
 - latency/TTFT/throughput/memory/success metrics;
-- task quality evaluator interface;
+- task-quality evaluators;
 - result persistence with execution identity;
-- comparison rules that reject incompatible run identity.
+- comparison rules rejecting incompatible run identity.
 
-Parallel preparation before D2/D3:
-
-- dataset/test-set interface;
-- general-purpose starter dataset design;
-- scorer contracts;
-- report schema draft.
-
-#### D5 — Benchmark history/regression
+### D5 — Benchmark history/regression
 Status: `PENDING`
 Dependencies: D4
 
@@ -444,13 +489,38 @@ Deliverables:
 - immutable run history;
 - explicit baseline promotion;
 - matched-identity regression checks;
-- no comparison across incompatible runtime fingerprints.
+- no comparison across incompatible fingerprints.
 
-### Lane E
+## 10. Complete product-surface work
 
-#### E5 — Endpoints/Playground multimodal UX
+### E3 — Models & Runtimes
 Status: `PENDING`
-Dependencies: C2; ASR portion depends C3
+Dependencies: E2; split by data contract
+
+Parallel slices:
+
+- E3a registry/residency table — after E2;
+- E3b capability details — after C2;
+- E3c memory budget/pressure — after B1/B2;
+- E3d pin/auto-evict — after B6;
+- E3e runtime fingerprint — after D3.
+
+### E4 — Overview and Diagnostics
+Status: `PENDING`
+Dependencies: E2; split by source
+
+Parallel panels:
+
+- current server/runtime health — after E2;
+- resident-model summary — after E2;
+- activity/request lifecycle — B5/D1;
+- resource pressure — B1/B2;
+- truthful latency/throughput — D2;
+- fingerprint/evidence — D3.
+
+### E5 — Endpoints/Playground multimodal UX
+Status: `PENDING`
+Dependencies: E2, C2; ASR portion C3
 
 Deliverables:
 
@@ -459,38 +529,37 @@ Deliverables:
 - text/image/audio inputs only when supported;
 - structured-output settings;
 - streaming/cancel state;
-- exact runtime/result metadata access;
-- no fake “supported” capability.
+- runtime/result metadata;
+- no fake supported capability.
 
-#### E6 — Benchmark & Evaluation screen
+### E6 — Benchmark & Evaluation
 Status: `PENDING`
-Dependencies: E1, D4; visual shell can be built earlier against fixture contracts
+Dependencies: E1/E2, D4; shell may precede engine
 
 Deliverables:
 
 - model/backend/test-set/sample-size/task selection;
-- progress/status;
-- TTFT/tokens/sec/latency/success/memory/cache/load metrics;
-- model/backend comparison table;
+- run progress/status;
+- TTFT/tokens/sec/latency/success/memory/cache/load metrics where available;
+- comparison table;
 - run manifest/fingerprint;
-- history/regression when D5 lands;
-- explicit confidence/unavailable states rather than automated marketing conclusions.
+- history/regression after D5;
+- confidence/unavailable states rather than marketing conclusions.
 
-## 9. Final hardening batch
+## 11. Final hardening
 
 ### H1 — Accessibility and responsive web validation
 Status: `PENDING`
-Dependencies: primary surfaces implemented
+Dependencies: primary surfaces
 
 Requirements:
 
-- keyboard navigation;
-- visible focus;
+- keyboard navigation and deterministic focus;
 - semantic labels;
 - status not color-only;
 - WCAG AA contrast where applicable;
 - 200% zoom/readability;
-- narrow laptop/tablet width behavior;
+- narrow laptop/tablet widths;
 - reduced-motion compatible transitions.
 
 ### H2 — Cross-platform runtime matrix
@@ -499,127 +568,78 @@ Dependencies: B3, D2
 
 Representative matrix:
 
-- Apple Silicon macOS: MLX text + MLX-VLM + GGUF path;
+- Apple Silicon macOS: MLX text + MLX-VLM + GGUF;
 - Linux CPU: GGUF text;
-- Linux NVIDIA where supported/configured: GGUF/GPU path;
-- one real audio transcription path;
-- concurrent multi-runtime scenario where resource policy allows it.
+- Linux NVIDIA where supported/configured;
+- one real transcription path;
+- concurrent multi-runtime case where admission permits it.
 
 ### H3 — Memory lifecycle evidence
 Status: `PENDING`
 Dependencies: B1-B4
 
-Must record:
+Must record cold baseline, load footprint, inference peak, unload/post-stop footprint, repeated cycles, model switch, cancellation/failure cleanup and later pressure/eviction behavior.
 
-- cold baseline;
-- load footprint;
-- repeated inference peak;
-- unload/post-stop footprint;
-- repeated load/unload cycle;
-- model switch;
-- cancellation and failure cleanup;
-- pressure/eviction behavior after B6.
-
-### H4 — Documentation and positioning promotion
+### H4 — Documentation/positioning promotion
 Status: `PENDING`
-Dependencies: target features actually integrated
+Dependencies: actual shipped capability
 
-Deliverables:
+README/screenshots/diagrams/examples must be promoted only from integrated behavior and measured evidence.
 
-- README reflects only shipped capability;
-- screenshots updated from real implementation;
-- architecture diagrams match code;
-- examples cover text, vision and transcription;
-- benchmark evidence clearly identifies hardware/artifact/runtime;
-- homepage/portfolio wording distinguishes measured facts from roadmap.
-
-## 10. Critical path
-
-The shortest technical path to the differentiated product is:
+## 12. Critical path
 
 ```text
-A1 -> B1 -> B2 -> B3 -> B4 -> B5 -> B6
-              \                    \
-               -> D1 -> D2 -> D3 -> D4
+B1 -> B2 -> B3/B4 -> B5 -> B6
+ |      |             |
+ |      +------------> resource-aware UX
+ +-> D1 -> D2 -> D3 -> D4 -> D5
 
-C1 -> C2 -> C3
+AC1 -> C2 -> C3
 
-E1 -> E2 -> E3/E4 -> E5/E6
+E1 -> E2 -> E3/E4/E5 -> E6
 ```
 
-The **longest risk-bearing chain** is resource observation -> admission -> reclaimable worker lifecycle -> scheduler/residency policy -> hardware evidence. UX and evaluation work should run in parallel around that chain rather than wait for it wholesale.
+The longest risk-bearing chain remains **resource observation -> admission -> reclaimable lifecycle -> scheduler/residency policy -> hardware evidence**. Capability, observability, artifact identity and UX work must run around it rather than wait for it wholesale.
 
-## 11. Recommended concurrency plan
+## 13. Recommended concurrency plan
 
-If multiple implementation agents/developers are available, use these simultaneous assignments.
+### Active Batch 2 — up to 6 workers
 
-### Batch 1 — up to 6 parallel workers
+1. AC1 canonical request + media-policy wiring — exclusive API/server ownership.
+2. B1 resource observation — new resource modules.
+3. C2 capability model — core/registry capability modules.
+4. D1 metric vocabulary — observability contracts.
+5. E2 shell/navigation — frontend shell/module boundaries.
+6. D3a artifact identity — artifact/source metadata contracts.
 
-1. A1 CI reliability.
-2. A2 security/privacy hardening.
-3. A3 consumer decoupling.
-4. C1 canonical request/task contract.
-5. E1 design system.
-6. F1 README/positioning language preparation.
+### Next release wave after first Batch 2 contracts
 
-### Batch 2 — up to 5 parallel workers
+Up to 6 workers:
 
-After C1 and basic CI are stable:
+1. B2 ResourceManager after B1.
+2. B3 worker protocol/reclamation after B1 types.
+3. C3 transcription after AC1+C2.
+4. D2 adapters split by backend after D1.
+5. E3a/E4a source-backed UI after E2.
+6. D4a dataset/scorer foundation independently.
 
-1. B1 resource observation.
-2. C2 capability model.
-3. D1 metric vocabulary.
-4. E2 shell/navigation.
-5. artifact identity schema portion of D3.
+## 14. Merge-conflict minimization
 
-### Batch 3 — up to 6 parallel workers
+- AC1 is the only Batch 2 stream permitted to make broad request-path changes in `server.py`.
+- B1, C2, D1 and D3a should start in new narrow modules and expose stable contracts before wiring.
+- E2 owns frontend shell/module extraction; later screen branches start from those boundaries rather than all editing one static bundle.
+- backend-specific metric adapters sit behind D1 so they can be developed independently.
+- status documentation is updated on the integration line after coherent slices land, not separately by every worker.
 
-After B1/C2/D1 contracts stabilize:
-
-1. B2 ResourceManager.
-2. B3 worker isolation/reclamation.
-3. B4 zero-resident semantics.
-4. C3 transcription API/ASR adapter.
-5. D2 backend metric adapters split by backend.
-6. E3a/E4 source-backed UI portions not waiting for later policy.
-
-### Batch 4 — up to 5 parallel workers
-
-1. B5 scheduler/cancellation.
-2. D3 fingerprint completion.
-3. E3 resource/capability integrations.
-4. E5 Playground/Endpoints.
-5. D4 benchmark test-set/scorer foundation.
-
-### Batch 5
-
-1. B6 eviction policy.
-2. D4 benchmark execution/persistence.
-3. E6 benchmark UI.
-4. H1 accessibility/responsive.
-5. H2/H3 hardware evidence preparation/execution.
-
-## 12. Merge-conflict minimization
-
-Parallel tasks should avoid repeatedly editing the same monolith.
-
-Before broad UI/runtime parallelization:
-
-- establish core types in new narrow modules;
-- avoid simultaneous large changes to `server.py` until route extraction boundaries are agreed;
-- split frontend components/views before multiple UX workstreams implement separate screens;
-- backend-specific metric adapters should live behind a shared interface so they can be implemented independently;
-- update roadmap/current-state in the integration PR after parallel branches land, not independently with conflicting status claims.
-
-## 13. Plan maintenance
+## 15. Plan maintenance
 
 At the end of every merged coherent slice:
 
-1. update task status in this roadmap;
-2. add/change dependencies discovered during implementation;
+1. update task status here;
+2. record changed dependencies discovered during implementation;
 3. update [`current-state.md`](current-state.md) with integrated baseline and immediate next block;
-4. update workstream progress files affected by the slice;
+4. update affected workstream progress files;
 5. leave target specifications unchanged unless intended behavior changed;
-6. link evidence/tests in the relevant completion record or PR rather than bloating this roadmap with commit history.
+6. keep evidence/test links in completion records/PRs rather than turning this roadmap into a changelog.
 
-The roadmap is considered stale if merged implementation has changed any task state/dependency and this file was not updated in the same integration change.
+The roadmap is stale if merged implementation changes task state/dependencies and this file is not updated in the same integration cycle.
