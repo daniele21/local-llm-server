@@ -1,0 +1,292 @@
+"""Resident-runtime evaluation service and local report persistence."""
+from __future__ import annotations
+
+import json
+import os
+import time
+import uuid
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Any, Mapping
+
+from .core.contracts import (
+    ErrorCode,
+    InferenceError,
+    InferenceRequest,
+    InferenceResult,
+    TaskType,
+    TerminationReason,
+)
+from .evaluation import (
+    EvaluationReport,
+    EvaluationRunManifest,
+    EvaluationSampleResult,
+    SampleSelection,
+    Score,
+    TestSet,
+    build_run_manifest,
+)
+from .evaluation_builtin import DeterministicObjectiveScorer, GENERAL_PURPOSE_V1
+from .evaluation_runner import EvaluationRunner
+from .runtime_evidence import attached_runtime_identity
+
+
+_BUILTIN_TEST_SETS: dict[str, TestSet] = {
+    GENERAL_PURPOSE_V1.test_set_id: GENERAL_PURPOSE_V1,
+}
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationRunRequest:
+    model: str
+    test_set_id: str = "general-purpose"
+    sample_count: int = 20
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.model.strip():
+            raise ValueError("model must be non-empty")
+        if self.sample_count < 10 or self.sample_count % 10 != 0:
+            raise ValueError("sample_count must be a positive multiple of 10")
+
+
+@dataclass(frozen=True, slots=True)
+class EvaluationRunOutcome:
+    report: EvaluationReport
+    evidence_grade: bool
+    persisted_path: str | None = None
+
+
+class ResidentRuntimeExecutor:
+    """Execute canonical deterministic evaluation requests on resident runtimes."""
+
+    def __init__(self, manager: Any) -> None:
+        self.manager = manager
+
+    def execute(self, request: InferenceRequest) -> InferenceResult:
+        if request.task not in {TaskType.CHAT, TaskType.STRUCTURED_GENERATION}:
+            raise InferenceError(
+                ErrorCode.UNSUPPORTED_TASK,
+                f"evaluation executor does not support task {request.task.value}",
+            )
+        try:
+            runtime = self.manager.resolve(request.model)
+        except LookupError as exc:
+            raise InferenceError(
+                ErrorCode.MODEL_NOT_RESIDENT,
+                "selected evaluation model is not resident",
+                retryable=True,
+                details={"model": request.model},
+            ) from exc
+
+        messages = list(request.messages)
+        if not messages and request.input_text is not None:
+            messages = [{"role": "user", "content": request.input_text}]
+        if not messages:
+            raise InferenceError(ErrorCode.INVALID_REQUEST, "evaluation request has no input")
+
+        kwargs: dict[str, Any] = {
+            "messages": messages,
+            "model": runtime.model_id,
+        }
+        generation = request.generation
+        for field_name in (
+            "max_tokens",
+            "temperature",
+            "top_p",
+            "top_k",
+            "min_p",
+            "repeat_penalty",
+            "presence_penalty",
+            "frequency_penalty",
+            "seed",
+            "stop",
+        ):
+            value = getattr(generation, field_name)
+            if value is not None:
+                kwargs[field_name] = value
+        if request.task is TaskType.STRUCTURED_GENERATION or request.output.format == "json":
+            kwargs["response_format"] = {"type": "json_object"}
+
+        started = time.perf_counter()
+        with self.manager.lease_runtime(runtime):
+            runtime.mark_started(int(generation.max_tokens or 0))
+            try:
+                raw = runtime.engine.complete(kwargs)
+            except InferenceError:
+                raise
+            except Exception as exc:
+                raise InferenceError(
+                    ErrorCode.BACKEND_ERROR,
+                    "evaluation backend execution failed",
+                    retryable=False,
+                    details={"backend": getattr(runtime.engine, "backend", "unknown")},
+                ) from exc
+            finally:
+                runtime.mark_idle()
+        elapsed = time.perf_counter() - started
+
+        content = _extract_content(raw)
+        usage = _numeric_usage(raw.get("usage"))
+        usage["wall_time_seconds"] = elapsed
+        return InferenceResult(
+            task=request.task,
+            model=runtime.model_id,
+            content=content,
+            termination_reason=_termination_reason(raw),
+            usage=usage,
+            metadata={"backend": getattr(runtime.engine, "backend", runtime.cfg.get("backend", "unknown"))},
+        )
+
+
+class EvaluationStore:
+    """Simple immutable local JSON report store."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = root.expanduser()
+
+    def save(self, report: EvaluationReport) -> Path:
+        self.root.mkdir(parents=True, exist_ok=True)
+        target = self.root / f"{report.manifest.run_id}.json"
+        if target.exists():
+            raise FileExistsError(f"evaluation run already exists: {report.manifest.run_id}")
+        temp = target.with_suffix(".json.tmp")
+        temp.write_text(
+            json.dumps(report_to_dict(report), sort_keys=True, indent=2),
+            encoding="utf-8",
+        )
+        os.replace(temp, target)
+        return target
+
+    def list_run_ids(self) -> tuple[str, ...]:
+        if not self.root.exists():
+            return ()
+        return tuple(sorted(path.stem for path in self.root.glob("*.json") if path.is_file()))
+
+
+class EvaluationService:
+    def __init__(self, manager: Any, *, store: EvaluationStore | None = None) -> None:
+        self.manager = manager
+        self.store = store
+
+    def list_test_sets(self) -> tuple[dict[str, object], ...]:
+        return tuple(
+            {
+                "id": test_set.test_set_id,
+                "version": test_set.version,
+                "identity": test_set.identity,
+                "sample_count": len(test_set.samples),
+                "provenance": dict(test_set.provenance),
+            }
+            for test_set in sorted(_BUILTIN_TEST_SETS.values(), key=lambda item: item.test_set_id)
+        )
+
+    def run(self, request: EvaluationRunRequest) -> EvaluationRunOutcome:
+        test_set = _BUILTIN_TEST_SETS.get(request.test_set_id)
+        if test_set is None:
+            raise ValueError(f"unknown test set: {request.test_set_id}")
+        if request.sample_count > len(test_set.samples):
+            raise ValueError(
+                f"sample_count {request.sample_count} exceeds dataset size {len(test_set.samples)}"
+            )
+
+        try:
+            runtime = self.manager.resolve(request.model)
+        except LookupError as exc:
+            raise InferenceError(
+                ErrorCode.MODEL_NOT_RESIDENT,
+                "selected evaluation model is not resident",
+                retryable=True,
+                details={"model": request.model},
+            ) from exc
+
+        identity = attached_runtime_identity(runtime)
+        fingerprint = identity.fingerprint if identity is not None else None
+        selection = SampleSelection(limit=request.sample_count, seed=request.seed)
+        manifest = build_run_manifest(
+            run_id=uuid.uuid4().hex,
+            test_set=test_set,
+            selection=selection,
+            model=runtime.key,
+            runtime_fingerprint=fingerprint,
+        )
+        report = EvaluationRunner(
+            ResidentRuntimeExecutor(self.manager),
+            (DeterministicObjectiveScorer(),),
+        ).run(manifest=manifest, test_set=test_set)
+
+        path = self.store.save(report) if self.store is not None else None
+        return EvaluationRunOutcome(
+            report=report,
+            evidence_grade=fingerprint is not None,
+            persisted_path=str(path) if path is not None else None,
+        )
+
+
+def report_to_dict(report: EvaluationReport) -> dict[str, object]:
+    manifest = report.manifest
+    return {
+        "manifest": {
+            "run_id": manifest.run_id,
+            "test_set_id": manifest.test_set_id,
+            "test_set_version": manifest.test_set_version,
+            "test_set_identity": manifest.test_set_identity,
+            "sample_ids": list(manifest.sample_ids),
+            "model": manifest.model,
+            "task_types": [task.value for task in manifest.task_types],
+            "seed": manifest.seed,
+            "runtime_fingerprint": manifest.runtime_fingerprint,
+        },
+        "complete": report.complete,
+        "results": [_sample_result_to_dict(result) for result in report.results],
+    }
+
+
+def _sample_result_to_dict(result: EvaluationSampleResult) -> dict[str, object]:
+    return {
+        "sample_id": result.sample_id,
+        "succeeded": result.succeeded,
+        "scores": [_score_to_dict(score) for score in result.scores],
+        "error_code": result.error_code,
+        "metrics": dict(result.metrics),
+    }
+
+
+def _score_to_dict(score: Score) -> dict[str, object]:
+    return {
+        "name": score.name,
+        "value": score.value,
+        "passed": score.passed,
+        "details": dict(score.details),
+    }
+
+
+def _extract_content(raw: Mapping[str, Any]) -> str:
+    choices = raw.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], Mapping):
+        return ""
+    choice = choices[0]
+    message = choice.get("message")
+    if isinstance(message, Mapping) and isinstance(message.get("content"), str):
+        return str(message["content"])
+    text = choice.get("text")
+    return str(text) if isinstance(text, str) else ""
+
+
+def _termination_reason(raw: Mapping[str, Any]) -> TerminationReason:
+    choices = raw.get("choices")
+    if isinstance(choices, list) and choices and isinstance(choices[0], Mapping):
+        finish = choices[0].get("finish_reason")
+        if finish == "length":
+            return TerminationReason.MAX_TOKENS
+    return TerminationReason.STOP
+
+
+def _numeric_usage(value: Any) -> dict[str, int | float]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): item
+        for key, item in value.items()
+        if isinstance(item, (int, float)) and not isinstance(item, bool)
+    }
