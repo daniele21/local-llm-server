@@ -5,10 +5,13 @@ usage() {
   cat <<'EOF'
 Usage: ./deploy.sh [--bump-patch] [--skip-tests]
 
-Build an immutable, uniquely identified wheel/sdist bundle.
+Build an immutable, uniquely identified wheel/sdist bundle from the already
+synchronized project environment.
 
 Options:
-  --bump-patch   Increment patch version in both pyproject.toml and VERSION.
+  --bump-patch   Increment patch version in pyproject.toml/VERSION and update
+                 only the already-resolved local editable package version in
+                 uv.lock. No dependency re-resolution is performed.
   --skip-tests   Build without running the deterministic pytest suite first.
   -h, --help     Show this help.
 EOF
@@ -27,8 +30,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_uv() {
-  UV_CACHE_DIR="${UV_CACHE_DIR:-/private/tmp/local-llm-uv-cache}" uv "$@"
+  # Reuse uv's platform-standard cache (or an explicitly provided
+  # UV_CACHE_DIR). Canonical setup populates that cache.
+  uv "$@"
 }
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Error: uv is required. Run the canonical setup command first." >&2
+  exit 1
+fi
+
+if [[ ! -x .venv/bin/python && ! -x .venv/Scripts/python.exe ]]; then
+  echo "Error: project environment is missing. Run the canonical setup command first." >&2
+  exit 1
+fi
 
 if [[ "$bump_patch" == true ]]; then
   current_version="$(python3 - <<'PY'
@@ -36,8 +51,11 @@ import re
 from pathlib import Path
 
 project = Path("pyproject.toml")
-content = project.read_text(encoding="utf-8")
-match = re.search(r'version\s*=\s*"([^"]+)"', content)
+lock = Path("uv.lock")
+project_content = project.read_text(encoding="utf-8")
+lock_content = lock.read_text(encoding="utf-8")
+
+match = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', project_content)
 if not match:
     raise SystemExit("Could not find project version in pyproject.toml")
 old = match.group(1)
@@ -46,12 +64,33 @@ if len(parts) != 3 or not all(part.isdigit() for part in parts):
     raise SystemExit(f"Expected semantic version X.Y.Z, found: {old}")
 parts[-1] = str(int(parts[-1]) + 1)
 new = ".".join(parts)
-project.write_text(content.replace(f'version = "{old}"', f'version = "{new}"', 1), encoding="utf-8")
+
+project_updated = project_content[: match.start(1)] + new + project_content[match.end(1) :]
+
+# uv.lock already contains the fully resolved dependency graph. A release-only
+# version bump must not reopen resolution. Update exactly the local editable
+# project package block and fail closed if its expected identity is ambiguous.
+package_pattern = re.compile(
+    r'(?ms)(\[\[package\]\]\nname = "local-llm-server"\nversion = ")'
+    + re.escape(old)
+    + r'("\nsource = \{ editable = "\." \})'
+)
+lock_updated, replacements = package_pattern.subn(rf"\g<1>{new}\g<2>", lock_content)
+if replacements != 1:
+    raise SystemExit(
+        "Expected exactly one local editable local-llm-server package entry "
+        f"at version {old} in uv.lock; found {replacements}"
+    )
+
+project.write_text(project_updated, encoding="utf-8")
 Path("VERSION").write_text(new + "\n", encoding="utf-8")
+lock.write_text(lock_updated, encoding="utf-8")
 print(new)
 PY
 )"
   echo "[*] Version bumped atomically to: ${current_version}"
+  echo "[*] Verifying the resolved lock remains synchronized"
+  run_uv lock --check
 else
   current_version="$(python3 - <<'PY'
 import tomllib
@@ -68,17 +107,17 @@ PY
 fi
 
 if [[ "$skip_tests" != true ]]; then
-  echo "[*] Running deterministic tests"
-  run_uv run --frozen pytest tests/ -v --tb=short
+  echo "[*] Running deterministic tests from the synchronized environment"
+  run_uv run --no-sync pytest tests/ -v --tb=short
 fi
 
 echo "[*] Cleaning transient backend state only; successful dist builds are retained"
 rm -rf build src/*.egg-info
 
-echo "[*] Ensuring the Python build frontend is available"
-run_uv pip install build setuptools wheel
-
-echo "[*] Building staged immutable artifacts"
-run_uv run python scripts/build_artifacts.py --output-root dist --channel "${LOCAL_LLM_BUILD_CHANNEL:-local}" --variant "${LOCAL_LLM_BUILD_VARIANT:-wheel-sdist}"
+echo "[*] Building staged immutable artifacts from the locked project toolchain"
+run_uv run --no-sync python scripts/build_artifacts.py \
+  --output-root dist \
+  --channel "${LOCAL_LLM_BUILD_CHANNEL:-local}" \
+  --variant "${LOCAL_LLM_BUILD_VARIANT:-wheel-sdist}"
 
 echo "[*] Build complete. Successful builds are retained under dist/builds/ by lineage."

@@ -2,11 +2,12 @@
 set -euo pipefail
 
 # Release flow:
-# 1. require clean main;
-# 2. bump VERSION + pyproject.toml together and run/build through deploy.sh;
-# 3. commit exactly the version files;
-# 4. create a new annotated tag only when it does not already exist locally or remotely;
-# 5. push without force. The tag-triggered workflow creates immutable release assets.
+# 1. require clean main and a canonical setup environment;
+# 2. bump VERSION + pyproject.toml and refresh local-project metadata in uv.lock;
+# 3. run deterministic tests and build the immutable release-candidate bundle;
+# 4. commit exactly the version/lock identity files;
+# 5. create a new annotated tag only when it does not already exist locally or remotely;
+# 6. push without force. The tag-triggered workflow rebuilds from the committed lock.
 
 current_branch="$(git branch --show-current)"
 if [[ "$current_branch" != "main" ]]; then
@@ -19,7 +20,7 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 
-echo "[*] Bumping patch version, testing and producing a local immutable build"
+echo "[*] Bumping patch version, synchronizing lock identity, testing and producing a local immutable build"
 LOCAL_LLM_BUILD_CHANNEL=release-candidate ./deploy.sh --bump-patch
 
 new_version="$(python3 - <<'PY'
@@ -44,8 +45,8 @@ if git ls-remote --exit-code --tags origin "refs/tags/${tag_name}" >/dev/null 2>
   exit 1
 fi
 
-echo "[*] Committing release version ${new_version}"
-git add pyproject.toml VERSION
+echo "[*] Committing release identity ${new_version}"
+git add pyproject.toml VERSION uv.lock
 git commit -m "chore: release version ${new_version}"
 
 echo "[*] Creating immutable annotated tag ${tag_name}"
@@ -55,4 +56,4 @@ echo "[*] Pushing main and tag without force"
 git push origin main
 git push origin "${tag_name}"
 
-echo "[*] Release ${tag_name} pushed. GitHub Actions will build release artifacts from the immutable tag."
+echo "[*] Release ${tag_name} pushed. GitHub Actions will rebuild from the committed lock and publish immutable assets."

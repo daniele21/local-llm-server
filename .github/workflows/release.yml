@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  UV_VERSION: "0.8.13"
+
 jobs:
   build:
     name: Build immutable distribution
@@ -27,13 +30,17 @@ jobs:
           project_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           test "$tag_version" = "$file_version"
           test "$tag_version" = "$project_version"
-      - name: Install build frontend
-        run: python -m pip install "build==1.2.2.post1"
-      - name: Build staged identified bundle
+      - name: Install pinned uv bootstrap
+        run: python -m pip install "uv==${UV_VERSION}"
+      - name: Sync locked release build toolchain
+        # Release packaging is backend-neutral; the native llama.cpp runtime does
+        # not need to be compiled merely to build the Python distributables.
+        run: uv sync --frozen --extra dev --no-install-package llama-cpp-python
+      - name: Build staged identified bundle from locked toolchain
         env:
           LOCAL_LLM_BUILD_CHANNEL: release
           LOCAL_LLM_BUILD_VARIANT: wheel-sdist
-        run: python scripts/build_artifacts.py --output-root dist --channel release --variant wheel-sdist
+        run: uv run --no-sync python scripts/build_artifacts.py --output-root dist --channel release --variant wheel-sdist
       - name: Collect release assets
         shell: bash
         run: |

@@ -36,38 +36,58 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install pinned build frontend
-        run: python -m pip install "build==1.2.2.post1"
-      - name: Build three times and verify immutable lineage
+      - name: Install pinned uv bootstrap
+        run: python -m pip install "uv==0.8.13"
+      - name: Sync locked build/test toolchain
+        # The artifact lifecycle itself is backend-neutral; do not compile the
+        # native llama.cpp runtime merely to validate packaging mechanics.
+        run: uv sync --frozen --extra dev --no-install-package llama-cpp-python
+      - name: Build three times through the canonical command
+        env:
+          LOCAL_LLM_BUILD_CHANNEL: ci
+          LOCAL_LLM_BUILD_VARIANT: wheel-sdist
         run: |
-          python - <<'PY'
+          uv run --no-sync python - <<'PY'
           from __future__ import annotations
 
           import hashlib
           import json
+          import os
           from pathlib import Path
           import subprocess
-          import sys
 
-          output_root = Path(".artifact-lifecycle-validation")
+          output_root = Path("dist")
 
-          def run_build() -> Path:
-              proc = subprocess.run(
-                  [
-                      sys.executable,
-                      "scripts/build_artifacts.py",
-                      "--output-root",
-                      str(output_root),
-                      "--channel",
-                      "ci",
-                      "--variant",
-                      "wheel-sdist",
-                  ],
-                  check=True,
+          def successful_builds() -> set[Path]:
+              root = output_root / "builds"
+              if not root.is_dir():
+                  return set()
+              return {
+                  path
+                  for path in root.glob("*/*")
+                  if path.is_dir() and (path / "build-manifest.json").is_file()
+              }
+
+          def invoke_build(*extra: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+              return subprocess.run(
+                  ["./deploy.sh", *extra],
+                  check=check,
                   text=True,
                   capture_output=True,
+                  env=os.environ.copy(),
               )
-              return Path(proc.stdout.strip().splitlines()[-1])
+
+          def run_build() -> Path:
+              before = successful_builds()
+              proc = invoke_build("--skip-tests")
+              after = successful_builds()
+              created = after - before
+              if len(created) != 1:
+                  raise AssertionError(
+                      f"canonical build did not promote exactly one new build; created={sorted(map(str, created))}\n"
+                      f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
+                  )
+              return created.pop()
 
           def sha256(path: Path) -> str:
               digest = hashlib.sha256()
@@ -120,22 +140,53 @@ jobs:
           third_manifest = verify_build(third)
           assert not first.exists(), "third comparable success must evict only the oldest retained build"
           assert second.exists() and third.exists()
-          retained = [
-              path for path in second.parent.iterdir()
-              if path.is_dir() and (path / "build-manifest.json").is_file()
-          ]
-          assert len(retained) == 2
-          assert len({second_manifest["build_id"], third_manifest["build_id"]}) == 2
+          retained = successful_builds()
+          assert retained == {second, third}
           assert third_manifest["source"]["revision"] == second_manifest["source"]["revision"]
           assert third_manifest["source"]["dirty"] is False
           third_delta = (third / "BUILD_CHANGELOG.md").read_text(encoding="utf-8")
           assert second_manifest["build_id"] in third_delta
 
+          # Force a real post-build verification failure. The staged wheel is
+          # deliberately missing a required Studio asset; no failed candidate
+          # may appear under the successful lineage and staging must be removed.
+          required_asset = Path("src/local_llm_server/static/index.html")
+          hidden_asset = required_asset.with_suffix(".html.std09-hidden")
+          before_failure = successful_builds()
+          required_asset.rename(hidden_asset)
+          try:
+              failed = invoke_build("--skip-tests", check=False)
+              assert failed.returncode != 0, "controlled broken package unexpectedly succeeded"
+          finally:
+              hidden_asset.rename(required_asset)
+          assert successful_builds() == before_failure, "failed staging was promoted as successful output"
+
           staging = output_root / ".staging"
-          assert not staging.exists() or not any(staging.iterdir()), "successful builds left staging residue"
+          assert not staging.exists() or not any(staging.iterdir()), "build lifecycle left staging residue"
           PY
-      - name: Verify artifact lifecycle cleanup
+      - name: Verify release-style version bump updates lock identity
+        env:
+          LOCAL_LLM_BUILD_CHANNEL: release-candidate-ci
+          LOCAL_LLM_BUILD_VARIANT: wheel-sdist
+        run: |
+          before_version="$(tr -d '[:space:]' < VERSION)"
+          ./deploy.sh --bump-patch --skip-tests
+          after_file="$(tr -d '[:space:]' < VERSION)"
+          after_project="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          test "$after_file" = "$after_project"
+          test "$after_file" != "$before_version"
+          uv lock --check
+          git diff --exit-code --quiet -- . ':(exclude)pyproject.toml' ':(exclude)VERSION' ':(exclude)uv.lock' || {
+            echo "Version bump modified files outside pyproject.toml, VERSION and uv.lock" >&2
+            git status --short >&2
+            exit 1
+          }
+          test -n "$(git status --short -- pyproject.toml VERSION uv.lock)"
+      - name: Verify canonical clean removes build output
         if: always()
         run: |
-          rm -rf .artifact-lifecycle-validation
-          test ! -e .artifact-lifecycle-validation
+          rm -rf build dist src/*.egg-info .pytest_cache .ruff_cache playwright-report test-results
+          test ! -e build
+          test ! -e dist
+          test ! -e playwright-report
+          test ! -e test-results
