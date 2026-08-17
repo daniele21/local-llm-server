@@ -5,6 +5,7 @@ Subcommands:
   local-llm serve                — start the HTTP server
   local-llm models               — list available models
   local-llm download             — download a model without starting the server
+  local-llm verify-artifact      — explicitly hash and cache one local model artifact
   local-llm evidence-reclamation — run isolated repeated lifecycle evidence
   local-llm evidence-review      — review compatible repeated hardware reports
 """
@@ -101,6 +102,18 @@ def main() -> None:
     p_download = sub.add_parser("download", help="Download a model without starting the server.")
     p_download.add_argument("model", help="Registry key (e.g. qwen3-8b).")
 
+    p_verify = sub.add_parser(
+        "verify-artifact",
+        help="Explicitly SHA-256 verify one resolved local single-file model artifact.",
+    )
+    p_verify.add_argument("model", help="Registry key to verify.")
+    p_verify.add_argument(
+        "--model-path",
+        default=None,
+        dest="model_path",
+        help="Optional explicit local artifact path for this verification.",
+    )
+
     p_evidence = sub.add_parser(
         "evidence-reclamation",
         help="Run repeated isolated worker load/infer/stop cycles and write a JSON evidence report.",
@@ -194,6 +207,8 @@ def main() -> None:
         _cmd_models()
     elif args.command == "download":
         _cmd_download(args.model)
+    elif args.command == "verify-artifact":
+        _cmd_verify_artifact(args.model, model_path=args.model_path)
     elif args.command == "evidence-reclamation":
         _cmd_evidence_reclamation(args)
     elif args.command == "evidence-review":
@@ -276,6 +291,17 @@ def _cmd_download(model: str) -> None:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
     print(f"Model '{model}' is available locally.")
+
+
+def _cmd_verify_artifact(model: str, *, model_path: str | None = None) -> None:
+    from .artifact_verification import public_verification_summary, verify_model_artifact
+
+    try:
+        receipt = verify_model_artifact(model, model_path=model_path)
+    except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+        print(f"Artifact verification failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps(public_verification_summary(receipt), indent=2, sort_keys=True))
 
 
 def _cmd_evidence_reclamation(args: argparse.Namespace) -> None:
