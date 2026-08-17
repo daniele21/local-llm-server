@@ -10,6 +10,25 @@
 
 <!-- Public contracts, privacy/data, resource, failure, security, migration or lifecycle implications. Write N/A when truly not applicable. -->
 
+## Complexity / dependency review
+
+<!-- Required for meaningful dependency/toolchain, architecture/ownership, persisted/public contract, concurrency/resource, trust/network or build/release/evidence changes. Otherwise answer N/A with a reason. -->
+
+<!-- complexity-review:problem -->
+**Concrete problem:**
+
+<!-- complexity-review:boundary -->
+**Why the existing owner/boundary is insufficient:**
+
+<!-- complexity-review:surface -->
+**New failure/resource/upgrade surface introduced:**
+
+<!-- complexity-review:simpler -->
+**Simpler local alternative considered:**
+
+<!-- complexity-review:sunset -->
+**How this complexity will be re-evaluated/removed later:**
+
 ## Build / runtime / artifact lifecycle
 
 <!-- Canonical command intents affected; build identity; manifest/checksum/build delta/retention; localhost/process/port/temp cleanup. Otherwise N/A. -->
