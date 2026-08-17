@@ -46,7 +46,7 @@ _FALLBACKS: dict[str, Any] = {
     "llama_server_bin": None,
     "mlx_vlm_server_port": 8092,
     "multimodal": False,
-    "modalities": [],
+    "modalities": ["text"],
     "startup_timeout": 60,
     "max_concurrent_requests": 1,
     "max_kv_size": None,
@@ -147,7 +147,15 @@ def build_config(
             cfg[key] = reg_params[key]
             continue
 
-        cfg[key] = fallback
+        # Never share mutable fallback values across independently built runtime
+        # configurations. This matters for modalities now that text-only is an
+        # explicit conservative default instead of an empty legacy sentinel.
+        if isinstance(fallback, list):
+            cfg[key] = list(fallback)
+        elif isinstance(fallback, dict):
+            cfg[key] = dict(fallback)
+        else:
+            cfg[key] = fallback
 
     cfg["model"] = model
     cfg["model_id"] = model_id
