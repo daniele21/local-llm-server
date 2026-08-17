@@ -24,8 +24,8 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l2-reference-grade-active",
-    "current_slice": "L2-01",
+    "status": "l2-integration-validation",
+    "current_slice": "L2-10",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
     "skill_files": "installed-and-project-customized",
@@ -47,17 +47,18 @@
       "specialist_fitness_functions": "implemented-and-blocking-in-repository-health"
     },
     "repository_side_l2": {
-      "architecture_fitness": "planned",
-      "resource_memory_regression": "planned",
-      "performance_regression": "planned",
-      "pressure_fault_injection": "planned",
-      "lifecycle_repeatability": "planned",
-      "e2e_failure_retry_recovery": "planned",
-      "built_surface_e2e": "planned",
-      "complexity_dependency_review": "planned",
-      "reproducible_evidence_identity": "planned",
-      "repository_policy_and_docs_drift": "partial-existing",
-      "integration_acceptance": "not-started"
+      "architecture_fitness": "implemented-and-integrated",
+      "resource_memory_regression": "implemented-and-integrated",
+      "performance_regression": "implemented-and-integrated-pending-exact-head-gate",
+      "pressure_fault_injection": "implemented-and-integrated",
+      "lifecycle_repeatability": "implemented-and-integrated",
+      "e2e_failure_retry_recovery": "implemented-and-integrated",
+      "built_surface_e2e": "implemented-and-validated-through-fresh-installed-wheel",
+      "complexity_dependency_review": "implemented-and-integrated",
+      "reproducible_evidence_identity": "implemented-and-integrated",
+      "repository_policy_and_docs_drift": "implemented-and-blocking-in-repository-health",
+      "specialist_fitness_functions": "integrated-into-repository-health-pending-exact-head-validation",
+      "integration_acceptance": "active"
     },
     "accepted_deviations": {
       "canonical_branch_protection": {
