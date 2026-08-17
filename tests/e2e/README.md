@@ -20,11 +20,11 @@ The suite is intentionally **not** hardware evidence. Real-device thinking behav
 
 ## Run-owned lifecycle
 
-Every fixture process creates an isolated temporary root with a random run identity and ownership marker. Evaluation persistence is scoped under that root. Cleanup refuses to remove a directory unless the marker proves that the current fixture owns it.
+`fixture_runner.py` is the process-level owner that Playwright starts. It creates the isolated temporary root and random run identity, writes the ownership marker, then starts `fixture_server.py` as its child with that exact identity/root in the environment. The server validates the marker before using the evaluation subdirectory; it does not invent or discover another workspace.
 
-The application shutdown hook cleans the run root during normal shutdown. The fixture process repeats the cleanup in a `finally` path to cover interruption and partial initialization, then verifies that the run root is gone and the loopback listener is no longer reachable. Uvicorn graceful shutdown is bounded to five seconds.
+Playwright tracks the runner directly (`exec python tests/e2e/fixture_runner.py`) and requests graceful `SIGTERM` shutdown. The runner forwards shutdown to Uvicorn, waits for the child, removes only the root whose marker proves ownership, then verifies both the root and loopback listener are gone before exiting. Child shutdown and Playwright escalation are both bounded.
 
-`tests/e2e/verify_residue.py` is the independent post-run check. It fails when port `8765` is still open or any marked `local-llm-e2e-*` temporary root remains. The shared CI workflow runs this verifier with `if: always()` after Playwright, so residue is checked even when the browser assertions fail.
+`tests/e2e/verify_residue.py` is an independent post-run verifier. It never deletes residue. It allows only a bounded shutdown-completion window and then fails if port `8765` or any marked `local-llm-e2e-*` root remains. The shared CI workflow runs it with `if: always()` after Playwright, so residue is checked even when browser assertions fail.
 
 ## Failure evidence
 
