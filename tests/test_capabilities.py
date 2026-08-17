@@ -20,6 +20,34 @@ def test_text_legacy_entry_maps_to_text_tasks_without_audio_claims():
     assert CapabilityFeature.STRUCTURED_OUTPUT in descriptor.features
 
 
+def test_empty_legacy_modalities_migrate_conservatively_to_text_only():
+    descriptor = descriptor_from_registry_entry(
+        {"modalities": [], "thinking_mode": "switchable"}
+    )
+
+    assert descriptor.tasks == frozenset({TaskType.CHAT, TaskType.STRUCTURED_GENERATION})
+    assert descriptor.input_modalities == frozenset({Modality.TEXT})
+    assert descriptor.output_modalities == frozenset({Modality.TEXT})
+    assert CapabilityFeature.STREAMING in descriptor.features
+    assert CapabilityFeature.STRUCTURED_OUTPUT in descriptor.features
+    assert CapabilityFeature.THINKING in descriptor.features
+
+
+def test_explicit_empty_input_modalities_remain_invalid():
+    try:
+        descriptor_from_registry_entry(
+            {
+                "tasks": ["chat"],
+                "input_modalities": [],
+                "output_modalities": ["text"],
+            }
+        )
+    except ValueError as exc:
+        assert "input_modalities must be a non-empty collection" in str(exc)
+    else:
+        raise AssertionError("expected explicit empty input modalities to fail")
+
+
 def test_image_legacy_entry_maps_to_vision_language():
     descriptor = descriptor_from_registry_entry(
         {"modalities": ["text", "image"], "multimodal": True}
