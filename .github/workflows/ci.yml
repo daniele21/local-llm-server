@@ -70,12 +70,16 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run browser E2E gate without Python environment resync
         run: uv run --no-sync npm run test:e2e
-      - name: Upload Playwright failure evidence
+      - name: Verify zero E2E residue
+        if: always()
+        run: uv run --no-sync python tests/e2e/verify_residue.py
+      - name: Upload bounded Playwright failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-e2e-failure
           if-no-files-found: ignore
+          retention-days: 7
           path: |
             playwright-report/
             test-results/
