@@ -79,29 +79,29 @@ def test_product_resource_lifecycle_matches_api_and_returns_to_healthy_cold_stat
     )
     monkeypatch.setattr("local_llm_server.engine.load_llm", lambda _cfg: engine)
 
-    client = _admin_app(tmp_path, manager, settings)
-    before = client.get("/api/v1/resources").json()
-    assert before == {
-        "enabled": True,
-        "memory_limit_bytes": 1_000,
-        "headroom_bytes": 100,
-        "usable_budget_bytes": 900,
-        "committed_bytes": 0,
-        "reserved_bytes": 0,
-        "remaining_bytes": 900,
-        "reservation_count": 0,
-        "policy_state": "configured",
-    }
+    # Admission starts from a genuinely empty ledger. The legacy app factory
+    # still requires a resident default during construction, so the HTTP stack
+    # is attached after the product load and remains live through the unload.
+    assert resources.snapshot() == ()
+    assert resources.accounted_bytes == 0
 
     runtime, loaded = manager.load("model")
     assert loaded is True
     assert runtime.resource_reservation_id is not None
 
+    client = _admin_app(tmp_path, manager, settings)
     committed = client.get("/api/v1/resources").json()
-    assert committed["committed_bytes"] == 400
-    assert committed["reserved_bytes"] == 0
-    assert committed["remaining_bytes"] == 500
-    assert committed["reservation_count"] == 1
+    assert committed == {
+        "enabled": True,
+        "memory_limit_bytes": 1_000,
+        "headroom_bytes": 100,
+        "usable_budget_bytes": 900,
+        "committed_bytes": 400,
+        "reserved_bytes": 0,
+        "remaining_bytes": 500,
+        "reservation_count": 1,
+        "policy_state": "configured",
+    }
 
     response = client.post(
         "/v1/chat/completions",
@@ -115,10 +115,11 @@ def test_product_resource_lifecycle_matches_api_and_returns_to_healthy_cold_stat
     assert engine.calls == 1
     assert client.get("/api/v1/resources").json()["committed_bytes"] == 400
 
-    unloaded = manager.unload("model")
-    assert unloaded is runtime
+    unload_response = client.delete("/api/v1/models/model")
+    assert unload_response.status_code == 200, unload_response.text
     assert engine.closed is True
     assert resources.snapshot() == ()
+    assert resources.accounted_bytes == 0
 
     released = client.get("/api/v1/resources").json()
     assert released["committed_bytes"] == 0
@@ -173,6 +174,7 @@ def test_headroom_is_subtracted_exactly_once_from_product_budget():
 def test_disabled_product_policy_is_non_enforcing_and_reports_no_fake_budget(tmp_path):
     settings = ResourcePolicySettings()
     manager = ProductRuntimeManager(default_model="model", resource_manager=None)
+    manager.add(_cfg("model", 400), _Engine())
     client = _admin_app(tmp_path, manager, settings)
 
     payload = client.get("/api/v1/resources").json()
