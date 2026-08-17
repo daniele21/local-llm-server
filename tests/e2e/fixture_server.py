@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 import time
 from typing import Any
 
@@ -11,7 +13,7 @@ from local_llm_server.product_composition import install_product_http_stack
 from local_llm_server.product_runtime_manager import ProductRuntimeManager
 from local_llm_server.server import ServerSettings, create_app
 
-from lifecycle import OwnedRunState, listener_open
+from lifecycle import OwnedRunState
 
 MODEL_KEY = "e2e-switchable"
 MODEL_ID = "org/e2e-switchable"
@@ -130,6 +132,19 @@ def _catalog_item(model_key: str, model_id: str) -> dict[str, Any]:
     }
 
 
+def _owned_run_state_from_environment() -> OwnedRunState:
+    run_id = os.environ.get("LOCAL_LLM_E2E_RUN_ID")
+    root = os.environ.get("LOCAL_LLM_E2E_ROOT")
+    if not run_id or not root:
+        raise RuntimeError("fixture_server.py must be started by fixture_runner.py")
+    state = OwnedRunState(run_id=run_id, root=Path(root))
+    if not state.owns_root():
+        raise RuntimeError(f"invalid or unowned E2E run root: {state.root}")
+    if not state.evaluation_root.is_dir():
+        raise RuntimeError(f"missing E2E evaluation root: {state.evaluation_root}")
+    return state
+
+
 def build_app(run_state: OwnedRunState):
     local_llm_server.list_models = lambda: [
         _catalog_item(MODEL_KEY, MODEL_ID),
@@ -141,34 +156,20 @@ def build_app(run_state: OwnedRunState):
     manager.add(_runtime_config(ALT_MODEL_KEY, ALT_MODEL_ID), DeterministicBrowserEngine(ALT_MODEL_ID, 84))
     application = create_app(manager, settings=ServerSettings(enable_admin_api=True))
     install_product_http_stack(application, evaluation_root=run_state.evaluation_root)
-
-    def cleanup_fixture_state() -> None:
-        if run_state.root.exists():
-            run_state.cleanup()
-
-    application.router.on_shutdown.append(cleanup_fixture_state)
     application.state.e2e_run_id = run_state.run_id
     application.state.e2e_root = str(run_state.root)
     return application
 
 
-RUN_STATE = OwnedRunState.create()
+RUN_STATE = _owned_run_state_from_environment()
 app = build_app(RUN_STATE)
 
 
 if __name__ == "__main__":
-    try:
-        uvicorn.run(
-            app,
-            host=HOST,
-            port=PORT,
-            log_level="warning",
-            timeout_graceful_shutdown=5,
-        )
-    finally:
-        if RUN_STATE.root.exists():
-            RUN_STATE.cleanup()
-        if RUN_STATE.root.exists():
-            raise SystemExit(f"E2E run-owned temp residue remains: {RUN_STATE.root}")
-        if listener_open(HOST, PORT):
-            raise SystemExit(f"E2E fixture listener still open on {HOST}:{PORT}")
+    uvicorn.run(
+        app,
+        host=HOST,
+        port=PORT,
+        log_level="warning",
+        timeout_graceful_shutdown=3,
+    )
