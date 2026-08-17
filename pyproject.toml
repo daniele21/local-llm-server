@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "local-llm-server"
-version = "0.3.8"
+version = "0.4.0"
 description = "Resource-aware local AI control plane for product-grade inference"
 readme = "README.md"
 license = { text = "MIT" }

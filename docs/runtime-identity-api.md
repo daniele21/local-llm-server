@@ -32,7 +32,7 @@ The repositories share only the versioned wire contract:
   "protocol_version": "local-llm-identity-v1",
   "server": {
     "name": "local-llm-server",
-    "version": "0.3.8"
+    "version": "0.4.0"
   },
   "default_model": "nemotron-nano-4b",
   "models": {
