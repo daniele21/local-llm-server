@@ -21,7 +21,8 @@ def split_reasoning_content(
     expect_reasoning: bool,
 ) -> tuple[str, str]:
     """Return ``(reasoning, final)`` without guessing ambiguous hidden output."""
-    if not expect_reasoning:
+    close_only = _CLOSE in content and _OPEN not in content
+    if not expect_reasoning and not close_only:
         if _OPEN not in content and _CLOSE not in content:
             return "", content.strip()
         parser = ReasoningStreamParser(expect_reasoning=False, collect_reasoning=True)
