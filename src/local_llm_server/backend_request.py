@@ -9,7 +9,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from .core.contracts import InferenceRequest
+from .core.capabilities import ThinkingMode, effective_thinking_mode
+from .core.contracts import ErrorCode, InferenceError, InferenceRequest
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,11 +30,33 @@ def build_backend_request(
 ) -> PreparedBackendRequest:
     """Translate canonical chat/generation state to the current engine contract."""
     generation = canonical.generation
-    thinking_mode = str(runtime_config.get("thinking_mode", "none"))
+    thinking_mode = effective_thinking_mode(runtime_config)
 
-    enable_thinking = generation.enable_thinking
+    requested_thinking = generation.enable_thinking
+    configured_thinking = runtime_config.get("enable_thinking")
+    if configured_thinking is None:
+        params = runtime_config.get("params")
+        if isinstance(params, Mapping):
+            configured_thinking = params.get("enable_thinking")
+
+    if requested_thinking is True and thinking_mode is ThinkingMode.NONE:
+        raise InferenceError(
+            ErrorCode.INVALID_REQUEST,
+            "The selected runtime cannot enable thinking for this backend path.",
+            retryable=False,
+            details={"thinking_mode": thinking_mode.value},
+        )
+    if requested_thinking is False and thinking_mode is ThinkingMode.ALWAYS:
+        raise InferenceError(
+            ErrorCode.INVALID_REQUEST,
+            "The selected runtime cannot disable thinking for this backend path.",
+            retryable=False,
+            details={"thinking_mode": thinking_mode.value},
+        )
+
+    enable_thinking = requested_thinking
     if enable_thinking is None:
-        enable_thinking = bool(runtime_config.get("enable_thinking", False))
+        enable_thinking = bool(configured_thinking)
 
     show_thinking = (
         bool(show_thinking_override)
@@ -73,7 +96,7 @@ def build_backend_request(
         "model": runtime_model_id,
     }
 
-    if thinking_mode == "switchable":
+    if thinking_mode is ThinkingMode.SWITCHABLE:
         kwargs["enable_thinking"] = bool(enable_thinking)
 
     if generation.max_tokens is not None:

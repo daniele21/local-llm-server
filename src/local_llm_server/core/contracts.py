@@ -38,8 +38,17 @@ class ErrorCode(str, Enum):
     BACKEND_ERROR = "backend_error"
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class InferenceError(Exception):
+    """Typed inference failure compatible with normal Python exception state.
+
+    Exceptions must remain mutable enough for the interpreter and context
+    managers to attach traceback/context metadata while propagating them.
+    Freezing an ``Exception`` dataclass prevents ``__traceback__`` assignment
+    and can mask the original typed failure with ``FrozenInstanceError`` or a
+    ``TypeError`` during unwinding.
+    """
+
     code: ErrorCode
     message: str
     retryable: bool = False
