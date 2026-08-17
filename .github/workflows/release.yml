@@ -6,14 +6,16 @@ on:
       - "v*.*.*"
 
 permissions:
-  contents: write   # needed to create GitHub Releases
+  contents: write
 
 jobs:
   build:
-    name: Build distribution
+    name: Build immutable distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -26,31 +28,52 @@ jobs:
           test "$tag_version" = "$file_version"
           test "$tag_version" = "$project_version"
       - name: Install build frontend
-        run: pip install build
-      - name: Build wheel and sdist
-        run: python -m build --outdir dist/
-      - name: Generate release checksums
-        run: sha256sum dist/* > dist/SHA256SUMS
-      - name: Upload artifacts
+        run: python -m pip install "build==1.2.2.post1"
+      - name: Build staged identified bundle
+        env:
+          LOCAL_LLM_BUILD_CHANNEL: release
+          LOCAL_LLM_BUILD_VARIANT: wheel-sdist
+        run: python scripts/build_artifacts.py --output-root dist --channel release --variant wheel-sdist
+      - name: Collect release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          build_dir="$(find dist/builds -mindepth 2 -maxdepth 2 -type d | head -n 1)"
+          test -n "$build_dir"
+          cp "$build_dir"/*.tar.gz release-assets/
+          cp "$build_dir"/build-manifest.json release-assets/
+          cp "$build_dir"/BUILD_CHANGELOG.md release-assets/
+          cp "$build_dir"/SHA256SUMS release-assets/
+      - name: Upload short-lived CI handoff artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
-          retention-days: 14
+          name: release-assets
+          path: release-assets/
+          retention-days: 7
 
   github-release:
-    name: Create GitHub Release
+    name: Create immutable GitHub Release
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: dist
-          path: dist/
-      - name: Create release and attach assets
+          name: release-assets
+          path: release-assets/
+      - name: Refuse to replace an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists; release assets are immutable." >&2
+            exit 1
+          fi
+      - name: Create release and attach identified assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: dist/*
+          files: release-assets/*
           generate_release_notes: true
+          fail_on_unmatched_files: true
