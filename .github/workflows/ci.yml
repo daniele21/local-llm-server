@@ -73,13 +73,16 @@ jobs:
       - name: Verify zero E2E residue
         if: always()
         run: uv run --no-sync python tests/e2e/verify_residue.py
-      - name: Upload bounded Playwright failure evidence
+      - name: Prepare bounded privacy-safe E2E failure evidence
+        if: failure()
+        env:
+          SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: uv run --no-sync python tests/e2e/prepare_failure_evidence.py
+      - name: Upload bounded identity-bearing Playwright failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-e2e-failure
-          if-no-files-found: ignore
+          name: playwright-e2e-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
           retention-days: 7
-          path: |
-            playwright-report/
-            test-results/
+          path: e2e-failure-evidence/manifest.json
