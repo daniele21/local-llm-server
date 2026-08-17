@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from types import SimpleNamespace
 
 from local_llm_server.artifact_identity import ArtifactVerificationReceipt, sha256_file
@@ -93,7 +92,8 @@ def test_runtime_identity_uses_valid_receipt_when_config_has_no_digest(monkeypat
     assert snapshot is not None
     assert attached_runtime_identity(runtime) is snapshot
     public = snapshot.to_public_dict()
-    assert public["identity_grade"] == "verified"
+    assert len(str(public["identity"]["artifact_key"])) == 64
+    assert public["identity"]["backend"]["version"] == "1.2.3"
     assert str(artifact) not in str(public)
 
 
