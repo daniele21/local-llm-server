@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import tempfile
 import time
-from pathlib import Path
 from typing import Any
 
 import uvicorn
@@ -13,10 +11,14 @@ from local_llm_server.product_composition import install_product_http_stack
 from local_llm_server.product_runtime_manager import ProductRuntimeManager
 from local_llm_server.server import ServerSettings, create_app
 
+from lifecycle import OwnedRunState, listener_open
+
 MODEL_KEY = "e2e-switchable"
 MODEL_ID = "org/e2e-switchable"
 ALT_MODEL_KEY = "e2e-alt"
 ALT_MODEL_ID = "org/e2e-alt"
+HOST = "127.0.0.1"
+PORT = 8765
 
 
 def _runtime_config(model_key: str, model_id: str) -> dict[str, Any]:
@@ -41,10 +43,7 @@ def _runtime_config(model_key: str, model_id: str) -> dict[str, Any]:
 
 def _structured(payload: dict[str, Any]) -> bool:
     response_format = payload.get("response_format")
-    return isinstance(response_format, dict) and response_format.get("type") in {
-        "json_object",
-        "json_schema",
-    }
+    return isinstance(response_format, dict) and response_format.get("type") in {"json_object", "json_schema"}
 
 
 def _last_user_text(payload: dict[str, Any]) -> str:
@@ -66,23 +65,12 @@ def _answer(payload: dict[str, Any], answer: int) -> str:
     return final
 
 
-def _stream_event(
-    model_id: str,
-    content: str | None = None,
-    *,
-    finish_reason: str | None = None,
-) -> dict[str, Any]:
+def _stream_event(model_id: str, content: str | None = None, *, finish_reason: str | None = None) -> dict[str, Any]:
     return {
         "id": "chatcmpl-e2e",
         "object": "chat.completion.chunk",
         "model": model_id,
-        "choices": [
-            {
-                "index": 0,
-                "delta": {} if content is None else {"content": content},
-                "finish_reason": finish_reason,
-            }
-        ],
+        "choices": [{"index": 0, "delta": {} if content is None else {"content": content}, "finish_reason": finish_reason}],
     }
 
 
@@ -99,16 +87,7 @@ class DeterministicBrowserEngine:
             "id": "chatcmpl-e2e",
             "object": "chat.completion",
             "model": self.model_id,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": _answer(payload, self.answer),
-                    },
-                    "finish_reason": "stop",
-                }
-            ],
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": _answer(payload, self.answer)}, "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 4, "completion_tokens": 4, "total_tokens": 8},
         }
 
@@ -124,8 +103,6 @@ class DeterministicBrowserEngine:
         for index, content in enumerate(chunks):
             yield _stream_event(self.model_id, content)
             if slow and index == 0:
-                # Keep the request genuinely active long enough for the browser's
-                # 300 ms /status polling loop to observe the generating phase.
                 time.sleep(0.8)
         yield _stream_event(self.model_id, None, finish_reason="stop")
 
@@ -153,34 +130,45 @@ def _catalog_item(model_key: str, model_id: str) -> dict[str, Any]:
     }
 
 
-def build_app():
-    # The registry route imports this symbol at request time. Replacing it here
-    # keeps the browser fixture deterministic without touching user model files.
+def build_app(run_state: OwnedRunState):
     local_llm_server.list_models = lambda: [
         _catalog_item(MODEL_KEY, MODEL_ID),
         _catalog_item(ALT_MODEL_KEY, ALT_MODEL_ID),
     ]
 
     manager = ProductRuntimeManager(default_model=MODEL_KEY)
-    manager.add(
-        _runtime_config(MODEL_KEY, MODEL_ID),
-        DeterministicBrowserEngine(MODEL_ID, 42),
-    )
-    manager.add(
-        _runtime_config(ALT_MODEL_KEY, ALT_MODEL_ID),
-        DeterministicBrowserEngine(ALT_MODEL_ID, 84),
-    )
-    application = create_app(
-        manager,
-        settings=ServerSettings(enable_admin_api=True),
-    )
-    evaluation_root = Path(tempfile.mkdtemp(prefix="local-llm-e2e-evaluation-"))
-    install_product_http_stack(application, evaluation_root=evaluation_root)
+    manager.add(_runtime_config(MODEL_KEY, MODEL_ID), DeterministicBrowserEngine(MODEL_ID, 42))
+    manager.add(_runtime_config(ALT_MODEL_KEY, ALT_MODEL_ID), DeterministicBrowserEngine(ALT_MODEL_ID, 84))
+    application = create_app(manager, settings=ServerSettings(enable_admin_api=True))
+    install_product_http_stack(application, evaluation_root=run_state.evaluation_root)
+
+    def cleanup_fixture_state() -> None:
+        if run_state.root.exists():
+            run_state.cleanup()
+
+    application.router.on_shutdown.append(cleanup_fixture_state)
+    application.state.e2e_run_id = run_state.run_id
+    application.state.e2e_root = str(run_state.root)
     return application
 
 
-app = build_app()
+RUN_STATE = OwnedRunState.create()
+app = build_app(RUN_STATE)
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8765, log_level="warning")
+    try:
+        uvicorn.run(
+            app,
+            host=HOST,
+            port=PORT,
+            log_level="warning",
+            timeout_graceful_shutdown=5,
+        )
+    finally:
+        if RUN_STATE.root.exists():
+            RUN_STATE.cleanup()
+        if RUN_STATE.root.exists():
+            raise SystemExit(f"E2E run-owned temp residue remains: {RUN_STATE.root}")
+        if listener_open(HOST, PORT):
+            raise SystemExit(f"E2E fixture listener still open on {HOST}:{PORT}")
