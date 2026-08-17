@@ -14,6 +14,14 @@ class EvaluationReasoningPolicy(str, Enum):
     RUNTIME_DEFAULT = "runtime_default"
 
 
+def coerce_evaluation_reasoning_policy(
+    value: EvaluationReasoningPolicy | str,
+) -> EvaluationReasoningPolicy:
+    if isinstance(value, EvaluationReasoningPolicy):
+        return value
+    return EvaluationReasoningPolicy(str(value))
+
+
 @dataclass(frozen=True, slots=True)
 class EvaluationReasoningProfile:
     """Requested and effective thinking state for one evaluation run."""
@@ -38,7 +46,7 @@ class EvaluationReasoningProfile:
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> "EvaluationReasoningProfile":
         return cls(
-            requested=EvaluationReasoningPolicy(str(value["requested"])),
+            requested=coerce_evaluation_reasoning_policy(str(value["requested"])),
             runtime_mode=ThinkingMode(str(value["runtime_mode"])),
             effective=str(value["effective"]),
             request_override=(
@@ -52,10 +60,7 @@ def resolve_evaluation_reasoning_profile(
     policy: EvaluationReasoningPolicy | str,
     runtime_config: Mapping[str, Any],
 ) -> EvaluationReasoningProfile:
-    requested = (
-        policy if isinstance(policy, EvaluationReasoningPolicy)
-        else EvaluationReasoningPolicy(str(policy))
-    )
+    requested = coerce_evaluation_reasoning_policy(policy)
     mode = effective_thinking_mode(runtime_config)
     configured = _configured_thinking(runtime_config)
 
