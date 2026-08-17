@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "owner": "repository-engineering",
+  "required_lifecycles": ["development", "test", "e2e", "build", "smoke", "runtime"],
+  "contracts": [
+    {
+      "id": "development-clean-removes-owned-output",
+      "lifecycle": "development",
+      "claim": "canonical clean removes project-owned generated output",
+      "evidence": {"kind": "workflow_marker", "path": ".github/workflows/repository-health.yml", "marker": "Verify canonical clean removes build output"}
+    },
+    {
+      "id": "tests-run-from-locked-clean-checkout",
+      "lifecycle": "test",
+      "claim": "deterministic unit tests run after clean checkout and frozen dependency sync",
+      "evidence": {"kind": "workflow_marker", "path": ".github/workflows/ci.yml", "marker": "Run deterministic unit tests without implicit resync"}
+    },
+    {
+      "id": "e2e-owned-root-repeatability",
+      "lifecycle": "e2e",
+      "claim": "multiple sequential owned E2E run roots clean independently without stale roots",
+      "evidence": {"kind": "pytest", "nodeid": "tests/test_repeatability_contract.py::test_multiple_owned_e2e_runs_leave_no_owned_temp_roots"}
+    },
+    {
+      "id": "e2e-post-run-zero-residue",
+      "lifecycle": "e2e",
+      "claim": "browser E2E verifies listener and owned temporary root residue after every run",
+      "evidence": {"kind": "workflow_marker", "path": ".github/workflows/ci.yml", "marker": "Verify zero E2E residue"}
+    },
+    {
+      "id": "build-three-successive-identities",
+      "lifecycle": "build",
+      "claim": "canonical build executes three times and validates unique identity, retention and failed-stage cleanup",
+      "evidence": {"kind": "workflow_marker", "path": ".github/workflows/repository-health.yml", "marker": "Build three times through the canonical command"}
+    },
+    {
+      "id": "fresh-install-smoke-cleans-output",
+      "lifecycle": "smoke",
+      "claim": "fresh-install package smoke removes its build output after verification",
+      "evidence": {"kind": "workflow_marker", "path": ".github/workflows/package-smoke.yml", "marker": "Remove package-smoke output"}
+    },
+    {
+      "id": "worker-runtime-multi-cycle",
+      "lifecycle": "runtime",
+      "claim": "worker reclamation experiment repeats ready-exercise-stop windows in one owned run",
+      "evidence": {"kind": "pytest", "nodeid": "tests/test_worker_reclamation.py::test_worker_reclamation_runs_repeated_ready_exercise_stop_windows"}
+    }
+  ],
+  "non_claims": [
+    "a repeated hosted run proves representative hardware stability",
+    "cleanup of project-owned artifacts proves cleanup of external model caches",
+    "worker multi-cycle evidence proves native memory reclamation"
+  ]
+}
