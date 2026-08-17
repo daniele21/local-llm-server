@@ -29,8 +29,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_uv() {
-  local temp_root="${TMPDIR:-/tmp}"
-  UV_CACHE_DIR="${UV_CACHE_DIR:-${temp_root%/}/local-llm-uv-cache}" uv "$@"
+  # Reuse uv's platform-standard cache (or an explicitly provided
+  # UV_CACHE_DIR). Canonical setup populates that cache; creating a private
+  # deploy-only cache would make an offline version/lock refresh incomplete.
+  uv "$@"
 }
 
 if ! command -v uv >/dev/null 2>&1; then
