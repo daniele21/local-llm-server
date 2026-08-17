@@ -24,12 +24,27 @@ class CapabilityFeature(str, Enum):
     THINKING = "thinking"
 
 
+class ThinkingMode(str, Enum):
+    """Effective request-level thinking behavior for a concrete runtime path."""
+
+    NONE = "none"
+    SWITCHABLE = "switchable"
+    ALWAYS = "always"
+
+
+# These adapters currently have a proven request-level path for a thinking flag.
+# llama_cpp/gguf is intentionally absent until TH-2 wires the flag through the
+# chat template instead of discarding it at the engine boundary.
+_REQUEST_SWITCHABLE_BACKENDS = frozenset({"mlx", "llama_server", "mlx_vlm_server"})
+
+
 @dataclass(frozen=True, slots=True)
 class CapabilityDescriptor:
     tasks: frozenset[TaskType]
     input_modalities: frozenset[Modality]
     output_modalities: frozenset[Modality]
     features: frozenset[CapabilityFeature] = field(default_factory=frozenset)
+    thinking_mode: ThinkingMode = ThinkingMode.NONE
 
     def supports(self, request: InferenceRequest) -> bool:
         if request.task not in self.tasks:
@@ -41,17 +56,52 @@ class CapabilityDescriptor:
             return False
         if request.task is TaskType.STRUCTURED_GENERATION and CapabilityFeature.STRUCTURED_OUTPUT not in self.features:
             return False
-        if request.generation.enable_thinking is True and CapabilityFeature.THINKING not in self.features:
+
+        requested_thinking = request.generation.enable_thinking
+        if requested_thinking is True and self.thinking_mode is ThinkingMode.NONE:
+            return False
+        if requested_thinking is False and self.thinking_mode is ThinkingMode.ALWAYS:
             return False
         return True
 
-    def to_dict(self) -> dict[str, list[str]]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "tasks": sorted(task.value for task in self.tasks),
             "input_modalities": sorted(modality.value for modality in self.input_modalities),
             "output_modalities": sorted(modality.value for modality in self.output_modalities),
             "features": sorted(feature.value for feature in self.features),
+            "thinking_mode": self.thinking_mode.value,
         }
+
+
+def effective_thinking_mode(config: Mapping[str, Any]) -> ThinkingMode:
+    """Resolve the thinking behavior the effective backend path can prove.
+
+    ``thinking_mode`` in a registry entry describes the model/template intent,
+    while this function describes the concrete request path. A model declared
+    ``switchable`` is only exposed as such when its selected backend currently
+    forwards a request-level control. Otherwise the path is fixed to its
+    explicitly configured runtime default, so callers cannot be told an OFF/ON
+    toggle exists when the adapter would silently discard it.
+    """
+    declared = _parse_thinking_mode(str(config.get("thinking_mode", "none")))
+    if declared is not ThinkingMode.SWITCHABLE:
+        return declared
+
+    backend = str(config.get("backend") or "llama_cpp")
+    if backend in _REQUEST_SWITCHABLE_BACKENDS:
+        return ThinkingMode.SWITCHABLE
+
+    configured = config.get("enable_thinking")
+    if configured is None:
+        params = config.get("params")
+        if isinstance(params, Mapping):
+            configured = params.get("enable_thinking")
+
+    # For a backend without proven request-level control we deliberately expose
+    # only the fixed configured state. Missing state is treated conservatively
+    # as not proven rather than guessing that switching works.
+    return ThinkingMode.ALWAYS if configured is True else ThinkingMode.NONE
 
 
 def descriptor_from_registry_entry(entry: Mapping[str, Any]) -> CapabilityDescriptor:
@@ -84,6 +134,7 @@ def descriptor_from_registry_entry(entry: Mapping[str, Any]) -> CapabilityDescri
         for value in _as_string_list(entry.get("output_modalities", ["text"]), "output_modalities")
     )
 
+    thinking_mode = effective_thinking_mode(entry)
     features_set: set[CapabilityFeature] = {CapabilityFeature.STREAMING}
     explicit_features = entry.get("features")
     if explicit_features is not None:
@@ -91,7 +142,7 @@ def descriptor_from_registry_entry(entry: Mapping[str, Any]) -> CapabilityDescri
     else:
         if TaskType.STRUCTURED_GENERATION in tasks:
             features_set.add(CapabilityFeature.STRUCTURED_OUTPUT)
-        if str(entry.get("thinking_mode", "none")) != "none":
+        if thinking_mode is not ThinkingMode.NONE:
             features_set.add(CapabilityFeature.THINKING)
 
     descriptor = CapabilityDescriptor(
@@ -99,6 +150,7 @@ def descriptor_from_registry_entry(entry: Mapping[str, Any]) -> CapabilityDescri
         input_modalities=input_modalities,
         output_modalities=output_modalities,
         features=frozenset(features_set),
+        thinking_mode=thinking_mode,
     )
     validate_capability_descriptor(descriptor)
     return descriptor
@@ -117,6 +169,10 @@ def validate_capability_descriptor(descriptor: CapabilityDescriptor) -> None:
         raise ValueError("vision_language requires image input capability")
     if TaskType.TRANSCRIPTION in descriptor.tasks and Modality.AUDIO not in descriptor.input_modalities:
         raise ValueError("transcription requires audio input capability")
+
+    has_thinking_feature = CapabilityFeature.THINKING in descriptor.features
+    if has_thinking_feature != (descriptor.thinking_mode is not ThinkingMode.NONE):
+        raise ValueError("thinking feature and effective thinking_mode must agree")
 
 
 def _request_modalities(request: InferenceRequest) -> frozenset[Modality]:
@@ -175,3 +231,10 @@ def _parse_feature(value: str) -> CapabilityFeature:
         return CapabilityFeature(value)
     except ValueError as exc:
         raise ValueError(f"unsupported capability feature: {value}") from exc
+
+
+def _parse_thinking_mode(value: str) -> ThinkingMode:
+    try:
+        return ThinkingMode(value)
+    except ValueError as exc:
+        raise ValueError(f"unsupported thinking_mode: {value}") from exc
