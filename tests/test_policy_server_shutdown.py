@@ -4,7 +4,11 @@ import signal
 
 import uvicorn
 
-from local_llm_server.policy_server import _shutdown_aware_server
+from local_llm_server.policy_server import (
+    _run_until_stopped,
+    _shutdown_aware_server,
+    browser_base_url,
+)
 from local_llm_server.server import create_app
 
 
@@ -40,6 +44,25 @@ def test_signal_notifies_application_before_uvicorn_marks_exit(monkeypatch):
     assert events == ["application", "uvicorn"]
     assert application.state.shutdown is True
     assert server.should_exit is True
+
+
+def test_browser_base_url_uses_loopback_for_wildcard_bind_addresses():
+    assert browser_base_url("0.0.0.0", 1235) == "http://127.0.0.1:1235/"
+    assert browser_base_url("::", 1235) == "http://127.0.0.1:1235/"
+
+
+def test_browser_base_url_brackets_ipv6_addresses():
+    assert browser_base_url("::1", 1235) == "http://[::1]:1235/"
+
+
+def test_keyboard_interrupt_is_rendered_as_a_clean_server_stop(capsys):
+    class InterruptedServer:
+        def run(self):
+            raise KeyboardInterrupt
+
+    _run_until_stopped(InterruptedServer())
+
+    assert "local-llm-server stopped" in capsys.readouterr().out
 
 
 def test_shutdown_notification_is_idempotent_before_normal_finally_cleanup():

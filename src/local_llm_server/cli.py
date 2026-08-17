@@ -216,7 +216,8 @@ def main() -> None:
 
 
 def _cmd_serve(args: argparse.Namespace) -> None:
-    from .policy_server import run_server
+    from .config import build_config
+    from .policy_server import browser_base_url, run_server
     from .product_runtime import bootstrap_product_runtimes
 
     explicit: dict = {}
@@ -229,6 +230,23 @@ def _cmd_serve(args: argparse.Namespace) -> None:
         val = getattr(args, key, None)
         if val is not None:
             explicit[key] = val
+
+    selected_model = (
+        args.default_model
+        or args.model
+        or (args.models[0] if args.models else None)
+    )
+    preview_cfg = build_config(
+        model=selected_model,
+        model_path=args.model_path,
+        **explicit,
+    )
+    ui_url = browser_base_url(preview_cfg["host"], preview_cfg["port"])
+    print(f"\n[*] Web UI configured at: {ui_url}", flush=True)
+    print(
+        "[*] Loading startup model; the HTTP server is not listening yet.",
+        flush=True,
+    )
 
     bootstrap = bootstrap_product_runtimes(
         model=args.model,

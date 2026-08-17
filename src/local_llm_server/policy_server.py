@@ -8,6 +8,23 @@ from __future__ import annotations
 from typing import Any
 
 
+def browser_base_url(host: object, port: object) -> str:
+    """Return a browser-usable URL for a configured HTTP bind endpoint."""
+    configured_host = str(host)
+    browser_host = "127.0.0.1" if configured_host in {"0.0.0.0", "::"} else configured_host
+    if ":" in browser_host and not browser_host.startswith("["):
+        browser_host = f"[{browser_host}]"
+    return f"http://{browser_host}:{int(port)}/"
+
+
+def _run_until_stopped(server: Any) -> None:
+    """Run Uvicorn while treating its re-raised SIGINT as a clean CLI stop."""
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        print("\n[*] local-llm-server stopped.", flush=True)
+
+
 def _shutdown_aware_server(uvicorn: Any, config: Any, application: Any) -> Any:
     """Create a Uvicorn server that notifies long-lived app responses first.
 
@@ -20,6 +37,14 @@ def _shutdown_aware_server(uvicorn: Any, config: Any, application: Any) -> Any:
     from .server import begin_app_shutdown
 
     class ShutdownAwareServer(uvicorn.Server):
+        async def startup(self, sockets: Any = None) -> None:
+            await super().startup(sockets=sockets)
+            if self.started:
+                base_url = browser_base_url(self.config.host, self.config.port)
+                print(f"\n[*] Web UI ready:      {base_url}", flush=True)
+                print(f"[*] API documentation: {base_url}docs", flush=True)
+                print(f"[*] API examples:      {base_url}example\n", flush=True)
+
         def handle_exit(self, sig: int, frame: Any) -> None:
             begin_app_shutdown(application)
             super().handle_exit(sig, frame)
@@ -72,7 +97,7 @@ def run_server(
     server = _shutdown_aware_server(uvicorn, config, application)
 
     try:
-        server.run()
+        _run_until_stopped(server)
     finally:
         # Idempotent fallback for normal programmatic exits or startup failures.
         begin_app_shutdown(application)
