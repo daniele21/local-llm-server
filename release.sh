@@ -1,65 +1,58 @@
 #!/usr/bin/env bash
-#
-# Release Automation Script for local-llm-server
-# 
-# Usage:
-#   ./release.sh
-#
-# Description:
-#   This script automates the creation of a new package release:
-#   1. Verifies that you are on the 'main' branch.
-#   2. Verifies that the git working directory is clean.
-#   3. Runs './deploy.sh --bump-patch' to increment the patch version, execute tests,
-#      and build the package wheels (retaining previous builds in dist/).
-#   4. Commits the version bump files locally.
-#   5. Creates an annotated git tag corresponding to the new version (e.g., v0.3.1).
-#   6. Pushes the commit and tag to GitHub automatically to trigger the release workflow.
-#
 set -euo pipefail
 
+# Release flow:
+# 1. require clean main;
+# 2. bump VERSION + pyproject.toml together and run/build through deploy.sh;
+# 3. commit exactly the version files;
+# 4. create a new annotated tag only when it does not already exist locally or remotely;
+# 5. push without force. The tag-triggered workflow creates immutable release assets.
 
-# Ensure we are on the main branch
-current_branch=$(git branch --show-current)
-if [ "$current_branch" != "main" ]; then
-  echo "Error: You must be on the 'main' branch to release. Currently on: $current_branch" >&2
+current_branch="$(git branch --show-current)"
+if [[ "$current_branch" != "main" ]]; then
+  echo "Error: releases must start from main; current branch: $current_branch" >&2
   exit 1
 fi
 
-# Ensure working tree is clean
-if ! git diff-index --quiet HEAD --; then
-  echo "Error: Working tree is not clean. Commit or stash your changes first." >&2
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Error: working tree must be clean before a release." >&2
   exit 1
 fi
 
-echo "[*] Running deploy.sh with --bump-patch to bump version, run tests, and build package..."
-./deploy.sh --bump-patch
+echo "[*] Bumping patch version, testing and producing a local immutable build"
+LOCAL_LLM_BUILD_CHANNEL=release-candidate ./deploy.sh --bump-patch
 
-# Retrieve the new version from pyproject.toml
-new_version=$(python3 -c '
-import re
+new_version="$(python3 - <<'PY'
+import tomllib
 from pathlib import Path
-match = re.search(r"version\s*=\s*\"([^\"]+)\"", Path("pyproject.toml").read_text(encoding="utf-8"))
-print(match.group(1) if match else "")
-')
+with Path("pyproject.toml").open("rb") as fh:
+    project = str(tomllib.load(fh)["project"]["version"])
+version_file = Path("VERSION").read_text(encoding="utf-8").strip()
+if project != version_file:
+    raise SystemExit(f"Version mismatch after bump: {project} != {version_file}")
+print(project)
+PY
+)"
+tag_name="v${new_version}"
 
-if [ -z "$new_version" ]; then
-  echo "Error: Could not retrieve new version from pyproject.toml" >&2
+if git rev-parse -q --verify "refs/tags/${tag_name}" >/dev/null; then
+  echo "Error: local tag ${tag_name} already exists; tags are immutable." >&2
+  exit 1
+fi
+if git ls-remote --exit-code --tags origin "refs/tags/${tag_name}" >/dev/null 2>&1; then
+  echo "Error: remote tag ${tag_name} already exists; refusing to move it." >&2
   exit 1
 fi
 
-tag_name="v$new_version"
+echo "[*] Committing release version ${new_version}"
+git add pyproject.toml VERSION
+git commit -m "chore: release version ${new_version}"
 
-echo "[*] Creating git commit for version $new_version..."
-git add pyproject.toml uv.lock src/local_llm_server/server.py
-git commit -m "chore: release version $new_version" || echo "[*] No changes to commit"
+echo "[*] Creating immutable annotated tag ${tag_name}"
+git tag -a "${tag_name}" -m "Release ${tag_name}"
 
-echo "[*] Creating Git tag $tag_name..."
-git tag -f -a "$tag_name" -m "Release $tag_name"
-
-echo "[*] Pushing commit to main..."
+echo "[*] Pushing main and tag without force"
 git push origin main
+git push origin "${tag_name}"
 
-echo "[*] Pushing tag $tag_name..."
-git push origin "$tag_name" --force
-
-echo "[*] Release $tag_name successfully pushed! GitHub Actions will now build and deploy the release."
+echo "[*] Release ${tag_name} pushed. GitHub Actions will build release artifacts from the immutable tag."
