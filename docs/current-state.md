@@ -16,7 +16,7 @@ The runtime-correctness code convergence is complete. The milestone is now to ex
 | Workstream | Executable now | State | Blocker |
 | --- | --- | --- | --- |
 | [`runtime-correctness-evidence-hardening`](workstreams/runtime-correctness-evidence-hardening.md) | `TH-E1`, `EV-3`, `HE-2`, `RES-2` | ACTIVE — evidence wave | requires physical target-Mac execution; REL-1 waits on retained evidence |
-| [`repo-template-sw-adoption`](workstreams/repo-template-sw-adoption.md) | `STD-02`, `STD-03`, `STD-04`, `STD-05`, `STD-06` | ACTIVE — parallel lanes ready | `STD-07` waits on `STD-06`; shared integration waits on lanes A-D |
+| [`repo-template-sw-adoption`](workstreams/repo-template-sw-adoption.md) | `STD-08` | ACTIVE — shared integration | repository-health/command convergence under CI; `dev` branch protection is externally unconfigured |
 
 Executable commands and evidence boundaries are in [`device-evidence-runbook.md`](device-evidence-runbook.md).
 
@@ -63,6 +63,6 @@ There are no known code-contract blockers from the original hardening graph. Rem
 
 Run the four representative-device slices from `device-evidence-runbook.md`. They are logically parallel but should be serialized where simultaneous model loads would compete for the same Mac memory/residency.
 
-In parallel, repo-template adoption can proceed through lanes A-C plus `STD-06` in lane D once the STD-01 baseline PR is merged. `STD-07` follows `STD-06`; shared workflow integration remains serialized in `STD-08`.
+In parallel, repo-template adoption is at `STD-08`: validate the combined tree with repository-health + normal CI, then execute the full applicable operating lifecycle in `STD-09`. External branch protection remains explicitly pending until configured and re-verified.
 
 Retain negative, mixed or inconclusive evidence exactly as observed. Do not induce OOM/critical pressure and do not enable automatic eviction as part of these runs.
