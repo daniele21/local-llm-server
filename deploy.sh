@@ -29,7 +29,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_uv() {
-  UV_CACHE_DIR="${UV_CACHE_DIR:-/private/tmp/local-llm-uv-cache}" uv "$@"
+  local temp_root="${TMPDIR:-/tmp}"
+  UV_CACHE_DIR="${UV_CACHE_DIR:-${temp_root%/}/local-llm-uv-cache}" uv "$@"
 }
 
 if ! command -v uv >/dev/null 2>&1; then
