@@ -15,4 +15,4 @@ Do not create separate plan/progress/status files for the same workstream. Git h
 ## Active
 
 - [`runtime-correctness-evidence-hardening.md`](runtime-correctness-evidence-hardening.md) — thinking/structured-output correctness, evaluation canonicalization, verified artifact identity, resource-policy validation and representative hardware evidence.
-- [`repo-template-sw-adoption.md`](repo-template-sw-adoption.md) — repository-side baseline implementation/lifecycle validation is complete; final L0 adoption is blocked only by external GitHub protection/required-check enforcement on canonical branches.
+- [`l1-production-readiness.md`](l1-production-readiness.md) — supply-chain security, persisted-state compatibility/recovery, lifecycle failure contracts, performance budgets, release/rollback operations and identity-bearing E2E evidence.
