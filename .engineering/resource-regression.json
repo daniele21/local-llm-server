@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "owner": "resource_manager",
+  "evidence_class": "hosted-deterministic-python",
+  "claims": [
+    {
+      "id": "ledger-returns-empty",
+      "test": "tests/test_resource_regression.py::test_repeated_resource_lifecycle_returns_to_empty_ledger",
+      "iterations": 5000
+    },
+    {
+      "id": "rejected-admission-does-not-grow-ledger",
+      "test": "tests/test_resource_regression.py::test_rejected_admission_does_not_accumulate_state",
+      "iterations": 5000
+    },
+    {
+      "id": "python-heap-retention-bounded",
+      "test": "tests/test_resource_regression.py::test_resource_manager_python_heap_does_not_grow_with_completed_cycles",
+      "warmup_iterations": 1000,
+      "measured_iterations": 10000,
+      "max_retained_growth_bytes": 524288
+    }
+  ],
+  "non_claims": [
+    "native backend memory reclamation",
+    "Apple unified-memory reclamation",
+    "accelerator memory reclamation",
+    "RSS return-to-baseline",
+    "automatic pressure eviction safety"
+  ]
+}
