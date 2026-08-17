@@ -190,7 +190,11 @@ def main() -> int:
         package_dir = stage / "package"
         package_dir.mkdir()
         if not args.skip_build:
-            subprocess.run([sys.executable, "-m", "build", "--outdir", str(package_dir)], cwd=root, check=True)
+            subprocess.run(
+                [sys.executable, "-m", "build", "--no-isolation", "--outdir", str(package_dir)],
+                cwd=root,
+                check=True,
+            )
             wheels = sorted(package_dir.glob("*.whl"))
             if len(wheels) != 1:
                 raise RuntimeError(f"expected one wheel, found {len(wheels)}")
