@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
+from .application_output import normalize_application_output, request_expects_reasoning
 from .backend_request import build_backend_request
 from .core.contracts import (
     ErrorCode,
@@ -102,16 +103,27 @@ class ResidentRuntimeExecutor:
                 runtime.mark_idle()
         elapsed = time.perf_counter() - started
 
-        content = _extract_content(raw)
+        normalized = normalize_application_output(
+            _extract_content(raw),
+            expect_reasoning=request_expects_reasoning(
+                canonical.generation.enable_thinking,
+                runtime.cfg,
+            ),
+            constraints=canonical.output,
+        )
         usage = _numeric_usage(raw.get("usage"))
         usage["wall_time_seconds"] = elapsed
         return InferenceResult(
             task=request.task,
             model=runtime.model_id,
-            content=content,
+            content=normalized.final_content,
             termination_reason=_termination_reason(raw),
             usage=usage,
-            metadata={"backend": getattr(runtime.engine, "backend", runtime.cfg.get("backend", "unknown"))},
+            structured_output=normalized.structured_output,
+            metadata={
+                "backend": getattr(runtime.engine, "backend", runtime.cfg.get("backend", "unknown")),
+                "reasoning_separated": bool(normalized.reasoning),
+            },
         )
 
     def _resolve_runtime(self, request: InferenceRequest) -> Any:
