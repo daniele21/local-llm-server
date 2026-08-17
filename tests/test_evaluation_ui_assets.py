@@ -16,6 +16,7 @@ def test_evaluation_assets_are_loaded_by_frontend_config():
     assert "/static/control-plane-evaluation.css" in config
     assert "/static/control-plane-evaluation-history.js" in config
     assert "/static/control-plane-evaluation-history.css" in config
+    assert "/static/control-plane-evaluation-reasoning.js" in config
 
 
 def test_evaluation_ui_uses_real_api_sources_and_valid_sample_multiples():
@@ -43,6 +44,19 @@ def test_evaluation_ui_supports_source_backed_custom_dataset_import_and_versions
     assert "body.append('replace'" not in script
 
 
+def test_evaluation_reasoning_ui_sends_explicit_policy_and_surfaces_effective_profile():
+    script = (STATIC / "control-plane-evaluation-reasoning.js").read_text(encoding="utf-8")
+    assert "data-evaluation-reasoning-policy" in script
+    assert '<option value="off">Off</option>' in script
+    assert '<option value="on">On</option>' in script
+    assert '<option value="runtime_default">Runtime default</option>' in script
+    assert "payload.reasoning_policy = select.value" in script
+    assert "default_reasoning_policy" in script
+    assert "requested →" not in script  # rendered values are dynamic, not hard-coded claims
+    assert "requested)} requested → ${escapeHtml(latestRunProfile.effective)} effective" in script
+    assert "Reasoning ${profile.requested} → ${profile.effective}" in script
+
+
 def test_evaluation_history_ui_uses_persisted_sources_without_auto_verdicts():
     script = (STATIC / "control-plane-evaluation-history.js").read_text(encoding="utf-8")
     assert "/api/v1/evaluation/history" in script
@@ -54,6 +68,13 @@ def test_evaluation_history_ui_uses_persisted_sources_without_auto_verdicts():
     assert "Exploratory comparison" in script
     assert "better/worse verdict" in script
     assert "without semantic coloring" in script
+
+
+def test_reasoning_history_overlay_requires_profile_plus_fingerprint_for_evidence_grade():
+    script = (STATIC / "control-plane-evaluation-reasoning.js").read_text(encoding="utf-8")
+    assert "Boolean(summary.runtime_fingerprint) && Boolean(profile)" in script
+    assert "identityKnown ? 'Evidence-grade' : 'Exploratory'" in script
+    assert "historyProfiles" in script
 
 
 def test_evaluation_history_preserves_unavailable_and_refresh_state_semantics():
@@ -71,6 +92,7 @@ def test_evaluation_javascript_is_syntactically_valid_when_node_is_available():
     for filename in (
         "control-plane-evaluation.js",
         "control-plane-evaluation-history.js",
+        "control-plane-evaluation-reasoning.js",
     ):
         completed = subprocess.run(
             [node, "--check", str(STATIC / filename)],
@@ -78,4 +100,4 @@ def test_evaluation_javascript_is_syntactically_valid_when_node_is_available():
             text=True,
             check=False,
         )
-        assert completed.returncode == 0, completed.stderr
+        assert completed.returncode == 0, f"{filename}: {completed.stderr}"
