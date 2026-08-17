@@ -1,3 +1,4 @@
+from local_llm_server.core.capabilities import ThinkingMode
 from local_llm_server.core.contracts import (
     ErrorCode,
     InferenceError,
@@ -9,6 +10,10 @@ from local_llm_server.evaluation import SampleSelection, build_run_manifest
 from local_llm_server.evaluation_builtin import (
     DeterministicObjectiveScorer,
     GENERAL_PURPOSE_V1,
+)
+from local_llm_server.evaluation_reasoning import (
+    EvaluationReasoningPolicy,
+    EvaluationReasoningProfile,
 )
 from local_llm_server.evaluation_runner import EvaluationRunner, request_for_sample
 
@@ -41,7 +46,13 @@ def test_request_for_structured_sample_requests_json_object():
     assert request.metadata["evaluation_sample_id"] == "json-001"
 
 
-def test_runner_executes_selected_samples_scores_and_carries_fingerprint():
+def test_request_for_sample_accepts_explicit_reasoning_off():
+    sample = GENERAL_PURPOSE_V1.samples[0]
+    request = request_for_sample(sample, model="demo", enable_thinking=False)
+    assert request.generation.enable_thinking is False
+
+
+def test_runner_executes_selected_samples_scores_and_carries_fingerprint_and_reasoning_policy():
     selection = SampleSelection(limit=2, seed=7)
     selected = selection.select(GENERAL_PURPOSE_V1)
     outputs = {}
@@ -65,6 +76,12 @@ def test_runner_executes_selected_samples_scores_and_carries_fingerprint():
         selection=selection,
         model="demo-model",
         runtime_fingerprint="fp-123",
+        reasoning_profile=EvaluationReasoningProfile(
+            requested=EvaluationReasoningPolicy.OFF,
+            runtime_mode=ThinkingMode.SWITCHABLE,
+            effective="off",
+            request_override=False,
+        ),
     )
     executor = FakeExecutor(outputs)
     report = EvaluationRunner(executor, (DeterministicObjectiveScorer(),)).run(
@@ -74,6 +91,7 @@ def test_runner_executes_selected_samples_scores_and_carries_fingerprint():
 
     assert report.complete is True
     assert len(executor.requests) == 2
+    assert all(request.generation.enable_thinking is False for request in executor.requests)
     assert all(result.succeeded for result in report.results)
     assert all(result.metrics["runtime_fingerprint"] == "fp-123" for result in report.results)
     assert all(result.metrics["output_tokens"] == 1 for result in report.results)
