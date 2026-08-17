@@ -56,6 +56,15 @@ def test_evaluation_reasoning_ui_sends_explicit_policy_and_surfaces_effective_pr
     assert "Reasoning ${profile.requested} → ${profile.effective}" in script
 
 
+def test_evaluation_reasoning_policy_bootstrap_is_not_fetch_order_dependent():
+    script = (STATIC / "control-plane-evaluation-reasoning.js").read_text(encoding="utf-8")
+    assert "function ingestPolicies(payload)" in script
+    assert "async function refreshPolicies()" in script
+    assert "await baseFetch(TEST_SETS" in script
+    assert "ingestPolicies(await response.json())" in script
+    assert "refreshPolicies();" in script
+
+
 def test_evaluation_history_ui_uses_persisted_sources_without_auto_verdicts():
     script = (STATIC / "control-plane-evaluation-history.js").read_text(encoding="utf-8")
     assert "/api/v1/evaluation/history" in script
