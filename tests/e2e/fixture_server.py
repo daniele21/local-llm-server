@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -14,13 +15,15 @@ from local_llm_server.server import ServerSettings, create_app
 
 MODEL_KEY = "e2e-switchable"
 MODEL_ID = "org/e2e-switchable"
+ALT_MODEL_KEY = "e2e-alt"
+ALT_MODEL_ID = "org/e2e-alt"
 
 
-def _runtime_config() -> dict[str, Any]:
+def _runtime_config(model_key: str, model_id: str) -> dict[str, Any]:
     return {
-        "model": MODEL_KEY,
-        "model_id": MODEL_ID,
-        "model_path": "/e2e/model.gguf",
+        "model": model_key,
+        "model_id": model_id,
+        "model_path": f"/e2e/{model_key}.gguf",
         "backend": "llama_cpp",
         "modalities": ["text"],
         "thinking_mode": "switchable",
@@ -44,18 +47,35 @@ def _structured(payload: dict[str, Any]) -> bool:
     }
 
 
-def _answer(payload: dict[str, Any]) -> str:
-    final = '{"answer":42}' if _structured(payload) else "42"
+def _last_user_text(payload: dict[str, Any]) -> str:
+    messages = payload.get("messages")
+    if not isinstance(messages, list):
+        return ""
+    for message in reversed(messages):
+        if isinstance(message, dict) and message.get("role") == "user":
+            content = message.get("content")
+            if isinstance(content, str):
+                return content
+    return ""
+
+
+def _answer(payload: dict[str, Any], answer: int) -> str:
+    final = f'{{"answer":{answer}}}' if _structured(payload) else str(answer)
     if payload.get("enable_thinking") is True:
         return f"<think>private reasoning</think>{final}"
     return final
 
 
-def _stream_event(content: str | None = None, *, finish_reason: str | None = None) -> dict[str, Any]:
+def _stream_event(
+    model_id: str,
+    content: str | None = None,
+    *,
+    finish_reason: str | None = None,
+) -> dict[str, Any]:
     return {
         "id": "chatcmpl-e2e",
         "object": "chat.completion.chunk",
-        "model": MODEL_ID,
+        "model": model_id,
         "choices": [
             {
                 "index": 0,
@@ -70,15 +90,22 @@ class DeterministicBrowserEngine:
     backend = "llama_cpp"
     backend_version = "e2e-fixture"
 
+    def __init__(self, model_id: str, answer: int) -> None:
+        self.model_id = model_id
+        self.answer = answer
+
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
         return {
             "id": "chatcmpl-e2e",
             "object": "chat.completion",
-            "model": MODEL_ID,
+            "model": self.model_id,
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": _answer(payload)},
+                    "message": {
+                        "role": "assistant",
+                        "content": _answer(payload, self.answer),
+                    },
                     "finish_reason": "stop",
                 }
             ],
@@ -86,24 +113,32 @@ class DeterministicBrowserEngine:
         }
 
     def stream(self, payload: dict[str, Any]):
-        final = '{"answer":42}' if _structured(payload) else "42"
+        final = f'{{"answer":{self.answer}}}' if _structured(payload) else str(self.answer)
+        slow = "[slow-status]" in _last_user_text(payload)
         if payload.get("enable_thinking") is True:
-            for content in ("<thi", "nk>private reasoning", "</th", f"ink>{final}"):
-                yield _stream_event(content)
+            chunks = ("<thi", "nk>private reasoning", "</th", f"ink>{final}")
+        elif slow and len(final) > 1:
+            chunks = tuple(final)
         else:
-            yield _stream_event(final)
-        yield _stream_event(None, finish_reason="stop")
+            chunks = (final,)
+        for index, content in enumerate(chunks):
+            yield _stream_event(self.model_id, content)
+            if slow and index == 0:
+                # Keep the request genuinely active long enough for the browser's
+                # 300 ms /status polling loop to observe the generating phase.
+                time.sleep(0.8)
+        yield _stream_event(self.model_id, None, finish_reason="stop")
 
     def close(self) -> None:
         return None
 
 
-def _catalog_item() -> dict[str, Any]:
-    cfg = _runtime_config()
-    capability = capability_catalog_item(MODEL_KEY, cfg)
+def _catalog_item(model_key: str, model_id: str) -> dict[str, Any]:
+    cfg = _runtime_config(model_key, model_id)
+    capability = capability_catalog_item(model_key, cfg)
     return {
-        "key": MODEL_KEY,
-        "model_id": MODEL_ID,
+        "key": model_key,
+        "model_id": model_id,
         "size_gb": 0.0,
         "tags": ["e2e"],
         "backend": "llama_cpp",
@@ -112,7 +147,7 @@ def _catalog_item() -> dict[str, Any]:
         "capabilities": capability["capabilities"],
         "capability_source": capability["capability_source"],
         "downloaded": True,
-        "path": "/e2e/model.gguf",
+        "path": f"/e2e/{model_key}.gguf",
         "source": "e2e-fixture",
         "mmproj_path": None,
     }
@@ -121,10 +156,20 @@ def _catalog_item() -> dict[str, Any]:
 def build_app():
     # The registry route imports this symbol at request time. Replacing it here
     # keeps the browser fixture deterministic without touching user model files.
-    local_llm_server.list_models = lambda: [_catalog_item()]
+    local_llm_server.list_models = lambda: [
+        _catalog_item(MODEL_KEY, MODEL_ID),
+        _catalog_item(ALT_MODEL_KEY, ALT_MODEL_ID),
+    ]
 
     manager = ProductRuntimeManager(default_model=MODEL_KEY)
-    manager.add(_runtime_config(), DeterministicBrowserEngine())
+    manager.add(
+        _runtime_config(MODEL_KEY, MODEL_ID),
+        DeterministicBrowserEngine(MODEL_ID, 42),
+    )
+    manager.add(
+        _runtime_config(ALT_MODEL_KEY, ALT_MODEL_ID),
+        DeterministicBrowserEngine(ALT_MODEL_ID, 84),
+    )
     application = create_app(
         manager,
         settings=ServerSettings(enable_admin_api=True),
