@@ -44,7 +44,7 @@ def request_for_sample(sample: EvaluationSample, *, model: str) -> InferenceRequ
 
     output = OutputConstraints()
     if sample.task is TaskType.STRUCTURED_GENERATION:
-        output = OutputConstraints(format="json")
+        output = OutputConstraints(format="json_object")
 
     return InferenceRequest(
         task=sample.task,

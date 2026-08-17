@@ -32,11 +32,11 @@ class FakeExecutor:
         )
 
 
-def test_request_for_structured_sample_requests_json():
+def test_request_for_structured_sample_requests_json_object():
     sample = next(sample for sample in GENERAL_PURPOSE_V1.samples if sample.sample_id == "json-001")
     request = request_for_sample(sample, model="demo")
     assert request.task is TaskType.STRUCTURED_GENERATION
-    assert request.output.format == "json"
+    assert request.output.format == "json_object"
     assert request.generation.temperature == 0.0
     assert request.metadata["evaluation_sample_id"] == "json-001"
 
