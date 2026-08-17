@@ -1,0 +1,24 @@
+name: Repository Health
+
+on:
+  push:
+    branches: ["main", "master", "dev"]
+  pull_request:
+
+jobs:
+  repository-health:
+    name: Repository Health
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate repository baseline
+        run: python3 scripts/verify_repository.py
+      - name: Validate operating contract
+        run: python3 scripts/verify_operations.py
+      - name: Validate documentation lifecycle
+        run: python3 scripts/verify_docs.py
+      - name: Validate agent context budget
+        run: python3 scripts/verify_agent_context.py
