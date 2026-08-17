@@ -95,3 +95,15 @@ def test_missing_input_uses_typed_invalid_request_error():
         chat_payload_to_inference_request({})
 
     assert exc_info.value.code is ErrorCode.INVALID_REQUEST
+
+
+def test_inference_error_allows_interpreter_traceback_state_updates():
+    error = InferenceError(ErrorCode.INVALID_REQUEST, "invalid")
+
+    # Python and generator-based context managers update these standard
+    # Exception attributes while propagating failures. Freezing the dataclass
+    # masks the original typed error during unwinding.
+    error.__traceback__ = None
+    error.__context__ = None
+
+    assert str(error) == "invalid"
