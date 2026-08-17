@@ -13,6 +13,9 @@ class EvaluationReasoningPolicy(str, Enum):
     ON = "on"
     RUNTIME_DEFAULT = "runtime_default"
 
+    def __str__(self) -> str:
+        return self.value
+
 
 def coerce_evaluation_reasoning_policy(
     value: EvaluationReasoningPolicy | str,
