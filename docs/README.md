@@ -5,7 +5,7 @@ Document type: documentation-governance
 Owner: repository
 Canonical scope: documentation.routing
 Read when: locating the canonical owner of operational, product, roadmap, UX/UI, architecture or delivery information
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-17
 
 Local LLM Server documentation follows progressive disclosure. Start from this map, then read only the focused source that owns the question. A fact should have one canonical owner; summaries link to that owner instead of copying detailed status or acceptance criteria.
 
@@ -24,6 +24,8 @@ For operational use, read in this order:
 
 Swagger at `/docs` remains the executable request/response schema for the checked-out revision; the operational references above own cross-endpoint semantics and safe usage guidance.
 
+For automated product-boundary testing, read [`workstreams/e2e-product-acceptance.md`](workstreams/e2e-product-acceptance.md) together with `tests/e2e/README.md` and `tests/real_runtime/README.md`.
+
 ## Canonical sources
 
 | Question | Canonical source |
@@ -34,6 +36,7 @@ Swagger at `/docs` remains the executable request/response schema for the checke
 | What does `/status` mean and what must not be inferred from it? | [`runtime-status-reference.md`](runtime-status-reference.md) |
 | What does the public runtime identity endpoint expose and what may it never leak? | [`runtime-identity-api.md`](runtime-identity-api.md) |
 | How do I diagnose operational/integration failures? | [`troubleshooting.md`](troubleshooting.md) |
+| What does automated Studio/product acceptance cover and what remains real-device evidence? | [`workstreams/e2e-product-acceptance.md`](workstreams/e2e-product-acceptance.md) |
 | What is integrated, blocked or next? | [`current-state.md`](current-state.md) |
 | What product are we building and why? | [`implementation-plan.md`](implementation-plan.md) |
 | Which milestones remain and what can run in parallel? | [`roadmap.md`](roadmap.md) |
@@ -124,6 +127,7 @@ When two tasks share a contract that is still changing, extract or stabilize tha
 - [`architecture-evolution-plan.md`](architecture-evolution-plan.md) — control-plane architecture and technical migration sequence.
 - [`roadmap.md`](roadmap.md) — milestones, dependency graph, work lanes and recommended parallel batches.
 - [`current-state.md`](current-state.md) — current operational truth and next block.
+- [`workstreams/e2e-product-acceptance.md`](workstreams/e2e-product-acceptance.md) — E2E-001 mandatory Playwright product gate plus opt-in real-runtime smoke, explicitly separate from representative-device evidence.
 
 ### UX/UI and brand
 
