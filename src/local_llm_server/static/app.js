@@ -96,6 +96,39 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedImageBase64 = '';
     let adminFeaturesInitialized = false;
 
+    function apiErrorMessage(payload, status) {
+        const normalize = (value) => {
+            if (typeof value === 'string' && value.trim()) {
+                return value.trim();
+            }
+            if (Array.isArray(value)) {
+                return value
+                    .map((item) => {
+                        if (typeof item === 'string') return item.trim();
+                        if (item && typeof item === 'object' && typeof item.msg === 'string') {
+                            return item.msg.trim();
+                        }
+                        return '';
+                    })
+                    .filter(Boolean)
+                    .join('; ');
+            }
+            if (value && typeof value === 'object') {
+                if (typeof value.message === 'string' && value.message.trim()) {
+                    return value.message.trim();
+                }
+                if (typeof value.code === 'string' && value.code.trim()) {
+                    return value.code.trim();
+                }
+            }
+            return '';
+        };
+
+        return normalize(payload?.detail)
+            || normalize(payload?.error)
+            || `HTTP ${status}`;
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // Core Initialisation
     // ═══════════════════════════════════════════════════════════════════════════
@@ -307,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (!res.ok) {
                         const err = await res.json().catch(() => ({}));
-                        throw new Error(err.detail || `HTTP ${res.status}`);
+                        throw new Error(apiErrorMessage(err, res.status));
                     }
 
                     const data = await res.json();
@@ -768,7 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!res.ok) {
                 const err = await res.json().catch(() => ({}));
-                throw new Error(err.detail || `HTTP ${res.status}`);
+                throw new Error(apiErrorMessage(err, res.status));
             }
 
             const data = await res.json();
@@ -927,7 +960,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.detail || errData.error || `HTTP ${response.status}`);
+                throw new Error(apiErrorMessage(errData, response.status));
             }
 
             if (!response.body) throw new Error('Il browser non supporta lo streaming della risposta');
@@ -950,7 +983,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     const raw = dataLine.slice(5).trim();
                     if (!raw || raw === '[DONE]') continue;
                     const chunk = JSON.parse(raw);
-                    if (chunk.error) throw new Error(chunk.error);
+                    if (chunk.error) {
+                        throw new Error(apiErrorMessage({ error: chunk.error }, 500));
+                    }
                     reply += chunk.choices?.[0]?.delta?.content || '';
                     ChatWindow.updateAssistantMessage(assistantMessage, reply);
                 }
