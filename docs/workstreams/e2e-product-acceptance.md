@@ -15,13 +15,17 @@ It does not replace [`runtime-correctness-evidence-hardening.md`](runtime-correc
 
 ## E2E-001 — automated product acceptance
 
-State: `VALIDATION`
+State: `DONE`
+
+Integrated through PR **#114** on `dev` (`48fc1d3c7484c0f75ca2dc867645dc518c15f2bc`). The final feature head `72fb572b86e52911cf136b78d476ef13db329b6d` passed CI run **32038809451**: Ruff lint, deterministic tests on Python 3.10/3.11/3.12, and the mandatory Playwright E2E job all completed successfully.
+
+This `DONE` state applies to the deterministic product-acceptance implementation only. The opt-in real-runtime smoke and representative-device/human acceptance remain separate empirical gates and have not been reclassified as completed by this workstream.
 
 ### Lane A — deterministic browser product gate
 
-The existing Playwright gate remains mandatory on pull requests and uses the real FastAPI/Studio product stack with deterministic resident fake runtimes.
+The Playwright gate is mandatory on pull requests and uses the real FastAPI/Studio product stack with deterministic resident fake runtimes.
 
-Coverage must include:
+Coverage includes:
 
 - first-party public contract coherence across `/v1/models`, `/v1/runtime/identity` and `/status`;
 - explicit multi-model routing from the Playground;
@@ -37,7 +41,7 @@ The fixture may delay deterministic chunks solely to let the 300 ms UI status po
 
 ### Lane B — public API/product contract
 
-Browser request-context checks use the same fixture server to verify the public serving surfaces independently from DOM assertions. Identity must remain path-free and versioned; status remains dynamic telemetry rather than stable identity.
+Browser request-context checks use the same fixture server to verify the public serving surfaces independently from DOM assertions. Identity remains path-free and versioned; status remains dynamic telemetry rather than stable identity.
 
 ### Lane C — real-runtime smoke
 
@@ -57,10 +61,10 @@ The smoke retains only bounded metadata and does not print or persist prompt/mod
 
 ## Acceptance
 
-E2E-001 can move to `DONE` when:
+E2E-001 is `DONE` because:
 
-1. the deterministic Playwright product gate passes on the final feature head;
-2. the normal Python/lint matrix passes unchanged on the same head;
+1. the deterministic Playwright product gate passed on the final feature head;
+2. the normal Python/lint matrix passed on the same head;
 3. failure traces/screenshots remain available only when the browser gate fails;
 4. the real-runtime smoke is documented and stays opt-in;
 5. no deterministic fixture result is promoted as representative hardware/model evidence;
