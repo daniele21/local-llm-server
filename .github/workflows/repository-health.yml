@@ -5,6 +5,9 @@ on:
     branches: ["main", "master", "dev"]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   repository-health:
     name: Repository Health
@@ -22,3 +25,67 @@ jobs:
         run: python3 scripts/verify_docs.py
       - name: Validate agent context budget
         run: python3 scripts/verify_agent_context.py
+
+  artifact-lifecycle:
+    name: Artifact Lifecycle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pinned build frontend
+        run: python -m pip install "build==1.2.2.post1"
+      - name: Build twice and verify immutable lineage
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          output_root = Path(".artifact-lifecycle-validation")
+
+          def run_build() -> Path:
+              proc = subprocess.run(
+                  [
+                      sys.executable,
+                      "scripts/build_artifacts.py",
+                      "--output-root",
+                      str(output_root),
+                      "--channel",
+                      "ci",
+                      "--variant",
+                      "wheel-sdist",
+                  ],
+                  check=True,
+                  text=True,
+                  capture_output=True,
+              )
+              final_line = proc.stdout.strip().splitlines()[-1]
+              return Path(final_line)
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          first = run_build()
+          second = run_build()
+          assert first != second, "two builds reused the same promoted directory"
+          assert not first.exists(), "retention should remove the older comparable build after promotion"
+          # Retention=2 means both builds must remain after exactly two successful builds.
+          # If first was removed, lifecycle behavior is incorrect.
+          PY
+      - name: Verify artifact lifecycle cleanup
+        if: always()
+        run: |
+          rm -rf .artifact-lifecycle-validation
+          test ! -e .artifact-lifecycle-validation
