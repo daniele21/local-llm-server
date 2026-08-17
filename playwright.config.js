@@ -17,6 +17,7 @@ module.exports = defineConfig({
     browserName: 'chromium',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    video: 'off',
   },
   webServer: {
     command: 'python tests/e2e/fixture_server.py',
