@@ -2,18 +2,23 @@
 """Exercise an assembled HTTP failure/retry/recovery journey from an installed wheel.
 
 This file is launched by the Python interpreter inside the fresh package-smoke
-venv. It intentionally uses a deterministic in-process engine so packaging and
-product assembly are tested without downloading or executing a model.
+venv. It starts the assembled application on a pre-bound localhost socket and
+uses only the standard-library HTTP client, so the journey tests the installed
+runtime surface without adding a test-client dependency to production.
 """
 from __future__ import annotations
 
+import http.client
 import json
 import os
 from pathlib import Path
+import socket
 import tempfile
+import threading
+import time
 from typing import Any
 
-from fastapi.testclient import TestClient
+import uvicorn
 
 import local_llm_server
 from local_llm_server.product_composition import install_product_http_stack
@@ -79,6 +84,37 @@ def _config() -> dict[str, Any]:
     }
 
 
+def _json_request(port: int, method: str, path: str, payload: dict[str, Any] | None = None) -> tuple[int, dict[str, Any]]:
+    body = None if payload is None else json.dumps(payload).encode("utf-8")
+    headers = {"Accept": "application/json"}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=3.0)
+    try:
+        connection.request(method, path, body=body, headers=headers)
+        response = connection.getresponse()
+        raw = response.read()
+        parsed: dict[str, Any] = {}
+        if raw:
+            value = json.loads(raw.decode("utf-8"))
+            if isinstance(value, dict):
+                parsed = value
+        return response.status, parsed
+    finally:
+        connection.close()
+
+
+def _wait_until_started(server: uvicorn.Server, thread: threading.Thread, *, timeout_seconds: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if server.started:
+            return
+        if not thread.is_alive():
+            raise RuntimeError("installed-surface Uvicorn server exited before startup")
+        time.sleep(0.02)
+    raise TimeoutError("installed-surface Uvicorn server did not start in time")
+
+
 def run() -> dict[str, object]:
     installed_module = _assert_imported_from_installed_surface()
     engine = DeterministicInstalledEngine()
@@ -91,36 +127,69 @@ def run() -> dict[str, object]:
         application = create_app(manager, settings=ServerSettings(enable_admin_api=True))
         install_product_http_stack(application, evaluation_root=evaluation_root)
 
-        with TestClient(application, raise_server_exceptions=False) as client:
-            healthy_before = client.get("/health")
-            assert healthy_before.status_code == 200
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(128)
+        port = int(listener.getsockname()[1])
+        server = uvicorn.Server(
+            uvicorn.Config(
+                application,
+                host="127.0.0.1",
+                port=port,
+                log_level="warning",
+                lifespan="on",
+                timeout_graceful_shutdown=2,
+            )
+        )
+        thread = threading.Thread(
+            target=server.run,
+            kwargs={"sockets": [listener]},
+            name="installed-surface-uvicorn",
+            daemon=False,
+        )
+        thread.start()
+        try:
+            _wait_until_started(server, thread)
 
-            failed = client.post(
+            healthy_before_status, healthy_before = _json_request(port, "GET", "/health")
+            assert healthy_before_status == 200, healthy_before
+
+            failed_status, failed = _json_request(
+                port,
+                "POST",
                 "/v1/chat/completions",
-                json={
+                {
                     "model": "not-resident",
                     "messages": [{"role": "user", "content": "synthetic failure input"}],
                     "stream": False,
                 },
             )
-            assert failed.status_code == 404, failed.text
+            assert failed_status == 404, failed
 
-            retry = client.post(
+            retry_status, retry_payload = _json_request(
+                port,
+                "POST",
                 "/v1/chat/completions",
-                json={
+                {
                     "model": "installed-fixture",
                     "messages": [{"role": "user", "content": "synthetic retry input"}],
                     "temperature": 0.0,
                     "stream": False,
                 },
             )
-            assert retry.status_code == 200, retry.text
-            retry_payload = retry.json()
+            assert retry_status == 200, retry_payload
             assert retry_payload.get("content") == "42" or retry_payload.get("output") == "42"
 
-            healthy_after = client.get("/health")
-            assert healthy_after.status_code == 200
+            healthy_after_status, healthy_after = _json_request(port, "GET", "/health")
+            assert healthy_after_status == 200, healthy_after
             assert engine.complete_calls == 1
+        finally:
+            server.should_exit = True
+            thread.join(timeout=5.0)
+            listener.close()
+            if thread.is_alive():
+                raise RuntimeError("installed-surface Uvicorn server did not stop cleanly")
 
         assert not any(evaluation_root.iterdir()), "installed journey left evaluation state"
 
@@ -128,9 +197,11 @@ def run() -> dict[str, object]:
         "schema_version": 1,
         "surface": "fresh-installed-wheel",
         "installed_module": installed_module,
+        "transport": "real-localhost-http",
         "failure": {"kind": "model_not_resident", "status_code": 404},
         "retry": {"kind": "valid_resident_model", "status_code": 200},
         "recovery": {"health_after_failure_and_retry": True},
+        "server_cleanup": {"thread_stopped": True},
         "model_downloaded": False,
         "prompt_or_output_retained": False,
     }
