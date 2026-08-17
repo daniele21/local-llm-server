@@ -10,8 +10,9 @@ The L2 architecture policy protects a small set of dependency and ownership inva
 Protected boundaries:
 
 - `core/` remains backend-neutral and independent from HTTP, runtime orchestration and backend libraries.
-- resource admission, scheduling, residency eviction and pressure policy remain below HTTP and CLI composition.
-- low-level engine/resource policy may be assembled by product composition but does not depend back on product/API composition roots.
+- `scheduler.py`/`async_scheduler.py`, resource admission, residency eviction and pressure policy remain transport-neutral and below HTTP/CLI composition.
+- `request_scheduler.py` is intentionally the product HTTP adapter around the reusable admission gate; it may depend on FastAPI but cannot depend back on higher product/control-plane/identity/CLI composition roots.
+- low-level engine/resource/admission policy may be assembled by product composition but does not depend back on product HTTP/API composition roots.
 - every critical boundary declared by the policy has one existing canonical owner path.
 
 The policy intentionally does not freeze every current import. Transitional compatibility ownership stays governed by `docs/architecture.md` and the architecture evolution plan.
