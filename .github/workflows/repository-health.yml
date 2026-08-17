@@ -147,6 +147,24 @@ jobs:
           staging = output_root / ".staging"
           assert not staging.exists() or not any(staging.iterdir()), "successful builds left staging residue"
           PY
+      - name: Verify release-style version bump updates lock identity
+        env:
+          LOCAL_LLM_BUILD_CHANNEL: release-candidate-ci
+          LOCAL_LLM_BUILD_VARIANT: wheel-sdist
+        run: |
+          before_version="$(tr -d '[:space:]' < VERSION)"
+          ./deploy.sh --bump-patch --skip-tests
+          after_file="$(tr -d '[:space:]' < VERSION)"
+          after_project="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          test "$after_file" = "$after_project"
+          test "$after_file" != "$before_version"
+          uv lock --check
+          git diff --exit-code --quiet -- . ':(exclude)pyproject.toml' ':(exclude)VERSION' ':(exclude)uv.lock' || {
+            echo "Version bump modified files outside pyproject.toml, VERSION and uv.lock" >&2
+            git status --short >&2
+            exit 1
+          }
+          test -n "$(git status --short -- pyproject.toml VERSION uv.lock)"
       - name: Verify canonical clean removes build output
         if: always()
         run: |
