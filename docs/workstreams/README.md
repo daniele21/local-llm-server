@@ -15,3 +15,4 @@ Do not create separate plan/progress/status files for the same workstream. Git h
 ## Active
 
 - [`runtime-correctness-evidence-hardening.md`](runtime-correctness-evidence-hardening.md) — thinking/structured-output correctness, evaluation canonicalization, verified artifact identity, resource-policy validation and representative hardware evidence.
+- [`repo-template-sw-adoption.md`](repo-template-sw-adoption.md) — baseline metadata, canonical commands, agent routing, reproducible CI, artifact lifecycle, zero-residue E2E and documentation/security governance.

@@ -16,6 +16,7 @@ The runtime-correctness code convergence is complete. The milestone is now to ex
 | Workstream | Executable now | State | Blocker |
 | --- | --- | --- | --- |
 | [`runtime-correctness-evidence-hardening`](workstreams/runtime-correctness-evidence-hardening.md) | `TH-E1`, `EV-3`, `HE-2`, `RES-2` | ACTIVE — evidence wave | requires physical target-Mac execution; REL-1 waits on retained evidence |
+| [`repo-template-sw-adoption`](workstreams/repo-template-sw-adoption.md) | `STD-01` | READY — baseline/command contract | parallel implementation lanes wait for STD-01 |
 
 Executable commands and evidence boundaries are in [`device-evidence-runbook.md`](device-evidence-runbook.md).
 
