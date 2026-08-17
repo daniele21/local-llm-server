@@ -5,7 +5,8 @@
     {"boundary": "backend_neutral_contracts", "path": "src/local_llm_server/core"},
     {"boundary": "product_assembly", "path": "src/local_llm_server/product_composition.py"},
     {"boundary": "resource_budget", "path": "src/local_llm_server/resource_manager.py"},
-    {"boundary": "request_admission", "path": "src/local_llm_server/request_scheduler.py"},
+    {"boundary": "request_admission_core", "path": "src/local_llm_server/async_scheduler.py"},
+    {"boundary": "product_request_scheduler", "path": "src/local_llm_server/request_scheduler.py"},
     {"boundary": "residency_eviction", "path": "src/local_llm_server/residency_eviction.py"},
     {"boundary": "pressure_policy", "path": "src/local_llm_server/residency_pressure.py"}
   ],
@@ -17,16 +18,22 @@
       "rationale": "Canonical task/request/capability vocabulary must not depend on transport, runtime orchestration or backend implementation types."
     },
     {
-      "id": "resource-policy-not-http-owned",
-      "paths": ["resource_manager.py", "request_scheduler.py", "residency_eviction.py", "residency_pressure.py"],
-      "forbidden_import_prefixes": ["fastapi", "starlette", "uvicorn", "local_llm_server.server", "local_llm_server.product_composition", "local_llm_server.control_plane_api", "local_llm_server.identity_api", "local_llm_server.cli"],
-      "rationale": "Resource admission, scheduling and pressure policy are domain/runtime policy and must remain reusable below HTTP/CLI composition."
+      "id": "resource-and-admission-core-not-http-owned",
+      "paths": ["resource_manager.py", "scheduler.py", "async_scheduler.py", "residency_eviction.py", "residency_pressure.py"],
+      "forbidden_import_prefixes": ["fastapi", "starlette", "uvicorn", "local_llm_server.server", "local_llm_server.product_composition", "local_llm_server.control_plane_api", "local_llm_server.identity_api", "local_llm_server.cli", "local_llm_server.request_scheduler"],
+      "rationale": "Reusable resource/admission/pressure policy remains below the product HTTP scheduler and CLI/API composition."
+    },
+    {
+      "id": "product-request-scheduler-no-composition-backedge",
+      "paths": ["request_scheduler.py"],
+      "forbidden_import_prefixes": ["local_llm_server.product_composition", "local_llm_server.control_plane_api", "local_llm_server.identity_api", "local_llm_server.cli"],
+      "rationale": "The product request scheduler is intentionally HTTP-aware but must not depend back on higher product/control-plane/CLI composition roots."
     },
     {
       "id": "low-level-runtime-not-product-composition-owned",
-      "paths": ["resource_manager.py", "request_scheduler.py", "residency_eviction.py", "residency_pressure.py", "engine.py"],
-      "forbidden_import_prefixes": ["local_llm_server.product_composition", "local_llm_server.control_plane_api", "local_llm_server.identity_api", "local_llm_server.cli"],
-      "rationale": "Low-level runtime/backend policy may be assembled by product composition but must not depend back on product/API composition roots."
+      "paths": ["resource_manager.py", "scheduler.py", "async_scheduler.py", "residency_eviction.py", "residency_pressure.py", "engine.py"],
+      "forbidden_import_prefixes": ["local_llm_server.product_composition", "local_llm_server.control_plane_api", "local_llm_server.identity_api", "local_llm_server.cli", "local_llm_server.request_scheduler"],
+      "rationale": "Low-level runtime/backend policy may be assembled by product composition and the HTTP scheduler but must not depend back on those product roots."
     }
   ]
 }
