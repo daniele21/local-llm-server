@@ -1,9 +1,10 @@
 """Controlled automatic runtime-identity capture for evidence-grade runs.
 
 Automatic attachment is deliberately conservative: a runtime receives a
-product fingerprint only when the model artifact has an explicit SHA-256 pin
-and the backend implementation version can be resolved. Otherwise execution is
-allowed but evidence remains exploratory.
+product fingerprint only when the model artifact has strong SHA-256 evidence
+and the backend implementation version can be resolved. Strong artifact
+evidence may come from an explicit config pin or from a locally persisted
+verification receipt that still matches the exact current file.
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from .artifact_identity import (
     ArtifactSourceKind,
     VerificationState,
 )
+from .artifact_verification import ArtifactVerificationStore
 from .runtime_evidence import RuntimeIdentitySnapshot, build_and_attach_runtime_identity
 from .runtime_identity import BackendIdentity, backend_identity, local_hardware_profile
 
@@ -36,11 +38,17 @@ def capture_verified_runtime_identity(
     *,
     total_memory_bytes: int | None = None,
     accelerator: str | None = None,
+    verification_store: ArtifactVerificationStore | None = None,
 ) -> RuntimeIdentitySnapshot | None:
     """Attach identity once when artifact + backend evidence is strong enough."""
     cfg: Mapping[str, Any] = getattr(runtime, "cfg", {})
-    sha256 = cfg.get("artifact_sha256")
-    if not isinstance(sha256, str) or not _valid_sha256(sha256):
+    logical_id = str(cfg.get("model_id") or cfg.get("model") or runtime.key)
+    sha256, size_bytes = _verified_artifact_evidence(
+        cfg,
+        logical_id=logical_id,
+        store=verification_store,
+    )
+    if sha256 is None:
         return None
 
     backend = resolve_backend_identity(runtime)
@@ -48,7 +56,6 @@ def capture_verified_runtime_identity(
         return None
 
     source_kind = _source_kind(cfg.get("model_source"))
-    logical_id = str(cfg.get("model_id") or cfg.get("model") or runtime.key)
     artifact = ArtifactIdentity(
         logical_id=logical_id,
         source_kind=source_kind,
@@ -58,7 +65,8 @@ def capture_verified_runtime_identity(
             if cfg.get("artifact_revision") is not None
             else None
         ),
-        sha256=sha256.lower(),
+        sha256=sha256,
+        size_bytes=size_bytes,
         verification=VerificationState.VERIFIED,
     )
 
@@ -108,6 +116,29 @@ def resolve_backend_identity(runtime: Any) -> BackendIdentity | None:
     return None
 
 
+def _verified_artifact_evidence(
+    cfg: Mapping[str, Any],
+    *,
+    logical_id: str,
+    store: ArtifactVerificationStore | None,
+) -> tuple[str | None, int | None]:
+    explicit = cfg.get("artifact_sha256")
+    if isinstance(explicit, str) and _valid_sha256(explicit):
+        return explicit.lower(), _optional_size(cfg.get("artifact_size_bytes"))
+
+    model_path = cfg.get("model_path")
+    if not isinstance(model_path, str) or not model_path:
+        return None, None
+    path = Path(model_path).expanduser()
+    if not path.is_file():
+        return None, None
+
+    receipt = (store or ArtifactVerificationStore()).valid_for_file(logical_id, path)
+    if receipt is None:
+        return None, None
+    return receipt.sha256, receipt.size_bytes
+
+
 def _probe_llama_server_version(binary: Any) -> str | None:
     if binary is None:
         return None
@@ -138,3 +169,13 @@ def _source_kind(value: Any) -> ArtifactSourceKind:
 
 def _valid_sha256(value: str) -> bool:
     return len(value) == 64 and all(ch in "0123456789abcdef" for ch in value.lower())
+
+
+def _optional_size(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
