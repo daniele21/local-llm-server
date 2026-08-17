@@ -13,100 +13,76 @@ The adopted standard is pinned to `repo-template-sw` `0.3.0` at revision `41ba67
 
 Canonical branch protection remains an owner-deferred exception. Hardware-dependent L2 evidence is an explicit dependency on `runtime-correctness-evidence-hardening.md`; hosted CI must not manufacture Apple Silicon behavior.
 
-## Gap map
-
-Already strong enough to reuse:
-
-- machine-enforced repository/documentation/agent-context/operating-contract checks;
-- locked dependency graph, vulnerability scanning and bounded exceptions;
-- deterministic lifecycle failure contracts and zero-residue E2E ownership;
-- immutable artifact identity, build staging/checksums/deltas and fresh-install package smoke;
-- machine-readable deterministic resource/performance budgets;
-- representative-device evidence runbook and active hardware-evidence workstream.
-
-L2 gaps to close:
-
-- architecture dependency/ownership fitness functions;
-- deterministic memory/resource regression evidence;
-- stable performance regression gates for CI-safe paths;
-- pressure/fault injection at important lifecycle boundaries;
-- repeatability/cleanliness evidence across important operating lifecycles;
-- representative failure/retry/recovery E2E journeys;
-- E2E against the built/installed surface where practical;
-- explicit complexity/dependency review for meaningful additions;
-- reproducible benchmark/evidence identity for decision-bearing results;
-- stronger repository policy and stale/duplicate/completed-document drift detection;
-- representative hardware evidence before claiming full L2.
-
 ## Work graph
 
 | ID | Work | Depends on | State |
 | --- | --- | --- | --- |
-| L2-01 | pin L2 target, exact standard revision and gap/parallel plan | — | ACTIVE |
-| L2-02 | architecture ownership/dependency fitness functions | L2-01 | READY |
-| L2-03 | deterministic resource + memory regression contracts | L2-01 | READY |
-| L2-04 | stable CI performance regression gates | L2-01 | READY |
-| L2-05 | pressure/fault-injection lifecycle coverage | L2-01 | READY |
-| L2-06 | repeatability + cleanliness evidence across operating lifecycles | L2-01 | READY |
-| L2-07 | E2E failure/retry/recovery + installed/built surface | L2-01 | READY |
-| L2-08 | complexity/dependency review + reproducible evidence identity | L2-01 | READY |
-| L2-09 | repository policy + stale/duplicate/completed-doc drift detection | L2-01 | READY |
-| L2-10 | shared integration and repository-side L2 acceptance | L2-02..L2-09 | BLOCKED |
+| L2-01 | pin L2 target, exact standard revision and gap/parallel plan | — | DONE |
+| L2-02 | architecture ownership/dependency fitness functions | L2-01 | DONE |
+| L2-03 | deterministic resource + memory regression contracts | L2-01 | DONE |
+| L2-04 | stable CI performance regression gates | L2-01 | DONE |
+| L2-05 | pressure/fault-injection lifecycle coverage | L2-01 | DONE |
+| L2-06 | repeatability + cleanliness evidence across operating lifecycles | L2-01 | DONE |
+| L2-07 | E2E failure/retry/recovery + installed/built surface | L2-01 | DONE |
+| L2-08 | complexity/dependency review + reproducible evidence identity | L2-01 | DONE |
+| L2-09 | repository policy + stale/duplicate/completed-doc drift detection | L2-01 | DONE |
+| L2-10 | shared integration and repository-side L2 acceptance | L2-02..L2-09 | ACTIVE |
 | L2-11 | representative hardware gate + durable state transfer/finalization | L2-10, runtime evidence | BLOCKED |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
 
-## Parallel ownership
+## Implemented reference-grade capabilities
 
-To minimize merge conflicts, independent slices own distinct files until L2-10:
+### Architecture fitness
 
-- L2-02: `.engineering/architecture-policy.json`, `scripts/verify_architecture.py`, architecture-fitness tests/docs.
-- L2-03: resource/memory regression fixtures/tests and their machine-readable contract.
-- L2-04: deterministic benchmark runner/baseline/gate for stable non-hardware-sensitive paths.
-- L2-05: fault-injection helpers/tests and lifecycle contract extensions owned by that slice only.
-- L2-06: repeatability runner/contract/tests; no shared workflow edits.
-- L2-07: E2E fixture/journey/package-surface files; shared CI wiring deferred to L2-10.
-- L2-08: complexity-review and evidence-identity policy/validators/template changes.
-- L2-09: docs/repository-policy drift validator and tests.
-- L2-10 alone owns shared Repository Health/CI wiring and baseline/current-state convergence.
+`.engineering/architecture-policy.json` and `scripts/verify_architecture.py` protect backend-neutral core contracts, transport-neutral scheduling/resource policy, the intentional HTTP scheduler adapter boundary and forbidden product-composition backedges by parsing real Python imports.
 
-## Acceptance principles
+### Resource and memory regression
 
-### Architecture
-
-Fitness functions must check real imports/owners and fail on forbidden dependency direction. They must encode a small set of high-value boundaries from `docs/architecture.md`, not attempt to formalize every module relationship.
-
-### Memory/resource regression
-
-Hosted CI may test deterministic object/resource ownership, bounded cardinality, accounting return-to-baseline and Python heap growth where stable. It must not claim unified-memory or backend-native reclamation.
+Hosted CI repeats successful and rejected resource lifecycles and bounds retained Python heap growth after warm-up. It proves the owned resource ledger returns to baseline; it does not claim RSS, native backend or Apple unified-memory reclamation.
 
 ### Performance regression
 
-Only paths with stable hosted measurement may block on timing. Hardware/backend/model throughput, TTFT and thermal behavior remain representative-device evidence. CI benchmarks must include exact source/config/tool/runtime identity and enough repetitions to avoid one-shot timing claims.
+The canonical request-preparation path uses synthetic input, warm-up, seven repeated samples and a median gate. Evidence includes source/environment/workload/configuration identity. Model latency, TTFT, throughput, backend startup, thermals and Apple Silicon performance remain representative-device claims.
 
 ### Fault injection
 
-Inject at owned boundaries: failed allocation/load, corrupt input, interrupted/failed writes, dependency failure, timeout/cancellation, stale owned state and failed staging where applicable. Tests must prove cleanup/recovery rather than only error classification.
+The fault matrix requires concrete recovery evidence across resource admission, worker lifecycle, persistence integrity, pressure policy, request admission and request lifecycle. Existing high-value behavioral tests are referenced rather than duplicated.
 
 ### Repeatability
 
-Important lifecycle evidence must prove repeated runs do not accumulate project-owned processes/listeners/temp roots/build staging/state. Existing build and E2E repeatability is reused and extended rather than duplicated.
+Development, test, E2E, build, smoke and runtime lifecycles have explicit cleanliness/repeatability evidence, including repeated owned E2E roots, three canonical builds, zero-residue browser cleanup, fresh-install cleanup and multi-cycle worker evidence.
 
-### E2E
+### Built-surface recovery
 
-Keep critical journeys small. Add representative failure/retry/recovery only where the assembled system outcome matters. When technically practical, validate the installed wheel/built static assets rather than source checkout alone.
+Package Install Smoke installs the produced wheel into a fresh locked environment and launches a real localhost Uvicorn HTTP journey using the installed package. It proves health → expected not-resident failure → valid retry → healthy recovery with deterministic local engine, bounded shutdown and no model download.
 
 ### Complexity and evidence identity
 
-Meaningful dependency/architecture additions must answer the standard's five complexity questions. Decision-bearing benchmark/evidence artifacts require schema/version, source revision, run identity, configuration/workload identity and environment class; unavailable hardware facts remain unavailable.
+Meaningful changes expose the standard's five complexity questions in the PR template. Decision-bearing evidence can use a privacy-safe identity envelope with stable workload/config/runtime fingerprints, comparison key, run identity and source revision without retaining raw prompts/outputs/private paths.
 
-### Repository policy/docs
+### Repository/docs drift
 
-Detect duplicated canonical-scope ownership, completed workstreams left active, stale `Last reviewed` policy violations where configured, invalid links/routing and policy files that no longer have validators. Avoid subjective prose linting.
+Documentation health now enforces review freshness, active workstream index consistency, unique declared canonical scope, completed-workstream cleanup, exact normalized duplicate detection above threshold and existing context/token budgets.
+
+## L2-10 integration acceptance
+
+The implementation lanes are converged on one branch. For `target_level=L2`, `scripts/verify_repository.py` now runs all L1 specialists plus architecture, resource regression, fault injection, repeatability, complexity-review and built-surface wiring validators.
+
+Performance is intentionally a separate blocking `L2 Performance Regression` job because it executes a timed benchmark rather than validating static contracts. The job uses the locked environment and retains only bounded identity-bearing JSON for seven days.
+
+L2-10 is DONE only when one exact head passes:
+
+- Repository Health including all L1/L2 specialist validators and documentation drift checks;
+- L2 Performance Regression;
+- Artifact Lifecycle;
+- Security Audit;
+- fresh-installed-wheel Package Install Smoke including HTTP failure/retry/recovery;
+- normal CI: lint, Python 3.10/3.11/3.12, Playwright E2E and zero residue.
 
 ## Hardware/full-L2 boundary
 
-Full L2 is not complete until the active runtime-evidence workstream provides the representative hardware evidence required for behavior materially affected by Apple Silicon/model/backend execution. Repository-side L2 can reach `implemented-and-validated-hardware-gate-pending`, but L2-11 must remain blocked until that evidence is retained and durable docs are reconciled.
+Full L2 is not complete until `runtime-correctness-evidence-hardening.md` provides representative hardware evidence for behavior materially affected by Apple Silicon/model/backend execution. After repository-side acceptance, this workstream may reach `repository-side-complete-hardware-gate-pending`, but L2-11 remains BLOCKED until the retained evidence is compatible and durable docs are reconciled.
 
 ## Stop conditions
 
