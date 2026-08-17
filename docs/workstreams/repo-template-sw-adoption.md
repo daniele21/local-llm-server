@@ -7,138 +7,139 @@ Last reviewed: 2026-08-17
 
 ## Goal
 
-Make Local LLM Server self-contained and truthfully compliant with the applicable L0 requirements of `repo-template-sw` baseline `0.3.0`, while preserving the repository's stronger local-AI, testing, browser E2E, runtime-lifecycle and hardware-evidence practices.
+Make Local LLM Server self-contained and truthfully compliant with the applicable L0 requirements of `repo-template-sw` baseline `0.3.0`, while preserving stronger local-AI, testing, browser E2E, runtime-lifecycle and hardware-evidence practices.
 
-The result must include canonical commands, repository-health checks, identifiable immutable builds, bounded E2E evidence, explicit trust/data boundaries and low-cost agent routing. Record stronger evidence without claiming unvalidated maturity.
-
-## Non-goals
-
-- Replacing native tooling, copying placeholders or forcing cosmetic layouts.
-- Changing local-AI, scheduling, residency, reasoning or evaluation semantics.
-- Reclassifying pending device evidence or broadening release claims.
-- Deleting or committing the current untracked `evidence/` tree before its durable storage and privacy policy is decided.
-- Adding Docker, Make, a new E2E framework or native macOS packaging without a product need.
+The adopted repository must expose canonical operations, repository-health checks, identifiable immutable builds, bounded E2E evidence, explicit trust/data boundaries and low-cost agent routing without overstating unvalidated maturity.
 
 ## Invariants
 
-- Native commands remain the implementation behind the common `setup -> doctor -> dev -> check -> test -> e2e -> build -> smoke -> package -> stop -> clean` vocabulary.
+- Native tooling remains behind `setup -> doctor -> dev -> check -> test -> e2e -> build -> smoke -> package -> stop -> clean`.
 - Public runtime, identity, evidence and privacy contracts remain compatible unless explicitly versioned.
-- Build version, build identity and source identity remain distinct; successful artifacts are immutable and never replaced in place.
-- Operations own and clean processes, listeners, temporary files and evidence on every exit path.
-- Hardware claims require hardware evidence; the runtime-correctness workstream owns device observations and release claims.
-- Shared state, package, command-contract and workflow files have one integration owner at a time.
-- Existing stronger project practices are classified `KEEP` or `ADAPT`, not overwritten for template uniformity.
+- Product version, unique build identity and source identity remain distinct.
+- Successful artifacts are immutable; build/release operations use explicit ownership and bounded retention.
+- Project-owned processes, listeners, temporary files and evidence are cleaned on every applicable exit path.
+- Hardware/performance/memory claims require representative hardware evidence; hosted CI never substitutes for it.
+- Existing stronger practices are `KEEP`/`ADAPT`, not overwritten for template uniformity.
+- Shared command/workflow/state files have one integration owner at a time.
 
 ## Applicable baseline
 
-- Source/version: `daniele21/repo-template-sw` / `0.3.0`; initial target: truthful L0 compliance.
+- Standard: `daniele21/repo-template-sw` `0.3.0`.
+- Target: truthful `L0`.
 - Profiles: `python`, `local-ai`, `typescript`/JavaScript and runtime-relevant `macos`.
-- Native `.app`/`.dmg` packaging, signing and notarization are `N/A` for the wheel/sdist product.
+- Native `.app`/`.dmg`, signing and notarization: `N/A` for the wheel/sdist product.
 
 ## Work graph
 
-| ID | Work | Owns/writes | Depends on | Parallel | State |
-| --- | --- | --- | --- | --- | --- |
-| STD-01 | Establish baseline metadata and canonical operating-command contract | `.engineering/baseline.json`, `.engineering/commands.json`, `.engineering/documentation-policy.json` | — | no; foundation | DONE |
-| STD-02 | Install and specialize agent routing, core Skills and repository validators | `AGENTS.md`, `skills/**`, `scripts/verify_*.py`, `.editorconfig`, `CONTRIBUTING.md`, `.github/pull_request_template.md` | STD-01 | lane A | READY |
-| STD-03 | Make setup/check/test and CI dependency resolution reproducible | `.github/workflows/ci.yml`, setup/check/test command implementation, lockfile usage | STD-01 | lane A | READY |
-| STD-04 | Implement unique build identity and immutable artifact lifecycle | `deploy.sh`, `release.sh`, `.github/workflows/release.yml`, build/artifact scripts and tests | STD-01 | lane B | READY |
-| STD-05 | Enforce E2E/runtime zero-residue and bounded failure evidence | `tests/e2e/**`, `playwright.config.js`, E2E lifecycle tests; CI handoff notes only | STD-01 | lane C | READY |
-| STD-06 | Add security, data-lifecycle, contribution and license baseline | `SECURITY.md`, `LICENSE`, security/data sections not owned by active evidence docs | STD-01 | lane D | READY |
-| STD-07 | Normalize architecture and documentation topology without losing durable content | `docs/architecture.md`, `docs/adr/**`, `docs/features/**`, documentation routing/policy | STD-01, STD-06 | lane D | BLOCKED |
-| STD-08 | Integrate shared workflows, health CI, PR gates and branch-policy evidence | `.github/workflows/**`, `README.md`, `.engineering/commands.json`, shared integration fixes | STD-02, STD-03, STD-04, STD-05, STD-06, STD-07 | no; integration | BLOCKED |
-| STD-09 | Run full operating-lifecycle and repository-health validation | validation evidence only; fixes return to owning slice | STD-08 | no | BLOCKED |
-| STD-10 | Transfer durable truth, record baseline and delete this workstream | `docs/current-state.md`, `docs/workstreams/README.md`, final baseline metadata | STD-09 | no | BLOCKED |
+| ID | Work | Depends on | State |
+| --- | --- | --- | --- |
+| STD-01 | baseline metadata + canonical operating contract | — | DONE |
+| STD-02 | agent routing, core Skills, validators, contribution/PR governance | STD-01 | DONE |
+| STD-03 | reproducible setup/check/test and lock-backed CI | STD-01 | DONE |
+| STD-04 | unique build identity + immutable artifact/release lifecycle | STD-01 | DONE |
+| STD-05 | E2E run ownership, zero-residue and bounded failure evidence | STD-01 | DONE |
+| STD-06 | security/data lifecycle + MIT license | STD-01 | DONE |
+| STD-07 | current architecture + ADR/feature/document topology | STD-06 | DONE |
+| STD-08 | shared workflow/command integration + external branch-policy evidence | STD-02..STD-07 | ACTIVE |
+| STD-09 | full applicable operating lifecycle + repository-health validation | STD-08 | BLOCKED |
+| STD-10 | transfer final durable truth and remove this workstream | STD-09 | BLOCKED |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
 
-Parallel work is allowed only inside the declared path boundaries. A lane that discovers a required change in a shared integration file records the handoff under its slice and leaves the actual shared-file edit to STD-08.
+## Integrated lane evidence
 
-## Parallel execution model
+- `STD-01`: PR #116, merge `1a66e185f7fac59659f4725f7e97c78a50b42a73`.
+- `STD-02/03`: PR #118, merge `3eab70c34975d4bf2d951eb13a7de6519fa3271c`; lock-backed CI passed lint, Python 3.10/3.11/3.12 and Playwright.
+- `STD-04`: PR #119, merge `b2a82f6758900b3b7716c2bc4b7918b451ec7b2f`; immutable artifact helper tests and normal CI passed after rebasing onto the lock-backed tree.
+- `STD-05`: PR #120, merge `a90bdd913d32d328ccefcb6b682f02f3a25d9a5d`; lifecycle tests and Playwright passed after rebasing onto the lock-backed tree.
+- `STD-06`: PR #117, merge `f6733fb8318cf7a0e990a4ac5579cebd1d78ceec`.
+- `STD-07`: PR #121, merge `9827e9771ae4094374ae5bfd01291bd44fc120ae`; current architecture/ADR/features routing integrated and the completed E2E workstream was transferred/deleted.
 
-After STD-01 is merged into `dev`, use four non-conflicting lanes:
+The parallel phase is complete. No further adoption lane may bypass `STD-08` shared integration.
 
-| Lane | Slices | Primary concern | Must not edit concurrently |
-| --- | --- | --- | --- |
-| A — governance/reproducibility | STD-02, STD-03 | agent routing, validators, locked setup/check/test | release/build scripts; product/evidence docs |
-| B — build/release | STD-04 | build ID, staging/promote, manifest, checksum, delta, retention, immutable tags | CI workflow and docs owned by other lanes |
-| C — E2E lifecycle | STD-05 | fixture cleanup, listener/process/temp verification, evidence retention contract | `.github/workflows/ci.yml`; hand off retention edits to STD-08 |
-| D — trust/docs | STD-06, then STD-07 | security/data policy, license, current architecture, ADR/feature topology | evidence results, release claims and active runtime workstream content |
+## Current executable slice — STD-08
 
-Within lane A, STD-02 and STD-03 may run concurrently after STD-01 if STD-02 does not edit `.github/workflows/ci.yml`. Within lane D, run STD-06 before STD-07 because trust/data ownership feeds the architecture document.
+### Integration changes
 
-Use one focused branch/PR per lane from current `dev`; update it before STD-08. Never resolve conflicts by dropping another lane's invariant.
+- install `.github/workflows/repository-health.yml` as a blocking zero-dependency structural/operations/docs/context gate;
+- wire `tests/e2e/verify_residue.py` as an always-run post-Playwright CI step;
+- bound Playwright failure evidence to seven days;
+- mark the installed core Skills as project-customized in `.engineering/baseline.json`;
+- reconcile `.engineering/commands.json` with lock-backed setup/check/test, owned E2E cleanup, real-runtime smoke and implemented build/artifact behavior;
+- update only this workstream's repository-level current-state routing.
 
-## STD-01 completion
+### External branch-policy evidence
 
-Implemented foundation:
+Authenticated GitHub branch state was inspected on 2026-08-17. `dev` currently reports:
 
-- `.engineering/baseline.json` pins `repo-template-sw` `0.3.0`, target level `L0`, the `python`, `local-ai`, `typescript` and `macos` profiles, and source versions/customization flags for all five core Skills.
-- Skill files themselves remain explicitly pending `STD-02`; the baseline does not claim they are already installed.
-- `.engineering/commands.json` maps every canonical intent to an existing repository/native command or an explicit `n/a` reason.
-- Required `setup`, `check`, `test`, `build` and `clean` intents are executable; `e2e` is the existing Playwright suite and remains separate from smoke.
-- Runtime, build identity, artifact lifecycle, build-delta and ephemeral-resource sections are labeled as target contracts where enforcement is still owned by later slices.
-- `.engineering/documentation-policy.json` adopts the standard context/document budgets without moving or deleting current durable content.
+```text
+protected = false
+required status checks = off
+```
 
-Validation completed for STD-01:
+This is an explicit external configuration gap. The repository now defines CI/health gates, but adoption work must not claim that GitHub enforces those checks on `dev` until branch protection/rulesets are configured and re-verified. No branch-protection write tool is available in the current GitHub connector, so the gap remains pending rather than being silently assumed.
 
-- all three JSON documents are syntactically valid;
-- command mappings were checked against `README.md`, `docs/getting-started.md`, `.github/workflows/ci.yml`, `deploy.sh`, `release.sh`, `package.json`, `package-lock.json`, `uv.lock` and current CLI/package metadata;
-- the command-contract shape matches the standard `verify_operations.py` requirements;
-- executable validation through the copied repository validators remains intentionally owned by `STD-02`.
+### Acceptance
 
-## Current executable slices
+`STD-08` can move to `DONE` when:
 
-Once the STD-01 branch is merged into `dev`, the following can start in parallel without shared-file conflicts:
+1. Repository Health passes on the combined integration head.
+2. Normal CI passes lint + Python 3.10/3.11/3.12 + Playwright on the same head.
+3. The Playwright job always performs independent residue verification.
+4. Failure artifacts have explicit seven-day retention.
+5. Canonical command/baseline metadata agrees with executable behavior.
+6. The external `dev` branch-policy gap is recorded as pending rather than claimed as enforced.
 
-- lane A: `STD-02` and `STD-03`;
-- lane B: `STD-04`;
-- lane C: `STD-05`;
-- lane D: `STD-06`, followed by `STD-07` after `STD-06` lands.
+## STD-09 lifecycle validation
 
-Do not start `STD-08` until all lane outputs are integrated/rebased onto current `dev`.
+After `STD-08` merges, execute the applicable lifecycle on one exact integrated revision:
 
-## Slice acceptance and validation
+```text
+repository health
+check
+test
+e2e + residue verification
+build #1
+build #2 from the same source revision
+inspect manifest / SHA256SUMS / BUILD_CHANGELOG / lineage retention
+real-runtime smoke when a suitable already-running target runtime is available
+clean
+```
 
-| Slice | Acceptance | Validation |
-| --- | --- | --- |
-| STD-02 | Bounded project-specific `AGENTS.md`; versioned core Skills; zero-dependency repository/operations/docs/context validators; PR guidance distinguishes test, E2E, smoke and device evidence. | Run all `scripts/verify_*.py` checks. |
-| STD-03 | CI consumes committed Python/Node lock state; Python 3.10/3.11/3.12 support remains deliberate; Ruff, pytest and browser setup have one canonical path; current gates remain blocking. | Run canonical `check` and `test` from a clean environment; verify workflow/lock synchronization. |
-| STD-04 | Each build carries product version, unique build ID, revision and dirty state; staging/promote prevents partial success; artifacts include manifest, SHA-256 and delta; two builds retained per lineage; tags are immutable. | Build twice from one revision without overwrite; test failed staging, manifest/checksum/delta and retention. |
-| STD-05 | Playwright fixture cleans its evaluation root and owns shutdown; loopback startup/readiness is bounded; no process/listener/temp residue; privacy-safe failure evidence has explicit retention. | Run successful and controlled-failure E2E; verify processes, port and run-owned temp state are gone after both. |
-| STD-06 | `SECURITY.md` defines reporting, supported versions, trust and sensitive-data defaults; MIT `LICENSE` matches package metadata. | Repository validator plus policy review against actual runtime/data behavior. |
-| STD-07 | `docs/architecture.md` owns current boundaries/resources/trust flows; ADR/feature routing is explicit; progress remains only in current state and active workstreams. | Documentation/context validators and link/canonical-owner review. |
-| STD-08 | Health checks and bounded E2E artifacts are integrated without duplicate setup; branch rules/checks are verified or explicitly pending. | Inspect shared workflow diff and authenticated GitHub state when available. |
-| STD-09 | Applicable canonical lifecycle is repeatable and leaves no owned residue; unavailable hardware/external evidence remains pending. | Run health checks plus `check`, `test`, `e2e`, `build`, `smoke`, `stop`, `clean`; compare state before/after. |
+Also verify failed/partial staging does not appear as successful output and local retention leaves two successful comparable builds per lineage.
 
-## Integration points
+Unavailable representative hardware or runtime-dependent observations remain `PENDING`; do not manufacture them in hosted CI.
 
-- STD-01 freezes command names and operating semantics before parallel implementation begins.
-- STD-03 hands CI dependency/setup requirements to STD-08; STD-05 hands E2E retention/upload requirements to STD-08.
-- STD-04 owns build/release scripts and workflow until integration.
-- STD-06 supplies trust/data ownership to STD-07's architecture map.
-- The runtime-correctness workstream owns the device runbook, observations, roadmap evidence and release claims.
-- Edits to `docs/current-state.md` are serialized: this workstream adds/removes only its own row; evidence status remains owned by the runtime-correctness workstream.
-- Current untracked `evidence/` files are neither deleted nor committed by adoption work. STD-06/STD-08 must decide and document their durable storage/retention boundary first.
+## Slice acceptance summary
+
+| Slice | Durable acceptance |
+| --- | --- |
+| STD-02 | bounded project-specific AGENTS/Skills/validators/PR guidance |
+| STD-03 | committed Python/Node lock state; deliberate Python 3.10/3.11/3.12 CI; no manual dependency list as source of truth |
+| STD-04 | unique build identity, staging/promote, manifest, SHA-256, build delta, retention=2, immutable tags/releases |
+| STD-05 | owned E2E root/shutdown, bounded readiness/shutdown, independent listener/temp residue check, bounded failure evidence |
+| STD-06 | vulnerability reporting, supported versions, local trust/data defaults and MIT license |
+| STD-07 | current architecture owner, ADR/features routing, completed workstreams deleted by default |
+| STD-08 | combined repository-health/CI/command integration and explicit external branch-policy evidence |
+| STD-09 | repeatable applicable lifecycle with residue/artifact inspection |
 
 ## Stop conditions
 
-- A wrapper would create a second command source of truth, or a lane must weaken an existing invariant.
+- A wrapper would create a second source of truth instead of routing to native commands.
+- A lane/integration would weaken runtime, privacy, evidence or artifact invariants.
 - Build identity would expose secrets/private paths or collapse product version and build ID.
-- Cleanup cannot prove ownership, or a documentation move would discard durable truth.
-- GitHub branch protection or other external configuration cannot be verified: record it as pending instead of claiming completion.
+- Cleanup cannot prove ownership before deletion.
+- GitHub/external/hardware behavior cannot be verified: record it as pending instead of claiming success.
 
-## Durable documentation destinations
+## Durable destinations
 
-- `.engineering/`: adopted baseline, profiles, command mapping and lifecycle contract.
-- `AGENTS.md`: bounded routing, ownership and invariants.
-- `docs/architecture.md`: current boundaries, resources, trust/data flow and composition roots.
-- `docs/adr/` and `docs/features/`: durable decisions/behavior lacking a better canonical owner.
-- `SECURITY.md`: disclosure process, supported versions and security/trust expectations.
-- tests, validators and CI: executable truth for repository and operating invariants.
+- `.engineering/`: adopted baseline, command mapping and lifecycle contract.
+- `AGENTS.md` + `skills/`: bounded agent routing/skills.
+- `docs/architecture.md`, `docs/adr/`, `docs/features/`: current architecture, durable decisions and feature behavior.
+- `SECURITY.md`: trust/data/disclosure policy.
+- tests/validators/workflows: executable repository and operating invariants.
+- `docs/current-state.md`: compact operational routing only.
 
 ## Completion
 
-This workstream is complete only when all slices are `DONE`, applicable operating commands and health checks pass, builds and E2E demonstrate their promised lifecycle behavior, external configuration gaps are explicit, and durable docs agree with executable behavior.
-
-At completion, update `.engineering/baseline.json` and `docs/current-state.md`, remove this entry from `docs/workstreams/README.md`, then delete this file by default. Git history remains the adoption history.
+This workstream completes only after `STD-09` establishes all applicable lifecycle claims, external gaps remain explicit, and durable docs agree with executable behavior. `STD-10` then updates final baseline/current state, removes the workstream index entry and deletes this file by default; Git history remains the adoption record.
