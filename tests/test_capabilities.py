@@ -3,7 +3,9 @@ from __future__ import annotations
 from local_llm_server.core.capabilities import (
     CapabilityFeature,
     Modality,
+    ThinkingMode,
     descriptor_from_registry_entry,
+    effective_thinking_mode,
 )
 from local_llm_server.core.contracts import GenerationOptions, InferenceRequest, TaskType
 
@@ -18,11 +20,16 @@ def test_text_legacy_entry_maps_to_text_tasks_without_audio_claims():
     assert TaskType.TRANSCRIPTION not in descriptor.tasks
     assert descriptor.input_modalities == frozenset({Modality.TEXT})
     assert CapabilityFeature.STRUCTURED_OUTPUT in descriptor.features
+    assert descriptor.thinking_mode is ThinkingMode.NONE
 
 
 def test_empty_legacy_modalities_migrate_conservatively_to_text_only():
     descriptor = descriptor_from_registry_entry(
-        {"modalities": [], "thinking_mode": "switchable"}
+        {
+            "modalities": [],
+            "backend": "llama_server",
+            "thinking_mode": "switchable",
+        }
     )
 
     assert descriptor.tasks == frozenset({TaskType.CHAT, TaskType.STRUCTURED_GENERATION})
@@ -31,6 +38,7 @@ def test_empty_legacy_modalities_migrate_conservatively_to_text_only():
     assert CapabilityFeature.STREAMING in descriptor.features
     assert CapabilityFeature.STRUCTURED_OUTPUT in descriptor.features
     assert CapabilityFeature.THINKING in descriptor.features
+    assert descriptor.thinking_mode is ThinkingMode.SWITCHABLE
 
 
 def test_explicit_empty_input_modalities_remain_invalid():
@@ -113,9 +121,66 @@ def test_thinking_request_requires_thinking_feature():
     assert descriptor.supports(request) is False
 
 
+def test_always_thinking_rejects_request_level_disable():
+    descriptor = descriptor_from_registry_entry(
+        {"modalities": ["text"], "thinking_mode": "always"}
+    )
+    request = InferenceRequest(
+        task=TaskType.CHAT,
+        model="demo",
+        messages=({"role": "user", "content": "hello"},),
+        generation=GenerationOptions(enable_thinking=False),
+    )
+
+    assert descriptor.thinking_mode is ThinkingMode.ALWAYS
+    assert descriptor.supports(request) is False
+
+
+def test_switchable_mode_requires_backend_with_proven_request_control():
+    switchable = effective_thinking_mode(
+        {"backend": "llama_server", "thinking_mode": "switchable"}
+    )
+    llama_cpp_on = effective_thinking_mode(
+        {
+            "backend": "llama_cpp",
+            "thinking_mode": "switchable",
+            "enable_thinking": True,
+        }
+    )
+    llama_cpp_off = effective_thinking_mode(
+        {
+            "backend": "llama_cpp",
+            "thinking_mode": "switchable",
+            "enable_thinking": False,
+        }
+    )
+
+    assert switchable is ThinkingMode.SWITCHABLE
+    assert llama_cpp_on is ThinkingMode.ALWAYS
+    assert llama_cpp_off is ThinkingMode.NONE
+
+
+def test_nested_registry_default_controls_fixed_llama_cpp_mode():
+    descriptor = descriptor_from_registry_entry(
+        {
+            "backend": "llama_cpp",
+            "modalities": ["text"],
+            "thinking_mode": "switchable",
+            "params": {"enable_thinking": True},
+        }
+    )
+
+    assert descriptor.thinking_mode is ThinkingMode.ALWAYS
+    assert CapabilityFeature.THINKING in descriptor.features
+
+
 def test_descriptor_serialization_is_stable_and_public_safe():
     descriptor = descriptor_from_registry_entry(
-        {"modalities": ["text", "image"], "thinking_mode": "switchable"}
+        {
+            "modalities": ["text", "image"],
+            "backend": "llama_server",
+            "thinking_mode": "switchable",
+        }
     )
 
     assert descriptor.to_dict() == {
@@ -123,4 +188,5 @@ def test_descriptor_serialization_is_stable_and_public_safe():
         "input_modalities": ["image", "text"],
         "output_modalities": ["text"],
         "features": ["streaming", "structured_output", "thinking"],
+        "thinking_mode": "switchable",
     }
