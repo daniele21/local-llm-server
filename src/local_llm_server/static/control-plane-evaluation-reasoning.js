@@ -36,6 +36,12 @@
         return document.querySelector('[data-evaluation-reasoning-policy]');
     }
 
+    function ingestPolicies(payload) {
+        (Array.isArray(payload?.test_sets) ? payload.test_sets : []).forEach((item) => {
+            policies.set(`${item.id}::${item.version}`, String(item.default_reasoning_policy || 'runtime_default'));
+        });
+    }
+
     function applyDatasetDefault() {
         const select = reasoningSelect();
         if (!select) return;
@@ -70,6 +76,18 @@
 
         document.querySelector('[data-evaluation-test-set]')?.addEventListener('change', applyDatasetDefault);
         applyDatasetDefault();
+    }
+
+    async function refreshPolicies() {
+        try {
+            const response = await baseFetch(TEST_SETS, { headers: { Accept: 'application/json' } });
+            if (!response.ok) return;
+            ingestPolicies(await response.json());
+            ensureReasoningField();
+            applyDatasetDefault();
+        } catch (_) {
+            // The evaluation view owns service-unavailable messaging. Keep this overlay passive.
+        }
     }
 
     function decorateLatestResult() {
@@ -138,9 +156,7 @@
         if (response.ok && (path === TEST_SETS || path === RUNS || path === HISTORY)) {
             response.clone().json().then((payload) => {
                 if (path === TEST_SETS) {
-                    (Array.isArray(payload?.test_sets) ? payload.test_sets : []).forEach((item) => {
-                        policies.set(`${item.id}::${item.version}`, String(item.default_reasoning_policy || 'runtime_default'));
-                    });
+                    ingestPolicies(payload);
                     ensureReasoningField();
                     applyDatasetDefault();
                 } else if (path === RUNS) {
@@ -167,6 +183,7 @@
     function boot() {
         observer.observe(document.body, { childList: true, subtree: true });
         ensureReasoningField();
+        refreshPolicies();
     }
 
     function escapeHtml(value) {
