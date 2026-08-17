@@ -36,10 +36,10 @@ class ReasoningBoundaryMiddleware:
         try:
             payload = json.loads(body.decode("utf-8")) if body else {}
         except (UnicodeDecodeError, json.JSONDecodeError):
-            await self.app(scope, _replay_body(body), send)
+            await self.app(scope, _replay_body(body, receive), send)
             return
         if not isinstance(payload, dict) or not bool(payload.get("stream", False)):
-            await self.app(scope, _replay_body(body), send)
+            await self.app(scope, _replay_body(body, receive), send)
             return
 
         application = scope.get("app")
@@ -59,7 +59,7 @@ class ReasoningBoundaryMiddleware:
             fallback=cfg.get("show_thinking", False),
         )
         if show_thinking:
-            await self.app(scope, _replay_body(body), send)
+            await self.app(scope, _replay_body(body, receive), send)
             return
 
         enable_thinking = _effective_bool(
@@ -103,7 +103,7 @@ class ReasoningBoundaryMiddleware:
 
         await self.app(
             rewritten_scope,
-            _replay_body(rewritten),
+            _replay_body(rewritten, receive),
             filtered_send,
         )
 
@@ -236,15 +236,20 @@ async def _read_request_body(receive: Any) -> bytes:
     return b"".join(chunks)
 
 
-def _replay_body(body: bytes):
+def _replay_body(body: bytes, original_receive: Any):
+    """Replay the consumed body once, then preserve the real disconnect channel."""
     sent = False
 
     async def receive() -> dict[str, Any]:
         nonlocal sent
-        if sent:
-            return {"type": "http.disconnect"}
-        sent = True
-        return {"type": "http.request", "body": body, "more_body": False}
+        if not sent:
+            sent = True
+            return {"type": "http.request", "body": body, "more_body": False}
+        # StreamingResponse listens for a genuine client disconnect while the
+        # body iterator runs. Fabricating ``http.disconnect`` here cancels the
+        # stream after its first chunk; delegate to the original ASGI receive
+        # channel so only a real disconnect terminates the response.
+        return await original_receive()
 
     return receive
 
