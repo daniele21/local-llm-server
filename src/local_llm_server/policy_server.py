@@ -8,6 +8,25 @@ from __future__ import annotations
 from typing import Any
 
 
+def _shutdown_aware_server(uvicorn: Any, config: Any, application: Any) -> Any:
+    """Create a Uvicorn server that notifies long-lived app responses first.
+
+    Uvicorn waits for active ASGI tasks during graceful shutdown. Product SSE
+    endpoints also wait for ``application.state.shutdown`` before terminating,
+    so that flag must be set from the signal handler before Uvicorn starts its
+    drain. Setting it only after ``server.run()`` returns creates a lifecycle
+    deadlock that ends in forced task cancellation at the graceful timeout.
+    """
+    from .server import begin_app_shutdown
+
+    class ShutdownAwareServer(uvicorn.Server):
+        def handle_exit(self, sig: int, frame: Any) -> None:
+            begin_app_shutdown(application)
+            super().handle_exit(sig, frame)
+
+    return ShutdownAwareServer(config)
+
+
 def run_server(
     cfg: dict[str, Any],
     llm: Any,
@@ -50,10 +69,11 @@ def run_server(
         log_level="warning" if not resolved_cfg.get("verbose", False) else "info",
         timeout_graceful_shutdown=10,
     )
-    server = uvicorn.Server(config)
+    server = _shutdown_aware_server(uvicorn, config, application)
 
     try:
         server.run()
     finally:
+        # Idempotent fallback for normal programmatic exits or startup failures.
         begin_app_shutdown(application)
         manager.shutdown()
