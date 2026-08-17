@@ -2,8 +2,9 @@
 """Smoke-test one built wheel in a fresh lock-backed environment.
 
 Hosted CI deliberately excludes llama-cpp-python because compiling the native
-backend is not required to establish Python packaging/CLI integrity. All other
-runtime packages are installed at the exact versions exported from uv.lock.
+backend is not required to establish Python packaging/CLI/product-surface
+integrity. All other runtime packages are installed at the exact versions
+exported from uv.lock.
 """
 from __future__ import annotations
 
@@ -64,6 +65,25 @@ def _locked_runtime_requirements(target: Path) -> None:
     target.write_text("\n".join(retained) + "\n", encoding="utf-8")
 
 
+def _run_installed_surface_journey(python: Path, cwd: Path) -> None:
+    journey = ROOT / "scripts" / "installed_surface_journey.py"
+    if not journey.is_file():
+        raise RuntimeError(f"installed-surface journey missing: {journey}")
+    env = {key: value for key, value in os.environ.items() if key not in {"PYTHONPATH", "PYTHONHOME"}}
+    env.update(
+        {
+            "LOCAL_LLM_SOURCE_ROOT": str(ROOT.resolve()),
+            "PYTHONNOUSERSITE": "1",
+        }
+    )
+    subprocess.run(
+        [str(python), str(journey)],
+        cwd=cwd,
+        env=env,
+        check=True,
+    )
+
+
 def smoke(wheel: Path, expected_version: str) -> None:
     wheel = wheel.resolve()
     if not wheel.is_file() or wheel.suffix != ".whl":
@@ -97,12 +117,20 @@ eps = [ep for ep in metadata.entry_points(group='console_scripts') if ep.name ==
 assert len(eps) == 1
 print(f'installed artifact smoke passed for local-llm-server {version}')
 """
+        isolated_env = {key: value for key, value in os.environ.items() if key not in {"PYTHONPATH", "PYTHONHOME"}}
+        isolated_env.update(
+            {
+                "LOCAL_LLM_EXPECTED_VERSION": expected_version,
+                "PYTHONNOUSERSITE": "1",
+            }
+        )
         subprocess.run(
             [str(python), "-c", code],
             cwd=temp,
-            env={**os.environ, "LOCAL_LLM_EXPECTED_VERSION": expected_version},
+            env=isolated_env,
             check=True,
         )
+        _run_installed_surface_journey(python, temp)
 
 
 def main() -> int:
