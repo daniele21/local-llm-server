@@ -6,7 +6,7 @@ from scripts.run_performance_regression import load_policy, run_benchmark
 def test_repository_performance_regression_policy_is_valid() -> None:
     policy = load_policy()
     assert policy["benchmark"] == "canonical_request_preparation"
-    assert policy["max_median_ns_per_operation"] == 1_000_000
+    assert policy["max_median_ns_per_operation"] == 100_000
 
 
 def test_benchmark_emits_identity_and_bounded_samples() -> None:
