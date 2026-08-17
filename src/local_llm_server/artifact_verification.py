@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -67,6 +68,22 @@ class ArtifactVerificationStore:
     def _path_for(self, logical_id: str) -> Path:
         key = hashlib.sha256(logical_id.encode("utf-8")).hexdigest()
         return self.root / f"{key}.json"
+
+
+def verified_receipt_for_config(
+    config: Mapping[str, Any],
+    *,
+    store: ArtifactVerificationStore | None = None,
+) -> ArtifactVerificationReceipt | None:
+    """Return the ID-2 receipt only when it still matches this exact runtime file."""
+    logical_id = str(config.get("model_id") or config.get("model") or "").strip()
+    model_path = config.get("model_path")
+    if not logical_id or not isinstance(model_path, str) or not model_path:
+        return None
+    artifact = Path(model_path).expanduser()
+    if not artifact.is_file():
+        return None
+    return (store or ArtifactVerificationStore()).valid_for_file(logical_id, artifact)
 
 
 def verify_model_artifact(

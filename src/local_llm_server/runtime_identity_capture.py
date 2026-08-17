@@ -3,8 +3,8 @@
 Automatic attachment is deliberately conservative: a runtime receives a
 product fingerprint only when the model artifact has strong SHA-256 evidence
 and the backend implementation version can be resolved. Strong artifact
-evidence may come from an explicit config pin or from a locally persisted
-verification receipt that still matches the exact current file.
+evidence may come from an explicit config pin or from the same locally persisted
+verification receipt consumed by hardware evidence.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from .artifact_identity import (
     ArtifactSourceKind,
     VerificationState,
 )
-from .artifact_verification import ArtifactVerificationStore
+from .artifact_verification import ArtifactVerificationStore, verified_receipt_for_config
 from .runtime_evidence import RuntimeIdentitySnapshot, build_and_attach_runtime_identity
 from .runtime_identity import BackendIdentity, backend_identity, local_hardware_profile
 
@@ -45,7 +45,6 @@ def capture_verified_runtime_identity(
     logical_id = str(cfg.get("model_id") or cfg.get("model") or runtime.key)
     sha256, size_bytes = _verified_artifact_evidence(
         cfg,
-        logical_id=logical_id,
         store=verification_store,
     )
     if sha256 is None:
@@ -119,21 +118,13 @@ def resolve_backend_identity(runtime: Any) -> BackendIdentity | None:
 def _verified_artifact_evidence(
     cfg: Mapping[str, Any],
     *,
-    logical_id: str,
     store: ArtifactVerificationStore | None,
 ) -> tuple[str | None, int | None]:
     explicit = cfg.get("artifact_sha256")
     if isinstance(explicit, str) and _valid_sha256(explicit):
         return explicit.lower(), _optional_size(cfg.get("artifact_size_bytes"))
 
-    model_path = cfg.get("model_path")
-    if not isinstance(model_path, str) or not model_path:
-        return None, None
-    path = Path(model_path).expanduser()
-    if not path.is_file():
-        return None, None
-
-    receipt = (store or ArtifactVerificationStore()).valid_for_file(logical_id, path)
+    receipt = verified_receipt_for_config(cfg, store=store)
     if receipt is None:
         return None, None
     return receipt.sha256, receipt.size_bytes

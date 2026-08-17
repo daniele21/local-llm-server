@@ -18,6 +18,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from .artifact_verification import ArtifactVerificationStore, verified_receipt_for_config
 from .config import build_config
 from .request_pipeline import prepare_chat_request
 from .resources import (
@@ -121,6 +122,7 @@ def execute_hardware_reclamation_evidence(
     config_builder: Callable[..., dict[str, Any]] = build_config,
     experiment_runner: Callable[..., WorkerReclamationReport] = run_worker_reclamation_experiment,
     clock_sleep: Callable[[float], None] = time.sleep,
+    verification_store: ArtifactVerificationStore | None = None,
 ) -> dict[str, object]:
     """Execute representative local worker cycles and return a shareable report."""
     explicit: dict[str, Any] = {}
@@ -139,6 +141,14 @@ def execute_hardware_reclamation_evidence(
         cfg["backend_version"] = resolved_backend_version
     if options.accelerator is not None:
         cfg["hardware_accelerator"] = options.accelerator
+
+    # HE-1 consumes the exact ID-2 receipt contract. It does not hash again and
+    # does not create a second artifact-identity format. A stale/missing receipt
+    # simply leaves the worker descriptor exploratory.
+    receipt = verified_receipt_for_config(cfg, store=verification_store)
+    if receipt is not None:
+        cfg["artifact_sha256"] = receipt.sha256
+        cfg["artifact_size_bytes"] = receipt.size_bytes
 
     resource_observer = observer or default_worker_resource_observer()
     preflight = resource_observer.snapshot()
