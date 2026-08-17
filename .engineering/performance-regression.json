@@ -6,7 +6,7 @@
   "iterations_per_sample": 500,
   "samples": 7,
   "statistic": "median_ns_per_operation",
-  "max_median_ns_per_operation": 1000000,
+  "max_median_ns_per_operation": 100000,
   "synthetic_input": true,
   "hardware_non_claims": [
     "model inference latency",
