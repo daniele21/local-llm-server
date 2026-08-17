@@ -163,21 +163,20 @@ def test_always_thinking_mode_rejects_disable_request():
     assert exc_info.value.details["thinking_mode"] == "always"
 
 
-def test_llama_cpp_switchable_declaration_is_fixed_and_never_forwards_fake_toggle():
+def test_llama_cpp_switchable_request_forwards_explicit_and_default_policy():
     cfg = _cfg()
     cfg["backend"] = "llama_cpp"
     cfg["enable_thinking"] = True
-    canonical = chat_payload_to_inference_request(
+
+    default_request = chat_payload_to_inference_request(
         {"messages": [{"role": "user", "content": "hello"}]}
     )
-
-    prepared = build_backend_request(
-        canonical,
+    default_prepared = build_backend_request(
+        default_request,
         runtime_config=cfg,
         runtime_model_id="org/demo",
     )
-
-    assert "enable_thinking" not in prepared.kwargs
+    assert default_prepared.kwargs["enable_thinking"] is True
 
     disable = chat_payload_to_inference_request(
         {
@@ -185,10 +184,9 @@ def test_llama_cpp_switchable_declaration_is_fixed_and_never_forwards_fake_toggl
             "enable_reasoning": False,
         }
     )
-    with pytest.raises(InferenceError) as exc_info:
-        build_backend_request(
-            disable,
-            runtime_config=cfg,
-            runtime_model_id="org/demo",
-        )
-    assert exc_info.value.details["thinking_mode"] == "always"
+    disabled_prepared = build_backend_request(
+        disable,
+        runtime_config=cfg,
+        runtime_model_id="org/demo",
+    )
+    assert disabled_prepared.kwargs["enable_thinking"] is False

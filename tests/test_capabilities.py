@@ -137,30 +137,25 @@ def test_always_thinking_rejects_request_level_disable():
 
 
 def test_switchable_mode_requires_backend_with_proven_request_control():
-    switchable = effective_thinking_mode(
+    assert effective_thinking_mode(
         {"backend": "llama_server", "thinking_mode": "switchable"}
-    )
-    llama_cpp_on = effective_thinking_mode(
+    ) is ThinkingMode.SWITCHABLE
+    assert effective_thinking_mode(
+        {"backend": "llama_cpp", "thinking_mode": "switchable"}
+    ) is ThinkingMode.SWITCHABLE
+    assert effective_thinking_mode(
+        {"backend": "gguf", "thinking_mode": "switchable"}
+    ) is ThinkingMode.SWITCHABLE
+    assert effective_thinking_mode(
         {
-            "backend": "llama_cpp",
+            "backend": "unknown_backend",
             "thinking_mode": "switchable",
             "enable_thinking": True,
         }
-    )
-    llama_cpp_off = effective_thinking_mode(
-        {
-            "backend": "llama_cpp",
-            "thinking_mode": "switchable",
-            "enable_thinking": False,
-        }
-    )
-
-    assert switchable is ThinkingMode.SWITCHABLE
-    assert llama_cpp_on is ThinkingMode.ALWAYS
-    assert llama_cpp_off is ThinkingMode.NONE
+    ) is ThinkingMode.ALWAYS
 
 
-def test_nested_registry_default_controls_fixed_llama_cpp_mode():
+def test_llama_cpp_switchable_descriptor_is_not_tied_to_runtime_default():
     descriptor = descriptor_from_registry_entry(
         {
             "backend": "llama_cpp",
@@ -170,7 +165,7 @@ def test_nested_registry_default_controls_fixed_llama_cpp_mode():
         }
     )
 
-    assert descriptor.thinking_mode is ThinkingMode.ALWAYS
+    assert descriptor.thinking_mode is ThinkingMode.SWITCHABLE
     assert CapabilityFeature.THINKING in descriptor.features
 
 

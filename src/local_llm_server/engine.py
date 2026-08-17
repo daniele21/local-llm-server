@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Iterator, Protocol
 
 from .downloader import ensure_model
+from .llama_cpp_request import chat_completion as llama_cpp_chat_completion
 from .mlx_generation_evidence import openai_evidence_from_mlx_generation
 from .process import ManagedProcess
 
@@ -76,16 +77,16 @@ class LlamaCppEngine:
         self.llm = Llama(**kwargs)
 
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
-        kwargs = dict(payload)
-        kwargs.pop("enable_thinking", None)
-        kwargs["stream"] = False
-        return self.llm.create_chat_completion(**kwargs)
+        result = llama_cpp_chat_completion(self.llm, payload, stream=False)
+        if not isinstance(result, dict):
+            raise RuntimeError("llama_cpp non-stream request returned an invalid iterator")
+        return result
 
     def stream(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
-        kwargs = dict(payload)
-        kwargs.pop("enable_thinking", None)
-        kwargs["stream"] = True
-        return iter(self.llm.create_chat_completion(**kwargs))
+        result = llama_cpp_chat_completion(self.llm, payload, stream=True)
+        if isinstance(result, dict):
+            raise RuntimeError("llama_cpp stream request returned a completed response")
+        return iter(result)
 
     def close(self) -> None:
         return None
