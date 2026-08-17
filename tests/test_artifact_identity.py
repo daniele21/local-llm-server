@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import hashlib
 
+import pytest
+
 from local_llm_server.artifact_identity import (
     ArtifactSourceKind,
+    ArtifactVerificationReceipt,
     VerificationState,
     identify_resolved_artifact,
     sha256_file,
@@ -79,3 +82,74 @@ def test_sha256_file_is_deterministic(tmp_path):
     path = tmp_path / "artifact.bin"
     path.write_bytes(b"abc")
     assert sha256_file(path) == hashlib.sha256(b"abc").hexdigest()
+
+
+def test_single_file_verification_receipt_reuses_strong_digest_while_stamp_matches(tmp_path):
+    path = tmp_path / "model.gguf"
+    path.write_bytes(b"verified-model")
+    digest = sha256_file(path)
+
+    receipt = ArtifactVerificationReceipt.for_file(
+        "org/demo",
+        path,
+        sha256=digest,
+    )
+
+    assert len(receipt.sha256) == 64
+    assert receipt.sha256 == digest
+    assert receipt.matches_file() is True
+    assert receipt.size_bytes == path.stat().st_size
+
+
+def test_receipt_is_invalidated_by_ordinary_file_replacement(tmp_path):
+    path = tmp_path / "model.gguf"
+    path.write_bytes(b"first-model")
+    receipt = ArtifactVerificationReceipt.for_file(
+        "org/demo",
+        path,
+        sha256=sha256_file(path),
+    )
+
+    path.write_bytes(b"replacement-model-is-different-size")
+
+    assert receipt.matches_file() is False
+
+
+def test_receipt_round_trip_is_local_private_state(tmp_path):
+    path = tmp_path / "model.gguf"
+    path.write_bytes(b"model")
+    receipt = ArtifactVerificationReceipt.for_file(
+        "org/demo",
+        path,
+        sha256=sha256_file(path),
+    )
+
+    restored = ArtifactVerificationReceipt.from_private_payload(receipt.private_payload())
+
+    assert restored == receipt
+    assert restored.matches_file() is True
+    assert str(path.resolve()) in str(restored.private_payload())
+
+
+def test_single_file_receipt_refuses_directory_manifest_guess(tmp_path):
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+
+    with pytest.raises(ValueError, match="regular file"):
+        ArtifactVerificationReceipt.for_file(
+            "org/demo",
+            snapshot,
+            sha256="a" * 64,
+        )
+
+
+def test_receipt_rejects_non_sha256_digest(tmp_path):
+    path = tmp_path / "model.gguf"
+    path.write_bytes(b"model")
+
+    with pytest.raises(ValueError, match="64-character"):
+        ArtifactVerificationReceipt.for_file(
+            "org/demo",
+            path,
+            sha256="not-a-digest",
+        )
