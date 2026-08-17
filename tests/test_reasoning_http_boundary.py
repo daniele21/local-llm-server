@@ -206,6 +206,6 @@ def test_metrics_only_terminal_event_reaches_client_transport_and_inner_telemetr
     assert len(metric_events) == 1
     assert metric_events[0]["usage"]["completion_tokens"] == 4
     runtime = manager.resolve("demo")
-    metrics = getattr(runtime, "inference_metrics_snapshot", None)
+    metrics = getattr(runtime, "latest_inference_metrics", None)
     assert metrics is not None
-    assert metrics.tokens.output_tokens == 4
+    assert metrics.counts.output_tokens == 4
