@@ -52,7 +52,6 @@ def test_evaluation_reasoning_ui_sends_explicit_policy_and_surfaces_effective_pr
     assert '<option value="runtime_default">Runtime default</option>' in script
     assert "payload.reasoning_policy = select.value" in script
     assert "default_reasoning_policy" in script
-    assert "requested →" not in script  # rendered values are dynamic, not hard-coded claims
     assert "requested)} requested → ${escapeHtml(latestRunProfile.effective)} effective" in script
     assert "Reasoning ${profile.requested} → ${profile.effective}" in script
 
