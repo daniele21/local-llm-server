@@ -110,7 +110,7 @@
             const profile = normalizeProfile(summary.reasoning_profile);
             const identityKnown = Boolean(summary.runtime_fingerprint) && Boolean(profile);
             const identityCell = cells[5];
-            identityCell.innerHTML = `<span class="ds-status" data-status="${identityKnown ? 'ready' : 'warning'}">${identityKnown ? 'Evidence-grade' : 'Exploratory'}</span>`;
+            updateHistoryIdentityCell(identityCell, identityKnown);
             const modelCell = cells[1];
             if (profile && !modelCell.querySelector('[data-history-reasoning-profile]')) {
                 const detail = document.createElement('small');
@@ -136,6 +136,15 @@
                 break;
             }
         }
+    }
+
+    function updateHistoryIdentityCell(identityCell, identityKnown) {
+        const status = identityKnown ? 'ready' : 'warning';
+        const label = identityKnown ? 'Evidence-grade' : 'Exploratory';
+        const markup = `<span class="ds-status" data-status="${status}">${label}</span>`;
+        if (identityCell.innerHTML === markup) return false;
+        identityCell.innerHTML = markup;
+        return true;
     }
 
     window.fetch = async function evaluationReasoningFetch(input, options = {}) {
@@ -201,5 +210,6 @@
     window.localLlmEvaluationReasoning = {
         applyDatasetDefault,
         normalizeProfile,
+        updateHistoryIdentityCell,
     };
 })();

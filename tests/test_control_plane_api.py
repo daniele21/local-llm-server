@@ -156,6 +156,8 @@ def test_evaluation_routes_list_dataset_run_ten_samples_and_persist(tmp_path: Pa
     assert payload["evidence_grade"] is True
     assert payload["report"]["complete"] is True
     assert len(payload["report"]["results"]) == 10
+    assert payload["report"]["manifest"]["content_retained"] is True
+    assert all("content" in result for result in payload["report"]["results"])
     assert text_engine.calls == 10
     assert "persisted_path" not in payload
 
@@ -167,6 +169,33 @@ def test_evaluation_routes_list_dataset_run_ten_samples_and_persist(tmp_path: Pa
     assert history.status_code == 200
     assert history.json()["runs"][0]["run_id"] == payload["report"]["manifest"]["run_id"]
     assert history.json()["runs"][0]["runtime_fingerprint"] == "a" * 64
+
+    persisted = client.get(
+        f"/api/v1/evaluation/history/{payload['report']['manifest']['run_id']}"
+    )
+    assert persisted.status_code == 200
+    assert all("output" in result["content"] for result in persisted.json()["results"])
+
+
+def test_evaluation_can_exclude_model_output_from_local_history(tmp_path: Path):
+    application, _, _, _ = _app(tmp_path, admin=True)
+    client = TestClient(application)
+
+    run = client.post(
+        "/api/v1/evaluation/runs",
+        json={"model": "text", "sample_count": 10, "retain_content": False},
+    )
+
+    assert run.status_code == 200
+    report = run.json()["report"]
+    run_id = report["manifest"]["run_id"]
+    persisted = client.get(f"/api/v1/evaluation/history/{run_id}").json()
+    assert report["manifest"]["content_retained"] is False
+    assert all(item["content"]["output"] is not None for item in report["results"])
+    assert persisted["manifest"]["content_retained"] is False
+    assert all(item["content"]["input"] for item in persisted["results"])
+    assert all(item["content"]["expected"] for item in persisted["results"])
+    assert all("output" not in item["content"] for item in persisted["results"])
 
 
 def test_evaluation_history_comparison_is_attribution_safe_for_matched_runs(tmp_path: Path):

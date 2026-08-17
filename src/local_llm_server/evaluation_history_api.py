@@ -2,22 +2,25 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Callable
 
 from fastapi import FastAPI, HTTPException, Query
 
 from .evaluation_history_service import EvaluationHistoryService
+from .evaluation import TestSet
 
 
 def install_evaluation_history_api(
     application: FastAPI,
     *,
     root: Path,
+    test_set_resolver: Callable[[str, str | None], TestSet | None] | None = None,
 ) -> FastAPI:
     """Install read-only evaluation history routes exactly once."""
     if getattr(application.state, "evaluation_history_api_installed", False):
         return application
     application.state.evaluation_history_api_installed = True
-    service = EvaluationHistoryService(root)
+    service = EvaluationHistoryService(root, test_set_resolver=test_set_resolver)
     application.state.evaluation_history_service = service
 
     def list_history():

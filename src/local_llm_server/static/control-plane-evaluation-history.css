@@ -28,6 +28,17 @@
 .evaluation-comparison-form h3,
 .evaluation-comparison-form p { margin-bottom: 0; }
 
+.evaluation-history-detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+[data-evaluation-inspect][aria-pressed="true"] {
+    border-color: var(--ds-accent, #8b5cf6);
+    color: var(--ds-text, #f8fafc);
+}
+
 .evaluation-comparison-selectors {
     display: grid;
     grid-template-columns: 1fr 1fr;

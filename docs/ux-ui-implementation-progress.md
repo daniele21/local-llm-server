@@ -54,7 +54,7 @@ The capability layer consumes server-owned descriptors rather than named-model h
 
 ### Benchmark & Evaluation
 
-The evaluation screen supports resident-model selection, versioned built-in/custom test sets, deterministic seed/sample counts, validated JSON import, explicit test-set version propagation, duplicate-conflict feedback, per-sample result/error/evidence state, persisted history and compatibility-aware comparison. It does not auto-declare a better/worse model.
+The evaluation screen supports resident-model selection, versioned built-in/custom test sets, deterministic seed/sample counts, validated JSON import, explicit test-set version propagation, duplicate-conflict feedback, expandable per-sample prompt/expected/output/check/metric details, persisted history and compatibility-aware comparison. Private local history keeps generated output by default with a per-run opt-out; prompt and expected value stay available through the matching immutable test set. Legacy runs are enriched only after dataset-identity verification. Open run/sample inspectors, focus and scroll orientation survive the ten-second history refresh. It does not auto-declare a better/worse model.
 
 ### System / Diagnostics
 

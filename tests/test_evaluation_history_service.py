@@ -7,6 +7,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
+from local_llm_server.core.contracts import TaskType
+from local_llm_server.evaluation import EvaluationSample, TestSet
 from local_llm_server.evaluation_history_api import install_evaluation_history_api
 from local_llm_server.evaluation_history_service import EvaluationHistoryService
 
@@ -28,13 +30,14 @@ def _report(
     scores=(0.5, 0.5),
     wall=(2.0, 2.0),
     reasoning_profile=_DEFAULT_REASONING,
+    test_set_identity: str = "t" * 64,
 ):
     manifest = {
         "run_id": run_id,
         "model": model,
         "test_set_id": "general-purpose",
         "test_set_version": "1",
-        "test_set_identity": "t" * 64,
+        "test_set_identity": test_set_identity,
         "sample_ids": list(sample_ids),
         "seed": 0,
         "runtime_fingerprint": fingerprint,
@@ -91,6 +94,58 @@ def test_history_service_loads_exact_run_and_blocks_path_traversal(tmp_path: Pat
     assert service.load_report("run-a")["manifest"]["run_id"] == "run-a"
     with pytest.raises(ValueError, match="invalid run_id"):
         service.load_report("../secret")
+
+
+def test_history_restores_prompt_and_expected_only_from_matching_dataset(tmp_path: Path):
+    test_set = TestSet(
+        "general-purpose",
+        "1",
+        (
+            EvaluationSample("s1", TaskType.CHAT, {"input": "one"}, {"exact": "1"}),
+            EvaluationSample("s2", TaskType.CHAT, {"input": "two"}, {"exact": "2"}),
+        ),
+    )
+    root = tmp_path / "runs"
+    _write(root, _report("legacy", test_set_identity=test_set.identity))
+    service = EvaluationHistoryService(
+        root,
+        test_set_resolver=lambda test_set_id, version: (
+            test_set
+            if (test_set_id, version) == (test_set.test_set_id, test_set.version)
+            else None
+        ),
+    )
+
+    loaded = service.load_report("legacy")
+
+    assert loaded["dataset_context"] == {
+        "status": "matched",
+        "sample_context_count": 2,
+    }
+    assert loaded["results"][0]["content"] == {
+        "input": "one",
+        "expected": {"exact": "1"},
+    }
+    assert "output" not in loaded["results"][0]["content"]
+
+
+def test_history_refuses_context_from_changed_dataset_identity(tmp_path: Path):
+    test_set = TestSet(
+        "general-purpose",
+        "1",
+        (EvaluationSample("s1", TaskType.CHAT, {"input": "changed"}),),
+    )
+    root = tmp_path / "runs"
+    _write(root, _report("legacy", sample_ids=("s1",), scores=(1.0,), wall=(1.0,)))
+    service = EvaluationHistoryService(
+        root,
+        test_set_resolver=lambda _test_set_id, _version: test_set,
+    )
+
+    loaded = service.load_report("legacy")
+
+    assert loaded["dataset_context"] == {"status": "identity_mismatch"}
+    assert "content" not in loaded["results"][0]
 
 
 def test_history_service_comparison_preserves_descriptive_only_semantics(tmp_path: Path):

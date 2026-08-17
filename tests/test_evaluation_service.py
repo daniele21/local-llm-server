@@ -10,6 +10,7 @@ from local_llm_server.evaluation_service import (
     EvaluationRunRequest,
     EvaluationService,
     EvaluationStore,
+    report_to_dict,
 )
 from local_llm_server.runtime import ModelRuntimeManager
 from local_llm_server.runtime_evidence import RuntimeIdentitySnapshot, attach_runtime_identity
@@ -82,9 +83,28 @@ def test_service_runs_ten_samples_on_resident_runtime_and_persists_report(tmp_pa
 
     payload = json.loads(Path(outcome.persisted_path).read_text(encoding="utf-8"))
     assert payload["manifest"]["runtime_fingerprint"] == "a" * 64
+    assert payload["manifest"]["content_retained"] is True
     assert payload["complete"] is True
     assert len(payload["results"]) == 10
+    assert all(result["content"]["input"] for result in payload["results"])
+    assert all(result["content"]["expected"] for result in payload["results"])
+    assert all("output" in result["content"] for result in payload["results"])
+    assert all("content" not in result for result in report_to_dict(outcome.report)["results"])
     assert store.list_run_ids() == (outcome.report.manifest.run_id,)
+
+
+def test_service_can_exclude_model_output_from_local_history(tmp_path: Path):
+    manager, _ = _manager()
+    store = EvaluationStore(tmp_path / "runs")
+    outcome = EvaluationService(manager, store=store).run(
+        EvaluationRunRequest(model="demo", sample_count=10, retain_content=False)
+    )
+
+    payload = json.loads(Path(outcome.persisted_path).read_text(encoding="utf-8"))
+    assert payload["manifest"]["content_retained"] is False
+    assert all(result["content"]["input"] for result in payload["results"])
+    assert all(result["content"]["expected"] for result in payload["results"])
+    assert all("output" not in result["content"] for result in payload["results"])
 
 
 def test_run_without_identity_is_exploratory_not_evidence_grade():

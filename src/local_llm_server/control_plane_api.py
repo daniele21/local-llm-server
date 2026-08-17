@@ -32,6 +32,10 @@ class EvaluationRunBody(BaseModel):
     test_set_version: str | None = None
     sample_count: int = Field(20, ge=10)
     seed: int = 0
+    retain_content: bool = Field(
+        True,
+        description="Persist generated model output in private local run history.",
+    )
     reasoning_policy: str | None = Field(
         None,
         pattern="^(off|on|runtime_default)$",
@@ -182,6 +186,7 @@ def install_product_api(
                     sample_count=body.sample_count,
                     seed=body.seed,
                     reasoning_policy=body.reasoning_policy,
+                    retain_content=body.retain_content,
                 )
             )
         except InferenceError as exc:
@@ -190,7 +195,11 @@ def install_product_api(
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return {
             "evidence_grade": outcome.evidence_grade,
-            "report": report_to_dict(outcome.report),
+            "report": report_to_dict(
+                outcome.report,
+                include_content=True,
+                include_output=True,
+            ),
         }
 
     application.add_api_route(
@@ -242,7 +251,19 @@ def install_product_api(
         tags=["Evaluation"],
         name="run_evaluation",
     )
-    install_evaluation_history_api(application, root=root)
+    def resolve_history_test_set(test_set_id: str, version: str | None):
+        if (
+            test_set_id == GENERAL_PURPOSE_V1.test_set_id
+            and version == GENERAL_PURPOSE_V1.version
+        ):
+            return GENERAL_PURPOSE_V1
+        return application.state.evaluation_test_set_store.resolve(test_set_id, version)
+
+    install_evaluation_history_api(
+        application,
+        root=root,
+        test_set_resolver=resolve_history_test_set,
+    )
     return application
 
 

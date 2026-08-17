@@ -95,6 +95,15 @@ def test_runner_executes_selected_samples_scores_and_carries_fingerprint_and_rea
     assert all(result.succeeded for result in report.results)
     assert all(result.metrics["runtime_fingerprint"] == "fp-123" for result in report.results)
     assert all(result.metrics["output_tokens"] == 1 for result in report.results)
+    assert [result.input_text for result in report.results] == [
+        sample.payload["input"] for sample in selected
+    ]
+    assert [dict(result.expected) for result in report.results] == [
+        dict(sample.expected) for sample in selected
+    ]
+    assert [result.output_text for result in report.results] == [
+        outputs[sample.sample_id] for sample in selected
+    ]
 
 
 def test_runner_records_typed_inference_error_without_aborting_run():
@@ -120,6 +129,9 @@ def test_runner_records_typed_inference_error_without_aborting_run():
     assert report.complete is True
     assert report.results[0].succeeded is False
     assert report.results[0].error_code == "timeout"
+    assert report.results[0].input_text == sample.payload["input"]
+    assert dict(report.results[0].expected) == dict(sample.expected)
+    assert report.results[0].output_text is None
 
 
 def test_runner_rejects_manifest_for_different_test_set_identity():

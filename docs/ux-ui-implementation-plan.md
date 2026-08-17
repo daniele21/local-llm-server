@@ -479,6 +479,10 @@ Target capabilities:
 
 - no run is considered comparable without stable execution identity;
 - partial/failed samples remain visible;
+- per-sample results use progressive disclosure for prompt, expected value, model output, scorer details and raw metrics;
+- prompt and expected value remain bound to immutable test-set identity; private local history retains model output by default with a per-run opt-out;
+- legacy sample context is reconstructed only when test-set version and identity match, while shareable evidence remains content-free by default;
+- automatic history refresh preserves the inspected run, expanded samples, focus and scroll orientation;
 - benchmark execution cannot silently alter the model/default route for unrelated application traffic without explicit isolation/policy;
 - reports distinguish measured facts from interpretation.
 

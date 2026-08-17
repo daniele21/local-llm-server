@@ -29,6 +29,29 @@ def test_evaluation_ui_uses_real_api_sources_and_valid_sample_multiples():
     assert "No fabricated percentage complete" in script
     assert "runtime_fingerprint" in script
     assert "evidence_grade" in script
+    assert "data-evaluation-retain-content" in script
+    assert "retain_content:" in script
+    assert 'type="checkbox" checked' in script
+    assert "Save model outputs in local history" in script
+
+
+def test_evaluation_ui_exposes_progressive_sample_details():
+    script = (STATIC / "control-plane-evaluation.js").read_text(encoding="utf-8")
+    history = (STATIC / "control-plane-evaluation-history.js").read_text(encoding="utf-8")
+    assert "data-sample-details-toggle" in script
+    assert 'aria-expanded="false"' in script
+    assert "Prompt" in script
+    assert "Expected" in script
+    assert "Model output" in script
+    assert "Raw metrics" in script
+    assert "Model output was not saved" in script
+    assert "window.localLlmEvaluationUi" in script
+    assert "sampleUi.renderSampleRows" in history
+    assert "content_retained" in history
+    assert "dataset_context" in history
+    assert "detailHtml" in history
+    assert "focusedDetailControl" in history
+    assert "data-evaluation-history-close" in history
 
 
 def test_evaluation_ui_supports_source_backed_custom_dataset_import_and_versions():
@@ -83,6 +106,59 @@ def test_reasoning_history_overlay_requires_profile_plus_fingerprint_for_evidenc
     assert "Boolean(summary.runtime_fingerprint) && Boolean(profile)" in script
     assert "identityKnown ? 'Evidence-grade' : 'Exploratory'" in script
     assert "historyProfiles" in script
+
+
+def test_reasoning_history_identity_decoration_is_idempotent_when_node_is_available():
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed in this test environment")
+    script_path = STATIC / "control-plane-evaluation-reasoning.js"
+    harness = r"""
+const fs = require('fs');
+const vm = require('vm');
+const source = fs.readFileSync(process.argv[1], 'utf8');
+const noop = () => {};
+const windowObject = {
+    fetch: async () => ({ ok: false }),
+    addEventListener: noop,
+    dispatchEvent: noop,
+};
+const context = {
+    window: windowObject,
+    document: {
+        readyState: 'loading',
+        addEventListener: noop,
+        querySelector: () => null,
+        querySelectorAll: () => [],
+    },
+    MutationObserver: class { observe() {} },
+    CustomEvent: class {},
+    URL,
+    Map,
+    setTimeout,
+};
+vm.runInNewContext(source, context);
+const update = windowObject.localLlmEvaluationReasoning.updateHistoryIdentityCell;
+let writes = 0;
+const cell = {
+    value: '',
+    get innerHTML() { return this.value; },
+    set innerHTML(value) { writes += 1; this.value = value; },
+};
+if (update(cell, false) !== true) throw new Error('first decoration must mutate');
+if (update(cell, false) !== false) throw new Error('same state must not mutate');
+if (writes !== 1) throw new Error(`expected one write, got ${writes}`);
+if (update(cell, true) !== true) throw new Error('changed state must mutate');
+if (update(cell, true) !== false) throw new Error('stable changed state must not mutate');
+if (writes !== 2) throw new Error(`expected two writes, got ${writes}`);
+"""
+    completed = subprocess.run(
+        [node, "-e", harness, str(script_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def test_evaluation_history_preserves_unavailable_and_refresh_state_semantics():

@@ -36,10 +36,15 @@
     }
 
     function captureUiState(host) {
+        const detail = host.querySelector('[data-evaluation-history-detail]');
+        const active = document.activeElement;
         return {
             baseline: host.querySelector('[data-evaluation-baseline]')?.value || null,
             candidate: host.querySelector('[data-evaluation-candidate]')?.value || null,
             comparisonHtml: host.querySelector('[data-evaluation-comparison-result]')?.innerHTML || '',
+            detailHtml: detail?.innerHTML || '',
+            inspectedRunId: detail?.dataset?.evaluationHistoryRun || null,
+            focusedDetailControl: active?.getAttribute?.('aria-controls') || null,
         };
     }
 
@@ -92,7 +97,7 @@
                 <div class="ds-card evaluation-history-table-wrap">
                     <table class="ds-table evaluation-history-table">
                         <thead><tr><th>Run</th><th>Model</th><th>Samples</th><th>Quality</th><th>Success</th><th>Identity</th><th>Stored</th><th></th></tr></thead>
-                        <tbody>${recent.map(historyRow).join('')}</tbody>
+                        <tbody>${recent.map((run) => historyRow(run, state.inspectedRunId)).join('')}</tbody>
                     </table>
                 </div>` : '<div class="ds-empty">No persisted evaluation runs yet.</div>'}
 
@@ -111,7 +116,7 @@
                 </form>
                 <div data-evaluation-comparison-result>${state.comparisonHtml || ''}</div>` : ''}
 
-            <div data-evaluation-history-detail></div>`;
+            <div data-evaluation-history-detail data-evaluation-history-run="${escapeHtml(state.inspectedRunId || '')}">${state.detailHtml || ''}</div>`;
 
         const baseline = host.querySelector('[data-evaluation-baseline]');
         const candidate = host.querySelector('[data-evaluation-candidate]');
@@ -128,6 +133,14 @@
         host.querySelectorAll('[data-evaluation-inspect]').forEach((button) => {
             button.addEventListener('click', () => inspectRun(host, button.dataset.evaluationInspect));
         });
+        const restoredDetail = host.querySelector('[data-evaluation-history-detail]');
+        window.localLlmEvaluationUi?.bindSampleDetails(restoredDetail);
+        bindCloseDetail(restoredDetail);
+        if (state.focusedDetailControl) {
+            restoredDetail?.querySelector(
+                `[aria-controls="${cssEscape(state.focusedDetailControl)}"]`,
+            )?.focus({ preventScroll: true });
+        }
     }
 
     async function compareSelectedRuns(host, baseline, candidate) {
@@ -155,7 +168,7 @@
         }
     }
 
-    function historyRow(run) {
+    function historyRow(run, inspectedRunId = null) {
         const quality = finite(run?.objective_quality_mean);
         const success = finite(run?.execution_success_rate);
         const evidenceGrade = Boolean(run?.runtime_fingerprint);
@@ -167,23 +180,37 @@
             <td>${success === null ? 'Unavailable' : `${(success * 100).toFixed(1)}%`}</td>
             <td>${statusBadge(evidenceGrade ? 'Evidence-grade' : 'Exploratory', evidenceGrade ? 'ready' : 'warning')}</td>
             <td>${escapeHtml(formatStoredAt(run?.stored_at))}</td>
-            <td><button type="button" class="ds-button ds-button--small" data-evaluation-inspect="${escapeHtml(run?.run_id || '')}">Inspect</button></td>
+            <td><button type="button" class="ds-button ds-button--small" data-evaluation-inspect="${escapeHtml(run?.run_id || '')}" aria-pressed="${run?.run_id === inspectedRunId ? 'true' : 'false'}">Inspect</button></td>
         </tr>`;
     }
 
     async function inspectRun(host, runId) {
         const detail = host.querySelector('[data-evaluation-history-detail]');
         if (!detail || !runId) return;
+        detail.dataset.evaluationHistoryRun = runId;
         detail.innerHTML = '<div class="ds-empty">Loading persisted run…</div>';
         try {
             const report = await fetchJson(`/api/v1/evaluation/history/${encodeURIComponent(runId)}`);
             const manifest = report?.manifest || {};
-            const results = Array.isArray(report?.results) ? report.results : [];
+            const contextStatus = report?.dataset_context?.status || 'unavailable';
+            const results = Array.isArray(report?.results)
+                ? report.results.map((item) => ({ ...item, dataset_context_status: contextStatus }))
+                : [];
+            const sampleUi = window.localLlmEvaluationUi;
+            const sampleTable = sampleUi
+                ? `<div class="evaluation-table-wrap"><table class="ds-table evaluation-table">
+                    <thead><tr><th>Sample</th><th>Execution</th><th>Score</th><th>Wall time</th><th>Error</th><th>Details</th></tr></thead>
+                    <tbody>${sampleUi.renderSampleRows(results, `history-${manifest.run_id || runId}`)}</tbody>
+                </table></div>`
+                : '<div class="ds-empty">Sample detail renderer unavailable.</div>';
             detail.innerHTML = `
                 <div class="ds-card evaluation-history-detail-card">
                     <div class="control-plane-header">
                         <div><span class="evaluation-eyebrow">Persisted report</span><h3>${escapeHtml(shortRun(manifest.run_id || runId))}</h3></div>
-                        ${statusBadge(report?.complete ? 'Complete' : 'Incomplete', report?.complete ? 'ready' : 'warning')}
+                        <div class="evaluation-history-detail-actions">
+                            ${statusBadge(report?.complete ? 'Complete' : 'Incomplete', report?.complete ? 'ready' : 'warning')}
+                            <button type="button" class="ds-button ds-button--small" data-evaluation-history-close>Close details</button>
+                        </div>
                     </div>
                     <div class="evaluation-manifest">
                         <div><span>Model</span><strong>${escapeHtml(manifest.model || 'Unavailable')}</strong></div>
@@ -191,11 +218,41 @@
                         <div><span>Seed</span><strong>${escapeHtml(manifest.seed ?? 'Unavailable')}</strong></div>
                         <div><span>Runtime fingerprint</span><code>${escapeHtml(manifest.runtime_fingerprint || 'Unavailable')}</code></div>
                     </div>
-                    <p class="evaluation-history-detail-note">${results.length} persisted sample result${results.length === 1 ? '' : 's'}. The history summary surface does not expose prompts or generated output.</p>
+                    <p class="evaluation-history-detail-note">${historyAvailabilityCopy(results.length, manifest, contextStatus)}</p>
+                    ${sampleTable}
                 </div>`;
+            sampleUi?.bindSampleDetails(detail);
+            bindCloseDetail(detail);
         } catch (error) {
             detail.innerHTML = `<div class="ds-empty control-plane-unavailable">Unable to load run: ${escapeHtml(error?.message || 'unknown error')}</div>`;
         }
+    }
+
+    function historyAvailabilityCopy(resultCount, manifest, contextStatus) {
+        const count = `${resultCount} persisted sample result${resultCount === 1 ? '' : 's'}.`;
+        if (manifest.content_retained) {
+            return `${count} Prompt, expected value and model output are available for inspection.`;
+        }
+        if (contextStatus === 'matched') {
+            return `${count} Prompt and expected value were restored from the matching test set; model output was not saved.`;
+        }
+        if (contextStatus === 'identity_mismatch') {
+            return `${count} The current test set identity differs from this run, so its prompt and expected value are hidden.`;
+        }
+        if (contextStatus === 'dataset_missing') {
+            return `${count} The original test set is unavailable and model output was not saved.`;
+        }
+        return `${count} Checks and metrics are available; sample content was not saved.`;
+    }
+
+    function bindCloseDetail(detail) {
+        const button = detail?.querySelector('[data-evaluation-history-close]');
+        if (!button || button.dataset.closeBound === 'true') return;
+        button.dataset.closeBound = 'true';
+        button.addEventListener('click', () => {
+            detail.innerHTML = '';
+            detail.dataset.evaluationHistoryRun = '';
+        });
     }
 
     function renderComparison(host, comparison) {
@@ -286,6 +343,11 @@
             .replaceAll('>', '&gt;')
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
+    }
+
+    function cssEscape(value) {
+        if (window.CSS?.escape) return window.CSS.escape(value);
+        return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
     }
 
     function boot(attempt = 0) {

@@ -50,6 +50,7 @@ class EvaluationRunRequest:
     sample_count: int = 20
     seed: int = 0
     reasoning_policy: EvaluationReasoningPolicy | str | None = None
+    retain_content: bool = True
 
     def __post_init__(self) -> None:
         if not self.model.strip():
@@ -158,7 +159,15 @@ class EvaluationStore:
             raise FileExistsError(f"evaluation run already exists: {report.manifest.run_id}")
         temp = target.with_suffix(".json.tmp")
         temp.write_text(
-            json.dumps(report_to_dict(report), sort_keys=True, indent=2),
+            json.dumps(
+                report_to_dict(
+                    report,
+                    include_content=True,
+                    include_output=report.manifest.content_retained,
+                ),
+                sort_keys=True,
+                indent=2,
+            ),
             encoding="utf-8",
         )
         os.replace(temp, target)
@@ -244,6 +253,7 @@ class EvaluationService:
             model=runtime.key,
             runtime_fingerprint=fingerprint,
             reasoning_profile=reasoning_profile,
+            content_retained=request.retain_content,
         )
         report = EvaluationRunner(
             ResidentRuntimeExecutor(self.manager, runtime=runtime),
@@ -277,7 +287,12 @@ class EvaluationService:
         raise ValueError(f"unknown test set: {test_set_id}{suffix}")
 
 
-def report_to_dict(report: EvaluationReport) -> dict[str, object]:
+def report_to_dict(
+    report: EvaluationReport,
+    *,
+    include_content: bool = False,
+    include_output: bool = False,
+) -> dict[str, object]:
     manifest = report.manifest
     return {
         "manifest": {
@@ -295,20 +310,42 @@ def report_to_dict(report: EvaluationReport) -> dict[str, object]:
                 if manifest.reasoning_profile is not None
                 else None
             ),
+            "content_retained": manifest.content_retained,
         },
         "complete": report.complete,
-        "results": [_sample_result_to_dict(result) for result in report.results],
+        "results": [
+            _sample_result_to_dict(
+                result,
+                include_content=include_content,
+                include_output=include_output,
+            )
+            for result in report.results
+        ],
     }
 
 
-def _sample_result_to_dict(result: EvaluationSampleResult) -> dict[str, object]:
-    return {
+def _sample_result_to_dict(
+    result: EvaluationSampleResult,
+    *,
+    include_content: bool = False,
+    include_output: bool = False,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
         "sample_id": result.sample_id,
         "succeeded": result.succeeded,
         "scores": [_score_to_dict(score) for score in result.scores],
         "error_code": result.error_code,
         "metrics": dict(result.metrics),
     }
+    if include_content:
+        content: dict[str, object] = {
+            "input": result.input_text,
+            "expected": dict(result.expected),
+        }
+        if include_output:
+            content["output"] = result.output_text
+        payload["content"] = content
+    return payload
 
 
 def _score_to_dict(score: Score) -> dict[str, object]:

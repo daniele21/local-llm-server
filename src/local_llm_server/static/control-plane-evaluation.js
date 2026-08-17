@@ -146,6 +146,13 @@
                     <div class="evaluation-note">
                         Sample counts use valid multiples of 10 only. Objective expectations are evaluated by the server; the browser does not execute scorers or dataset code.
                     </div>
+                    <label class="evaluation-retention-option">
+                        <input data-evaluation-retain-content type="checkbox" checked>
+                        <span>
+                            <strong>Save model outputs in local history</strong>
+                            <small>Keep generated answers on this device for later inspection. Prompt and expected values remain linked to the test set.</small>
+                        </span>
+                    </label>
                     <button class="ds-button ds-button--primary" type="submit" data-evaluation-start ${models.length && selectedTest ? '' : 'disabled'}>
                         Run evaluation
                     </button>
@@ -250,6 +257,7 @@
                         test_set_version: selectedOption?.dataset?.version || null,
                         sample_count: Number(sampleSelect.value),
                         seed: Number(view.querySelector('[data-evaluation-seed]').value || 0),
+                        retain_content: view.querySelector('[data-evaluation-retain-content]').checked,
                     }),
                 });
                 renderResult(resultHost, payload);
@@ -330,17 +338,22 @@
             </div>
             <div class="ds-card evaluation-table-wrap">
                 <table class="ds-table evaluation-table">
-                    <thead><tr><th>Sample</th><th>Execution</th><th>Score</th><th>Wall time</th><th>Error</th></tr></thead>
-                    <tbody>${results.map(sampleRow).join('')}</tbody>
+                    <thead><tr><th>Sample</th><th>Execution</th><th>Score</th><th>Wall time</th><th>Error</th><th>Details</th></tr></thead>
+                    <tbody>${renderSampleRows(results, `run-${manifest.run_id || 'latest'}`)}</tbody>
                 </table>
             </div>`;
+        bindSampleDetails(host);
     }
 
     function metricCard(label, value, detail) {
         return `<article class="ds-card evaluation-metric-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(detail)}</small></article>`;
     }
 
-    function sampleRow(item) {
+    function renderSampleRows(results, namespace = 'evaluation') {
+        return results.map((item, index) => sampleRows(item, `${namespace}-${index}`)).join('');
+    }
+
+    function sampleRows(item, detailId) {
         const sampleScores = Array.isArray(item?.scores) ? item.scores : [];
         const values = sampleScores.map((score) => Number(score?.value)).filter(Number.isFinite);
         const score = values.length ? `${(values.reduce((sum, value) => sum + value, 0) / values.length * 100).toFixed(0)}%` : 'Unavailable';
@@ -351,7 +364,110 @@
             <td>${escapeHtml(score)}</td>
             <td>${Number.isFinite(wall) ? `${wall.toFixed(3)} s` : 'Unavailable'}</td>
             <td>${escapeHtml(item?.error_code || '—')}</td>
+            <td><button type="button" class="ds-button ds-button--small evaluation-detail-toggle" data-sample-details-toggle aria-expanded="false" aria-controls="${escapeHtml(detailId)}">Inspect</button></td>
+        </tr>
+        <tr id="${escapeHtml(detailId)}" class="evaluation-detail-row" data-sample-details hidden>
+            <td colspan="6">${sampleDetail(item)}</td>
         </tr>`;
+    }
+
+    function sampleDetail(item) {
+        const scores = Array.isArray(item?.scores) ? item.scores : [];
+        const metrics = item?.metrics && typeof item.metrics === 'object' ? item.metrics : {};
+        const hasContent = item?.content && typeof item.content === 'object';
+        const content = hasContent ? item.content : {};
+        const hasInput = hasContent && hasOwn(content, 'input');
+        const hasExpected = hasContent && hasOwn(content, 'expected');
+        const hasOutput = hasContent && hasOwn(content, 'output');
+        const contextStatus = item?.dataset_context_status || 'unavailable';
+        const contentNotice = detailAvailabilityNotice({
+            contextStatus,
+            hasInput,
+            hasExpected,
+            hasOutput,
+        });
+        return `<div class="evaluation-sample-detail">
+            ${contentNotice}
+            <div class="evaluation-content-grid">
+                ${detailBlock('Prompt', content.input, hasInput)}
+                ${detailBlock('Expected', content.expected, hasExpected, true)}
+                ${detailBlock('Model output', content.output, hasOutput)}
+            </div>
+            <div class="evaluation-detail-section">
+                <h4>Checks</h4>
+                ${scores.length ? `<div class="evaluation-check-list">${scores.map(scoreDetail).join('')}</div>` : '<p>No scored checks were produced.</p>'}
+            </div>
+            <div class="evaluation-detail-section">
+                <h4>Raw metrics</h4>
+                <pre><code>${escapeHtml(prettyValue(metrics))}</code></pre>
+            </div>
+        </div>`;
+    }
+
+    function detailAvailabilityNotice({ contextStatus, hasInput, hasExpected, hasOutput }) {
+        if (hasInput && hasExpected && hasOutput) return '';
+        let message = 'Some sample context is unavailable.';
+        if (hasInput && hasExpected && !hasOutput) {
+            message = 'Prompt and expected value come from the matching test set. Model output was not saved for this run.';
+        } else if (contextStatus === 'identity_mismatch') {
+            message = 'The available test set does not match this run identity, so prompt and expected value cannot be reconstructed safely.';
+        } else if (contextStatus === 'dataset_missing') {
+            message = 'The original test set is no longer available, so prompt and expected value cannot be reconstructed.';
+        }
+        return `<p class="evaluation-content-notice">${escapeHtml(message)} Checks and metrics remain available.</p>`;
+    }
+
+    function detailBlock(label, value, available, forceJson = false) {
+        const rendered = !available
+            ? 'Not retained'
+            : value === null || value === undefined || value === ''
+                ? 'Unavailable'
+                : forceJson || typeof value === 'object' ? prettyValue(value) : String(value);
+        return `<section class="evaluation-content-block"><h4>${escapeHtml(label)}</h4><pre><code>${escapeHtml(rendered)}</code></pre></section>`;
+    }
+
+    function scoreDetail(score) {
+        const passed = score?.passed;
+        const state = passed === true ? 'ready' : passed === false ? 'error' : 'warning';
+        const label = passed === true ? 'Passed' : passed === false ? 'Failed' : 'Not classified';
+        const value = Number(score?.value);
+        const details = score?.details && Object.keys(score.details).length
+            ? `<pre><code>${escapeHtml(prettyValue(score.details))}</code></pre>`
+            : '';
+        return `<article class="evaluation-check">
+            <div><strong>${escapeHtml(score?.name || 'Unnamed check')}</strong>${statusBadge(label, state)}</div>
+            <span>${Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : 'Unavailable'}</span>
+            ${details}
+        </article>`;
+    }
+
+    function prettyValue(value) {
+        if (typeof value === 'string') return value;
+        try { return JSON.stringify(value, null, 2); } catch (_) { return String(value); }
+    }
+
+    function hasOwn(value, key) {
+        return Object.prototype.hasOwnProperty.call(value, key);
+    }
+
+    function bindSampleDetails(host) {
+        if (!host || host.dataset.sampleDetailsBound === 'true') return;
+        host.dataset.sampleDetailsBound = 'true';
+        host.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-sample-details-toggle]');
+            if (!button || !host.contains(button)) return;
+            const detail = host.querySelector(`#${cssEscape(button.getAttribute('aria-controls') || '')}`);
+            if (!detail) return;
+            const expanded = button.getAttribute('aria-expanded') === 'true';
+            button.setAttribute('aria-expanded', String(!expanded));
+            button.textContent = expanded ? 'Inspect' : 'Hide';
+            detail.hidden = expanded;
+        });
+    }
+
+    function cssEscape(value) {
+        if (window.CSS?.escape) return window.CSS.escape(value);
+        return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
     }
 
     function statusBadge(label, status) {
@@ -387,6 +503,11 @@
             .replaceAll('"', '&quot;')
             .replaceAll("'", '&#039;');
     }
+
+    window.localLlmEvaluationUi = {
+        bindSampleDetails,
+        renderSampleRows,
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => boot(), { once: true });

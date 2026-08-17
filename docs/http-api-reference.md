@@ -198,6 +198,8 @@ These routes exist only when `--enable-admin-api` is active.
 
 Use Swagger for the exact request/response body of each administrative operation on the checked-out revision. The important policy boundary is stable: administrative mutation is opt-in, evidence surfaces must remain privacy-safe, and missing resource values are not fabricated as zero.
 
+`POST /api/v1/evaluation/runs` accepts the backwards-compatible `retain_content` flag (default `true`) to control generated-output retention in private local history. Prompt and expected value remain attached to the immutable test-set context; when output retention is disabled, local history stores those definitions plus scores, errors and metrics but omits the generated output. The immediate response includes the output for the active local drill-down. The manifest field `content_retained` records whether output was stored. Legacy reports can recover prompt and expected value only when the matching test-set identity is still available. Generic/shareable `report_to_dict` serialization remains content-free unless a trusted caller opts in.
+
 ## Failure semantics
 
 Supported product entrypoints validate task/media/capability policy before backend execution when the information is available. Clients should expect explicit HTTP failure for invalid input, unavailable routing/capability, disabled policy or backend failure rather than silent fallback.

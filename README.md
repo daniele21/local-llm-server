@@ -402,11 +402,13 @@ With `--enable-admin-api`, Benchmark & Evaluation can:
 - import validated custom JSON sets with explicit versions;
 - select deterministic sample counts/seeds;
 - execute against resident runtimes;
+- inspect each sample's prompt, expected value, normalized output, scorer checks and raw metrics immediately after a run;
 - persist immutable local run reports;
 - inspect history;
 - compare compatible baseline/candidate runs without silently pooling incompatible fingerprints.
 
 Custom datasets are data only: uploads do not execute Python, templates, plugins or custom scorers.
+Private local evaluation history keeps prompt, expected value and generated output by default so completed runs remain inspectable. The run form can exclude generated output; prompt and expected value remain tied to the immutable test-set identity and can be reconstructed for legacy runs when the matching dataset still exists. Shareable evidence serialization remains content-free by default.
 
 ## Security boundary
 
@@ -418,7 +420,7 @@ Defaults are local and fail-conservative:
 - remote HTTP(S) media disabled by default;
 - remote model/tokenizer code requires explicit trust;
 - no silent cloud inference fallback;
-- evidence/report/public-identity surfaces omit prompt/output/media content and private local paths by default;
+- shareable evidence/public-identity surfaces omit prompt/output/media content and private local paths by default;
 - public identity also excludes download URLs, credentials and hostname/user identity.
 
 Binding to `0.0.0.0` exposes public routes — including `/v1/runtime/identity` — to the network. The server does not currently provide authentication; use a trusted local boundary/reverse proxy and do not expose administrative routes to an untrusted network.

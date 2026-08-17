@@ -120,6 +120,7 @@ class EvaluationRunManifest:
     seed: int
     runtime_fingerprint: str | None = None
     reasoning_profile: EvaluationReasoningProfile | None = None
+    content_retained: bool = False
 
     def __post_init__(self) -> None:
         if not self.run_id.strip() or not self.model.strip():
@@ -135,6 +136,9 @@ class EvaluationSampleResult:
     scores: tuple[Score, ...] = ()
     error_code: str | None = None
     metrics: Mapping[str, Any] = field(default_factory=dict)
+    input_text: str | None = None
+    expected: Mapping[str, Any] = field(default_factory=dict)
+    output_text: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +161,7 @@ def build_run_manifest(
     model: str,
     runtime_fingerprint: str | None = None,
     reasoning_profile: EvaluationReasoningProfile | None = None,
+    content_retained: bool = False,
 ) -> EvaluationRunManifest:
     selected = selection.select(test_set)
     return EvaluationRunManifest(
@@ -170,4 +175,5 @@ def build_run_manifest(
         seed=selection.seed,
         runtime_fingerprint=runtime_fingerprint,
         reasoning_profile=reasoning_profile,
+        content_retained=content_retained,
     )

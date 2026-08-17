@@ -105,8 +105,10 @@ class EvaluationRunner:
             ),
         )
         started = time.perf_counter()
+        raw_output: str | None = None
         try:
             result = self.executor.execute(request)
+            raw_output = result.content
             normalized = normalize_application_output(
                 result.content or "",
                 expect_reasoning=(
@@ -131,6 +133,9 @@ class EvaluationRunner:
                 succeeded=False,
                 error_code=exc.code.value,
                 metrics={"wall_time_seconds": elapsed},
+                input_text=request.input_text,
+                expected=sample.expected,
+                output_text=raw_output,
             )
         except Exception:
             elapsed = time.perf_counter() - started
@@ -139,6 +144,9 @@ class EvaluationRunner:
                 succeeded=False,
                 error_code="executor_error",
                 metrics={"wall_time_seconds": elapsed},
+                input_text=request.input_text,
+                expected=sample.expected,
+                output_text=raw_output,
             )
 
         elapsed = time.perf_counter() - started
@@ -154,4 +162,7 @@ class EvaluationRunner:
             succeeded=True,
             scores=scores,
             metrics=metrics,
+            input_text=request.input_text,
+            expected=sample.expected,
+            output_text=result.content,
         )
