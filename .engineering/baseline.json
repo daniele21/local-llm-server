@@ -2,9 +2,10 @@
   "schema_version": 1,
   "standard": {
     "source": "daniele21/repo-template-sw",
-    "version": "0.3.0"
+    "version": "0.3.0",
+    "revision": "41ba67a124b0daa33db2a02055d76897391d7092"
   },
-  "target_level": "L1",
+  "target_level": "L2",
   "profiles": [
     "python",
     "local-ai",
@@ -23,7 +24,8 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l1-repository-side-complete",
+    "status": "l2-reference-grade-active",
+    "current_slice": "L2-01",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
     "skill_files": "installed-and-project-customized",
@@ -44,6 +46,19 @@
       "privacy_safe_e2e_evidence": "implemented-and-validated",
       "specialist_fitness_functions": "implemented-and-blocking-in-repository-health"
     },
+    "repository_side_l2": {
+      "architecture_fitness": "planned",
+      "resource_memory_regression": "planned",
+      "performance_regression": "planned",
+      "pressure_fault_injection": "planned",
+      "lifecycle_repeatability": "planned",
+      "e2e_failure_retry_recovery": "planned",
+      "built_surface_e2e": "planned",
+      "complexity_dependency_review": "planned",
+      "reproducible_evidence_identity": "planned",
+      "repository_policy_and_docs_drift": "partial-existing",
+      "integration_acceptance": "not-started"
+    },
     "accepted_deviations": {
       "canonical_branch_protection": {
         "status": "owner-deferred",
@@ -51,6 +66,7 @@
       }
     },
     "pending_empirical_evidence": {
+      "full_l2_representative_hardware_gate": "blocked-on-runtime-correctness-evidence-workstream",
       "real_runtime_smoke": "owned-by-runtime-correctness-evidence-workstream",
       "representative_hardware_claims": "owned-by-runtime-correctness-evidence-workstream"
     }
