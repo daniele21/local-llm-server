@@ -54,8 +54,12 @@ class ReasoningBoundaryMiddleware:
             except (LookupError, RuntimeError):
                 runtime = None
         cfg = getattr(runtime, "cfg", {}) if runtime is not None else {}
+
         constraints = _output_constraints(payload)
+        if constraints.format is None and bool(cfg.get("force_json", False)):
+            constraints = OutputConstraints(format="json_object")
         structured = constraints.format in _STRUCTURED_FORMATS
+        is_stream = bool(payload.get("stream", False))
 
         show_thinking = _effective_bool(
             payload,
@@ -70,10 +74,16 @@ class ReasoningBoundaryMiddleware:
         )
         expect_reasoning = request_expects_reasoning(enable_thinking_value, cfg)
 
-        # Unstructured requests that intentionally expose thinking retain the
-        # legacy raw presentation. Structured application content is always
-        # normalized because a successful JSON contract cannot contain reasoning.
-        if show_thinking and not structured:
+        # SO-2 owns the structured application boundary. Do not needlessly
+        # re-normalize ordinary non-stream responses already handled by the
+        # historical response builder; this keeps the migration surface small.
+        if not is_stream and not structured:
+            await self.app(scope, _replay_body(body, receive), send)
+            return
+
+        # Intentional reasoning exposure remains valid only for unstructured
+        # streams. Structured application content must never contain reasoning.
+        if is_stream and show_thinking and not structured:
             await self.app(scope, _replay_body(body, receive), send)
             return
 
@@ -90,7 +100,7 @@ class ReasoningBoundaryMiddleware:
             scope.get("headers", []), len(rewritten)
         )
 
-        if bool(payload.get("stream", False)):
+        if is_stream:
             redactor = SSEReasoningRedactor(
                 expect_reasoning=expect_reasoning,
                 constraints=constraints,
@@ -207,6 +217,7 @@ class SSEReasoningRedactor:
         self.constraints = constraints or OutputConstraints()
         self._structured = self.constraints.format in _STRUCTURED_FORMATS
         self._structured_parts: list[str] = []
+        self._structured_finish_reason: str | None = None
         self._decoder = codecs.getincrementaldecoder("utf-8")()
         self._buffer = ""
         self._last_metadata: dict[str, Any] = {}
@@ -257,9 +268,6 @@ class SSEReasoningRedactor:
 
         self._remember_metadata(payload)
         choices = payload.get("choices")
-        exposed_content = False
-        removed_content = False
-        has_noncontent_signal = _has_noncontent_signal(payload)
         if isinstance(choices, list):
             normalized_choices: list[Any] = []
             for choice in choices:
@@ -267,6 +275,10 @@ class SSEReasoningRedactor:
                     normalized_choices.append(choice)
                     continue
                 normalized = dict(choice)
+                if self._structured and normalized.get("finish_reason") is not None:
+                    self._structured_finish_reason = str(normalized["finish_reason"])
+                    normalized["finish_reason"] = None
+
                 delta = normalized.get("delta")
                 if isinstance(delta, dict):
                     normalized_delta = dict(delta)
@@ -277,18 +289,19 @@ class SSEReasoningRedactor:
                             if self._structured:
                                 self._structured_parts.append(exposed)
                                 normalized_delta.pop("content", None)
-                                removed_content = True
                             else:
                                 normalized_delta["content"] = exposed
-                                exposed_content = True
                         else:
                             normalized_delta.pop("content", None)
-                            removed_content = True
                     normalized["delta"] = normalized_delta
                 normalized_choices.append(normalized)
             payload["choices"] = normalized_choices
 
-        if removed_content and not exposed_content and not has_noncontent_signal:
+        # Structured content is intentionally buffered until the complete final
+        # object can be validated. Preserve only real side-channel evidence
+        # (usage/timings/role/etc.) before that point; suppress empty transport
+        # events and finish-only events whose reason is attached to final JSON.
+        if not _has_transport_signal(payload):
             return ""
         return "data: " + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
@@ -304,8 +317,12 @@ class SSEReasoningRedactor:
             except InferenceError as exc:
                 output.append(_sse_error_event(exc))
             else:
-                if final:
-                    output.append(self._synthetic_content_event(final))
+                output.append(
+                    self._synthetic_content_event(
+                        final,
+                        finish_reason=self._structured_finish_reason,
+                    )
+                )
         elif tail:
             output.append(self._synthetic_content_event(tail))
         if include_done:
@@ -317,14 +334,19 @@ class SSEReasoningRedactor:
             if key in payload:
                 self._last_metadata[key] = payload[key]
 
-    def _synthetic_content_event(self, content: str) -> str:
+    def _synthetic_content_event(
+        self,
+        content: str,
+        *,
+        finish_reason: str | None = None,
+    ) -> str:
         payload = dict(self._last_metadata)
         payload.setdefault("object", "chat.completion.chunk")
         payload["choices"] = [
             {
                 "index": 0,
                 "delta": {"content": content},
-                "finish_reason": None,
+                "finish_reason": finish_reason,
             }
         ]
         return "data: " + json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
@@ -449,7 +471,7 @@ def _apply_normalized_response(
         payload["structured_output"] = dict(structured)
 
 
-def _has_noncontent_signal(payload: Mapping[str, Any]) -> bool:
+def _has_transport_signal(payload: Mapping[str, Any]) -> bool:
     if isinstance(payload.get("usage"), Mapping) and payload.get("usage"):
         return True
     if isinstance(payload.get("timings"), Mapping) and payload.get("timings"):
@@ -463,7 +485,10 @@ def _has_noncontent_signal(payload: Mapping[str, Any]) -> bool:
         if choice.get("finish_reason") is not None:
             return True
         delta = choice.get("delta")
-        if isinstance(delta, Mapping) and any(key != "content" for key in delta):
+        if isinstance(delta, Mapping) and bool(delta):
+            return True
+        text = choice.get("text")
+        if isinstance(text, str) and text:
             return True
     return False
 
