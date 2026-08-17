@@ -5,64 +5,69 @@ Owner: repository
 Read when: understanding what is integrated, blocked or executable next
 Last reviewed: 2026-08-17
 
-Keep this file operational and small. Detailed active planning belongs in `docs/workstreams/`; durable behavior belongs in the owning API/config/architecture/evidence docs.
+Keep this file operational and small. Detailed planning belongs in `docs/workstreams/`; durable behavior belongs in its owning docs/tests.
 
 ## Current milestone
 
-The runtime-correctness code convergence is complete. The milestone is now to execute and retain representative-device evidence on the converged Apple Silicon runtime before final documentation/release claims.
+Runtime-correctness code convergence is complete. The milestone is representative-device evidence on the converged Apple Silicon runtime before final release claims.
 
 ## Active workstream
 
 | Workstream | Executable now | State | Blocker |
 | --- | --- | --- | --- |
-| [`runtime-correctness-evidence-hardening`](workstreams/runtime-correctness-evidence-hardening.md) | `TH-E1`, `EV-3`, `HE-2`, `RES-2` | ACTIVE — evidence wave | requires physical target-Mac execution; REL-1 waits on retained evidence |
-| [`repo-template-sw-adoption`](workstreams/repo-template-sw-adoption.md) | `STD-08` | ACTIVE — shared integration | repository-health/command convergence under CI; `dev` branch protection is externally unconfigured |
+| [`runtime-correctness-evidence-hardening`](workstreams/runtime-correctness-evidence-hardening.md) | `TH-E1`, `EV-3`, `HE-2`, `RES-2` | ACTIVE — evidence wave | physical target-Mac execution; REL-1 waits on retained evidence |
+| [`repo-template-sw-adoption`](workstreams/repo-template-sw-adoption.md) | `STD-10` | BLOCKED — external enforcement only | `main`/`dev` unprotected; L0 requires protected canonical branches with CI enforcement |
 
-Executable commands and evidence boundaries are in [`device-evidence-runbook.md`](device-evidence-runbook.md).
+Executable device commands/evidence boundaries are in [`device-evidence-runbook.md`](device-evidence-runbook.md).
 
 ## Integrated baseline
 
-`dev` currently includes the converged correctness implementation through PR #111.
+`dev` includes converged runtime correctness plus repository-side `repo-template-sw 0.3.0` adoption through PR #123.
 
-- `llama_cpp` request-level thinking is no longer silently discarded; advertised switchability has an effective ON/OFF backend path.
-- Streaming reasoning uses a chunk-safe boundary; hidden reasoning does not rely on delimiters landing in one transport chunk.
-- Playground execution (`Enable thinking`) and visibility (`Show thinking`) are separate server-owned capability controls.
-- Structured output is validated only after reasoning/final separation. Successful structured application content is valid JSON; malformed model JSON is a typed `invalid_model_output`, not silently repaired.
-- Evaluation uses canonical backend preparation, pins a resident runtime, records requested/effective reasoning policy and applies the same final-output normalization before scoring.
-- `local-llm verify-artifact` persists an exact-file SHA-256 receipt locally; runtime identity and hardware evidence reuse it while keeping public payloads path-free.
-- Hardware evidence can therefore become verified when the exact receipt, backend/config and environment remain compatible.
-- ResourceManager admit/account/release/reject behavior has deterministic product-boundary coverage, and a bounded macOS real-device runner is integrated.
-- Ctrl+C shutdown notifies long-lived ASGI streams before Uvicorn drain, avoiding the previous graceful-shutdown ordering deadlock.
-- Automatic pressure eviction remains disabled. Worker streaming/cancellation remains explicitly unsupported rather than emulated.
+### Runtime correctness
 
-The PR #111 CI gate passed Ruff plus Python 3.10/3.11/3.12. The Python 3.11 job executed **518 passing tests**.
+- `llama_cpp` thinking has effective request-level ON/OFF behavior; streaming reasoning is chunk-safe.
+- Thinking execution and visibility are separate controls; structured final output is validated after reasoning separation.
+- Evaluation uses canonical request preparation and records requested/effective reasoning policy.
+- Verified artifact receipts feed path-free runtime/hardware identity.
+- Resource admission/account/release/reject has deterministic coverage and a bounded macOS real-device runner.
+- Ctrl+C shutdown orders long-lived streams before Uvicorn drain.
+- Automatic pressure eviction remains disabled; worker streaming/cancellation remains explicitly unsupported.
+
+### Repository engineering baseline
+
+- canonical operations are machine-validated; Python/Node dependency state is committed and lock-backed;
+- repository/operations/docs/agent-context checks are blocking through `Repository Health`;
+- Playwright has owned process/temp-root lifecycle plus independent zero-residue verification;
+- wheel/sdist builds carry unique identity, manifest, SHA-256 inventory, delta and retention=2;
+- canonical `./deploy.sh`, failed staging and release-style version/lock bump are exercised permanently;
+- security/data policy, MIT license, current architecture and ADR/feature routing are integrated.
+
+Full L0 compliance is **not claimed**: authenticated GitHub state shows `main` and `dev` unprotected with required status checks off. Repository-side implementation is complete; branch enforcement is the remaining external blocker.
 
 ## Historical device evidence
 
-The first 2026-08-17 Apple Silicon smoke remains useful as a pre-convergence baseline only:
-
-- GGUF Nemotron loaded and interactive streaming inference completed;
-- the earlier 10-sample `general-purpose` run completed transport/inference but its observed 20% score was not attribution-safe under the old evaluation/request boundary;
-- two old reclamation reports produced six complete windows and six `recovery_observed` observations, but were exploratory because verified artifact identity was absent;
-- resource policy was disabled in that smoke.
-
-Do not upgrade those old observations after the fact. New evidence must be produced from the converged runtime and its current identity/request contracts.
+The first 2026-08-17 Apple Silicon smoke is pre-convergence evidence only: GGUF Nemotron loaded/inferred, the old 10-sample evaluation was not attribution-safe, reclamation observations lacked verified artifact identity, and resource policy was disabled. Do not upgrade those observations after the fact.
 
 ## Remaining blockers
 
-There are no known code-contract blockers from the original hardening graph. Remaining blockers are evidence/release gates:
+### Runtime/device evidence
 
-- **TH-E1:** real Nemotron ON/OFF smoke has not yet been executed on the converged `dev` baseline.
-- **EV-3:** two comparable `general-purpose v1.0.0 / 10 / seed 0 / reasoning off` runs have not yet been retained after convergence.
-- **HE-2:** two new compatible verified 3-cycle Apple Silicon reports and conservative review are still required.
-- **RES-2:** the bounded runner is merged, but its real Mac admit/account/release/reject report is still pending.
-- **DOC-1/REL-1:** durable docs and final release gate must use the actual observed Wave D results, not expected outcomes.
-- Broader backend/device coverage and manual visual/accessibility acceptance remain release-candidate gates outside this immediate correctness workstream.
+- **TH-E1:** converged real Nemotron ON/OFF smoke pending.
+- **EV-3:** two comparable `general-purpose v1.0.0 / 10 / seed 0 / reasoning off` runs pending.
+- **HE-2:** two compatible verified 3-cycle Apple Silicon reports + conservative review pending.
+- **RES-2:** real Mac admit/account/release/reject report pending.
+- **DOC-1/REL-1:** final docs/release gate must use observed Wave D results.
+- Broader backend/device coverage and manual visual/accessibility acceptance remain release-candidate gates.
+
+### Repository baseline external enforcement
+
+- **STD-10:** protect canonical branches and require repository CI/health checks, then re-verify authenticated GitHub state before marking L0 adoption complete/deleting the workstream.
 
 ## Next
 
-Run the four representative-device slices from `device-evidence-runbook.md`. They are logically parallel but should be serialized where simultaneous model loads would compete for the same Mac memory/residency.
+Run the four representative-device slices from `device-evidence-runbook.md`, serializing simultaneous model loads that would compete for Mac memory/residency.
 
-In parallel, repo-template adoption is at `STD-08`: validate the combined tree with repository-health + normal CI, then execute the full applicable operating lifecycle in `STD-09`. External branch protection remains explicitly pending until configured and re-verified.
+Separately, configure GitHub protection/rulesets for canonical branches. No further repository code work is required for repo-template adoption unless re-verification exposes a mismatch.
 
-Retain negative, mixed or inconclusive evidence exactly as observed. Do not induce OOM/critical pressure and do not enable automatic eviction as part of these runs.
+Retain negative/mixed/inconclusive evidence exactly as observed. Do not induce OOM/critical pressure or enable automatic eviction during these runs.

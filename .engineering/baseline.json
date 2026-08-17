@@ -38,9 +38,29 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "integration-validation",
-    "current_slice": "STD-08",
+    "status": "repository-side-complete-external-enforcement-pending",
+    "current_slice": "STD-10",
+    "repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "skill_files": "installed-and-project-customized",
-    "note": "STD-01 through STD-07 are integrated. Repository-health and shared operating-contract convergence are being validated before lifecycle validation."
+    "repository_side": {
+      "canonical_commands": "implemented-and-validated",
+      "dependency_locks": "implemented-and-validated",
+      "repository_health": "implemented-and-blocking-in-workflows",
+      "e2e_zero_residue": "implemented-and-validated",
+      "artifact_lifecycle": "implemented-and-validated-through-canonical-build",
+      "security_and_docs": "implemented-and-validated"
+    },
+    "external_enforcement": {
+      "l0_compliance": "blocked",
+      "reason": "repo-template-sw 0.3.0 L0 requires CI on pull requests and protected canonical branches",
+      "main_branch_protected": false,
+      "dev_branch_protected": false,
+      "required_status_checks_enforced": false,
+      "last_verified": "2026-08-17"
+    },
+    "pending_empirical_evidence": {
+      "real_runtime_smoke": "pending-suitable-running-target",
+      "representative_hardware_claims": "owned-by-runtime-correctness-evidence-workstream"
+    }
   }
 }
