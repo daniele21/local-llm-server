@@ -14,23 +14,23 @@
   "skills": {
     "plan-workstream": {
       "source_version": "0.1.0",
-      "customized": false
+      "customized": true
     },
     "structured-change": {
       "source_version": "0.2.0",
-      "customized": false
+      "customized": true
     },
     "validate-change": {
       "source_version": "0.3.0",
-      "customized": false
+      "customized": true
     },
     "finalize-workstream": {
       "source_version": "0.1.0",
-      "customized": false
+      "customized": true
     },
     "review-reference-quality": {
       "source_version": "0.3.0",
-      "customized": false
+      "customized": true
     }
   },
   "documentation": {
@@ -38,9 +38,9 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "foundation-established",
-    "current_slice": "STD-01",
-    "skill_files": "pending-STD-02",
-    "note": "Skill metadata is pinned now; installation and any project-specific customization are owned by STD-02."
+    "status": "integration-validation",
+    "current_slice": "STD-08",
+    "skill_files": "installed-and-project-customized",
+    "note": "STD-01 through STD-07 are integrated. Repository-health and shared operating-contract convergence are being validated before lifecycle validation."
   }
 }

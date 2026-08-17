@@ -20,9 +20,15 @@ module.exports = defineConfig({
     video: 'off',
   },
   webServer: {
-    command: 'python tests/e2e/fixture_server.py',
+    // `exec` makes fixture_runner.py the process Playwright waits on rather than
+    // leaving a shell as the tracked lifecycle owner.
+    command: 'exec python tests/e2e/fixture_runner.py',
     url: 'http://127.0.0.1:8765/health',
     reuseExistingServer: false,
     timeout: 30_000,
+    gracefulShutdown: {
+      signal: 'SIGTERM',
+      timeout: 8_000,
+    },
   },
 });
