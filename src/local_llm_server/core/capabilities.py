@@ -32,10 +32,13 @@ class ThinkingMode(str, Enum):
     ALWAYS = "always"
 
 
-# These adapters currently have a proven request-level path for a thinking flag.
-# llama_cpp/gguf is intentionally absent until TH-2 wires the flag through the
-# chat template instead of discarding it at the engine boundary.
-_REQUEST_SWITCHABLE_BACKENDS = frozenset({"mlx", "llama_server", "mlx_vlm_server"})
+# These adapters have a request-level path for a thinking flag. llama_cpp/gguf
+# uses only metadata-backed Jinja chat handlers; unsupported/custom handler
+# combinations fail explicitly at the engine boundary instead of dropping the
+# flag or mutating global model state.
+_REQUEST_SWITCHABLE_BACKENDS = frozenset(
+    {"llama_cpp", "gguf", "mlx", "llama_server", "mlx_vlm_server"}
+)
 
 
 @dataclass(frozen=True, slots=True)
