@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Mapping, Protocol
 
 from .core.contracts import InferenceResult, TaskType
+from .evaluation_reasoning import EvaluationReasoningProfile
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +119,7 @@ class EvaluationRunManifest:
     task_types: tuple[TaskType, ...]
     seed: int
     runtime_fingerprint: str | None = None
+    reasoning_profile: EvaluationReasoningProfile | None = None
 
     def __post_init__(self) -> None:
         if not self.run_id.strip() or not self.model.strip():
@@ -154,6 +156,7 @@ def build_run_manifest(
     selection: SampleSelection,
     model: str,
     runtime_fingerprint: str | None = None,
+    reasoning_profile: EvaluationReasoningProfile | None = None,
 ) -> EvaluationRunManifest:
     selected = selection.select(test_set)
     return EvaluationRunManifest(
@@ -166,4 +169,5 @@ def build_run_manifest(
         task_types=tuple(sorted({sample.task for sample in selected}, key=lambda task: task.value)),
         seed=selection.seed,
         runtime_fingerprint=runtime_fingerprint,
+        reasoning_profile=reasoning_profile,
     )

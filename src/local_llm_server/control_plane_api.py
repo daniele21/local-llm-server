@@ -32,6 +32,11 @@ class EvaluationRunBody(BaseModel):
     test_set_version: str | None = None
     sample_count: int = Field(20, ge=10)
     seed: int = 0
+    reasoning_policy: str | None = Field(
+        None,
+        pattern="^(off|on|runtime_default)$",
+        description="Explicit evaluation thinking policy; omitted uses the test-set default.",
+    )
 
 
 def install_product_api(
@@ -176,6 +181,7 @@ def install_product_api(
                     test_set_version=body.test_set_version,
                     sample_count=body.sample_count,
                     seed=body.seed,
+                    reasoning_policy=body.reasoning_policy,
                 )
             )
         except InferenceError as exc:

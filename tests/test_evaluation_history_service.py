@@ -11,6 +11,14 @@ from local_llm_server.evaluation_history_api import install_evaluation_history_a
 from local_llm_server.evaluation_history_service import EvaluationHistoryService
 
 
+_DEFAULT_REASONING = {
+    "requested": "off",
+    "runtime_mode": "switchable",
+    "effective": "off",
+    "request_override": False,
+}
+
+
 def _report(
     run_id: str,
     *,
@@ -19,18 +27,22 @@ def _report(
     sample_ids=("s1", "s2"),
     scores=(0.5, 0.5),
     wall=(2.0, 2.0),
+    reasoning_profile=_DEFAULT_REASONING,
 ):
+    manifest = {
+        "run_id": run_id,
+        "model": model,
+        "test_set_id": "general-purpose",
+        "test_set_version": "1",
+        "test_set_identity": "t" * 64,
+        "sample_ids": list(sample_ids),
+        "seed": 0,
+        "runtime_fingerprint": fingerprint,
+    }
+    if reasoning_profile is not None:
+        manifest["reasoning_profile"] = dict(reasoning_profile)
     return {
-        "manifest": {
-            "run_id": run_id,
-            "model": model,
-            "test_set_id": "general-purpose",
-            "test_set_version": "1",
-            "test_set_identity": "t" * 64,
-            "sample_ids": list(sample_ids),
-            "seed": 0,
-            "runtime_fingerprint": fingerprint,
-        },
+        "manifest": manifest,
         "complete": True,
         "results": [
             {
@@ -68,6 +80,7 @@ def test_history_service_lists_valid_reports_and_skips_corrupt_files(tmp_path: P
 
     assert {item.summary.run_id for item in summaries} == {"run-a", "run-b"}
     assert all(item.summary.objective_quality_mean == 0.5 for item in summaries)
+    assert all(item.summary.reasoning_profile == _DEFAULT_REASONING for item in summaries)
 
 
 def test_history_service_loads_exact_run_and_blocks_path_traversal(tmp_path: Path):
@@ -94,6 +107,19 @@ def test_history_service_comparison_preserves_descriptive_only_semantics(tmp_pat
     assert any("descriptive only" in reason for reason in comparison.reasons)
 
 
+def test_legacy_history_without_reasoning_profile_is_exploratory(tmp_path: Path):
+    root = tmp_path / "runs"
+    _write(root, _report("legacy", reasoning_profile=None))
+    _write(root, _report("current"))
+
+    comparison = EvaluationHistoryService(root).compare("legacy", "current")
+
+    assert comparison.comparable is True
+    assert comparison.evidence_grade is False
+    assert comparison.attribution_safe is False
+    assert any("reasoning profile missing" in reason for reason in comparison.reasons)
+
+
 def test_history_api_lists_loads_and_compares_runs(tmp_path: Path):
     root = tmp_path / "runs"
     _write(root, _report("baseline", scores=(0.5, 0.5), wall=(2.0, 2.0)))
@@ -105,7 +131,9 @@ def test_history_api_lists_loads_and_compares_runs(tmp_path: Path):
 
     history = client.get("/api/v1/evaluation/history")
     assert history.status_code == 200
-    assert {item["run_id"] for item in history.json()["runs"]} == {"baseline", "candidate"}
+    history_runs = history.json()["runs"]
+    assert {item["run_id"] for item in history_runs} == {"baseline", "candidate"}
+    assert all(item["reasoning_profile"] == _DEFAULT_REASONING for item in history_runs)
 
     loaded = client.get("/api/v1/evaluation/history/baseline")
     assert loaded.status_code == 200

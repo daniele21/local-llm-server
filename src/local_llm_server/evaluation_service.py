@@ -27,6 +27,11 @@ from .evaluation import (
     build_run_manifest,
 )
 from .evaluation_builtin import DeterministicObjectiveScorer, GENERAL_PURPOSE_V1
+from .evaluation_reasoning import (
+    EvaluationReasoningPolicy,
+    default_reasoning_policy,
+    resolve_evaluation_reasoning_profile,
+)
 from .evaluation_runner import EvaluationRunner
 from .evaluation_testsets import CustomTestSetStore
 from .runtime_evidence import attached_runtime_identity
@@ -44,6 +49,7 @@ class EvaluationRunRequest:
     test_set_version: str | None = None
     sample_count: int = 20
     seed: int = 0
+    reasoning_policy: EvaluationReasoningPolicy | str | None = None
 
     def __post_init__(self) -> None:
         if not self.model.strip():
@@ -52,6 +58,8 @@ class EvaluationRunRequest:
             raise ValueError("test_set_version must be non-empty when provided")
         if self.sample_count < 10 or self.sample_count % 10 != 0:
             raise ValueError("sample_count must be a positive multiple of 10")
+        if self.reasoning_policy is not None:
+            EvaluationReasoningPolicy(str(self.reasoning_policy))
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,6 +199,7 @@ class EvaluationService:
                 "sample_count": len(test_set.samples),
                 "provenance": dict(test_set.provenance),
                 "source": source,
+                "default_reasoning_policy": default_reasoning_policy(test_set.test_set_id).value,
             }
             for test_set, source in sorted(
                 entries,
@@ -215,6 +224,16 @@ class EvaluationService:
                 details={"model": request.model},
             ) from exc
 
+        requested_policy = (
+            EvaluationReasoningPolicy(str(request.reasoning_policy))
+            if request.reasoning_policy is not None
+            else default_reasoning_policy(test_set.test_set_id)
+        )
+        reasoning_profile = resolve_evaluation_reasoning_profile(
+            requested_policy,
+            runtime.cfg,
+        )
+
         identity = attached_runtime_identity(runtime)
         fingerprint = identity.fingerprint if identity is not None else None
         selection = SampleSelection(limit=request.sample_count, seed=request.seed)
@@ -224,6 +243,7 @@ class EvaluationService:
             selection=selection,
             model=runtime.key,
             runtime_fingerprint=fingerprint,
+            reasoning_profile=reasoning_profile,
         )
         report = EvaluationRunner(
             ResidentRuntimeExecutor(self.manager, runtime=runtime),
@@ -270,6 +290,11 @@ def report_to_dict(report: EvaluationReport) -> dict[str, object]:
             "task_types": [task.value for task in manifest.task_types],
             "seed": manifest.seed,
             "runtime_fingerprint": manifest.runtime_fingerprint,
+            "reasoning_profile": (
+                manifest.reasoning_profile.to_dict()
+                if manifest.reasoning_profile is not None
+                else None
+            ),
         },
         "complete": report.complete,
         "results": [_sample_result_to_dict(result) for result in report.results],

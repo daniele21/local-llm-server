@@ -36,7 +36,12 @@ class EvaluationExecutor(Protocol):
     def execute(self, request: InferenceRequest) -> InferenceResult: ...
 
 
-def request_for_sample(sample: EvaluationSample, *, model: str) -> InferenceRequest:
+def request_for_sample(
+    sample: EvaluationSample,
+    *,
+    model: str,
+    enable_thinking: bool | None = None,
+) -> InferenceRequest:
     """Translate one evaluation sample into the canonical execution contract."""
     input_text = sample.payload.get("input")
     if input_text is not None and not isinstance(input_text, str):
@@ -50,7 +55,10 @@ def request_for_sample(sample: EvaluationSample, *, model: str) -> InferenceRequ
         task=sample.task,
         model=model,
         input_text=input_text,
-        generation=GenerationOptions(temperature=0.0),
+        generation=GenerationOptions(
+            temperature=0.0,
+            enable_thinking=enable_thinking,
+        ),
         output=output,
         stream=False,
         metadata={"evaluation_sample_id": sample.sample_id},
@@ -86,7 +94,15 @@ class EvaluationRunner:
         sample: EvaluationSample,
         manifest: EvaluationRunManifest,
     ) -> EvaluationSampleResult:
-        request = request_for_sample(sample, model=manifest.model)
+        request = request_for_sample(
+            sample,
+            model=manifest.model,
+            enable_thinking=(
+                manifest.reasoning_profile.request_override
+                if manifest.reasoning_profile is not None
+                else None
+            ),
+        )
         started = time.perf_counter()
         try:
             result = self.executor.execute(request)
