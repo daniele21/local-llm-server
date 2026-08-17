@@ -39,13 +39,13 @@ The result must include canonical commands, repository-health checks, identifiab
 
 | ID | Work | Owns/writes | Depends on | Parallel | State |
 | --- | --- | --- | --- | --- | --- |
-| STD-01 | Establish baseline metadata and canonical operating-command contract | `.engineering/baseline.json`, `.engineering/commands.json`, `.engineering/documentation-policy.json` | — | no; foundation | READY |
-| STD-02 | Install and specialize agent routing, core Skills and repository validators | `AGENTS.md`, `skills/**`, `scripts/verify_*.py`, `.editorconfig`, `CONTRIBUTING.md`, `.github/pull_request_template.md` | STD-01 | lane A | BLOCKED |
-| STD-03 | Make setup/check/test and CI dependency resolution reproducible | `.github/workflows/ci.yml`, setup/check/test command implementation, lockfile usage | STD-01 | lane A | BLOCKED |
-| STD-04 | Implement unique build identity and immutable artifact lifecycle | `deploy.sh`, `release.sh`, `.github/workflows/release.yml`, build/artifact scripts and tests | STD-01 | lane B | BLOCKED |
-| STD-05 | Enforce E2E/runtime zero-residue and bounded failure evidence | `tests/e2e/**`, `playwright.config.js`, E2E lifecycle tests; CI handoff notes only | STD-01 | lane C | BLOCKED |
-| STD-06 | Add security, data-lifecycle, contribution and license baseline | `SECURITY.md`, `LICENSE`, security/data sections not owned by active evidence docs | STD-01 | lane D | BLOCKED |
-| STD-07 | Normalize architecture and documentation topology without losing durable content | `docs/architecture.md`, `docs/adr/**`, `docs/features/**`, documentation routing/policy | STD-01 | lane D | BLOCKED |
+| STD-01 | Establish baseline metadata and canonical operating-command contract | `.engineering/baseline.json`, `.engineering/commands.json`, `.engineering/documentation-policy.json` | — | no; foundation | DONE |
+| STD-02 | Install and specialize agent routing, core Skills and repository validators | `AGENTS.md`, `skills/**`, `scripts/verify_*.py`, `.editorconfig`, `CONTRIBUTING.md`, `.github/pull_request_template.md` | STD-01 | lane A | READY |
+| STD-03 | Make setup/check/test and CI dependency resolution reproducible | `.github/workflows/ci.yml`, setup/check/test command implementation, lockfile usage | STD-01 | lane A | READY |
+| STD-04 | Implement unique build identity and immutable artifact lifecycle | `deploy.sh`, `release.sh`, `.github/workflows/release.yml`, build/artifact scripts and tests | STD-01 | lane B | READY |
+| STD-05 | Enforce E2E/runtime zero-residue and bounded failure evidence | `tests/e2e/**`, `playwright.config.js`, E2E lifecycle tests; CI handoff notes only | STD-01 | lane C | READY |
+| STD-06 | Add security, data-lifecycle, contribution and license baseline | `SECURITY.md`, `LICENSE`, security/data sections not owned by active evidence docs | STD-01 | lane D | READY |
+| STD-07 | Normalize architecture and documentation topology without losing durable content | `docs/architecture.md`, `docs/adr/**`, `docs/features/**`, documentation routing/policy | STD-01, STD-06 | lane D | BLOCKED |
 | STD-08 | Integrate shared workflows, health CI, PR gates and branch-policy evidence | `.github/workflows/**`, `README.md`, `.engineering/commands.json`, shared integration fixes | STD-02, STD-03, STD-04, STD-05, STD-06, STD-07 | no; integration | BLOCKED |
 | STD-09 | Run full operating-lifecycle and repository-health validation | validation evidence only; fixes return to owning slice | STD-08 | no | BLOCKED |
 | STD-10 | Transfer durable truth, record baseline and delete this workstream | `docs/current-state.md`, `docs/workstreams/README.md`, final baseline metadata | STD-09 | no | BLOCKED |
@@ -69,23 +69,34 @@ Within lane A, STD-02 and STD-03 may run concurrently after STD-01 if STD-02 doe
 
 Use one focused branch/PR per lane from current `dev`; update it before STD-08. Never resolve conflicts by dropping another lane's invariant.
 
-## Current executable slice
+## STD-01 completion
 
-`STD-01`
+Implemented foundation:
 
-Acceptance:
+- `.engineering/baseline.json` pins `repo-template-sw` `0.3.0`, target level `L0`, the `python`, `local-ai`, `typescript` and `macos` profiles, and source versions/customization flags for all five core Skills.
+- Skill files themselves remain explicitly pending `STD-02`; the baseline does not claim they are already installed.
+- `.engineering/commands.json` maps every canonical intent to an existing repository/native command or an explicit `n/a` reason.
+- Required `setup`, `check`, `test`, `build` and `clean` intents are executable; `e2e` is the existing Playwright suite and remains separate from smoke.
+- Runtime, build identity, artifact lifecycle, build-delta and ephemeral-resource sections are labeled as target contracts where enforcement is still owned by later slices.
+- `.engineering/documentation-policy.json` adopts the standard context/document budgets without moving or deleting current durable content.
 
-- `.engineering/baseline.json` records standard `0.3.0`, the selected profiles, truthful target level and local Skill customization state.
-- `.engineering/commands.json` maps every canonical intent to a real native command or a justified `n/a`.
-- `setup`, `check`, `test`, `build` and `clean` are not `n/a`.
-- `e2e` maps to the existing Playwright suite; it is not conflated with smoke.
-- local runtime, build identity, artifact lifecycle and ephemeral-resource sections describe the intended enforceable contract rather than current wishful behavior.
-- unresolved implementation gaps are represented by this workstream, not hidden behind placeholder commands.
+Validation completed for STD-01:
 
-Validation:
+- all three JSON documents are syntactically valid;
+- command mappings were checked against `README.md`, `docs/getting-started.md`, `.github/workflows/ci.yml`, `deploy.sh`, `release.sh`, `package.json`, `package-lock.json`, `uv.lock` and current CLI/package metadata;
+- the command-contract shape matches the standard `verify_operations.py` requirements;
+- executable validation through the copied repository validators remains intentionally owned by `STD-02`.
 
-- `python3 scripts/verify_operations.py` once the validator is installed by STD-02; until then validate JSON syntax and command existence directly.
-- Review each command against `README.md`, `docs/getting-started.md`, CI, `deploy.sh`, `release.sh`, `package.json` and the actual CLI entrypoints.
+## Current executable slices
+
+Once the STD-01 branch is merged into `dev`, the following can start in parallel without shared-file conflicts:
+
+- lane A: `STD-02` and `STD-03`;
+- lane B: `STD-04`;
+- lane C: `STD-05`;
+- lane D: `STD-06`, followed by `STD-07` after `STD-06` lands.
+
+Do not start `STD-08` until all lane outputs are integrated/rebased onto current `dev`.
 
 ## Slice acceptance and validation
 

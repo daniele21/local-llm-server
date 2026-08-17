@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "estimated_token_characters": 4,
+  "budgets": {
+    "root_agents": {
+      "max_lines": 180,
+      "max_estimated_tokens": 2500
+    },
+    "scoped_agents": {
+      "max_lines": 150,
+      "max_estimated_tokens": 2000
+    },
+    "current_state": {
+      "max_lines": 120,
+      "max_estimated_tokens": 1500
+    },
+    "active_workstream": {
+      "max_lines": 220,
+      "max_estimated_tokens": 3000
+    },
+    "architecture": {
+      "max_lines": 400,
+      "max_estimated_tokens": 5500
+    },
+    "feature_doc": {
+      "max_lines": 400,
+      "max_estimated_tokens": 5500
+    }
+  },
+  "context_targets": {
+    "bootstrap_max_estimated_tokens": 2500,
+    "root_scoped_workstream_max_estimated_tokens": 6000
+  },
+  "duplicate_min_characters": 240,
+  "completed_workstream_markers": [
+    "Status: complete",
+    "Status: completed",
+    "Status: done"
+  ]
+}

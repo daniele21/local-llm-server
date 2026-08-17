@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "contract_version": "0.3.0",
+  "commands": {
+    "setup": {
+      "status": "required",
+      "run": "python3 -m pip install -e '.[dev]' && npm ci --ignore-scripts --no-audit --no-fund"
+    },
+    "doctor": {
+      "status": "recommended",
+      "run": "python3 --version && python3 -m pip --version && node --version && npm --version"
+    },
+    "dev": {
+      "status": "n/a",
+      "reason": "Runtime startup is model/workload-specific; no single repository-wide dev daemon command is currently canonical. STD-03 may add a bounded developer fixture without replacing native CLI startup."
+    },
+    "check": {
+      "status": "required",
+      "run": "ruff check src/ tests/ --select E9,F63,F7,F82"
+    },
+    "test": {
+      "status": "required",
+      "run": "pytest tests/ -v --tb=short"
+    },
+    "e2e": {
+      "status": "recommended",
+      "run": "npm run test:e2e"
+    },
+    "build": {
+      "status": "required",
+      "run": "./deploy.sh"
+    },
+    "smoke": {
+      "status": "n/a",
+      "reason": "No standalone packaged-artifact smoke command exists yet; STD-08 owns final lifecycle integration and STD-09 validates the canonical smoke boundary."
+    },
+    "package": {
+      "status": "n/a",
+      "reason": "The current wheel/sdist product is packaged by ./deploy.sh; packaging remains intentionally co-located with build until STD-04 makes artifact staging/promotion explicit."
+    },
+    "stop": {
+      "status": "n/a",
+      "reason": "The supported server runs in the foreground and stops by process ownership/signal; no separate project-owned stop command exists yet. STD-05/STD-09 own residue verification."
+    },
+    "clean": {
+      "status": "required",
+      "run": "rm -rf build dist src/*.egg-info .pytest_cache .ruff_cache playwright-report test-results"
+    }
+  },
+  "end_to_end": {
+    "recommended_when_full_workflow_boundary_exists": true,
+    "critical_journeys_prioritized": true,
+    "lower_level_tests_remain_primary": true,
+    "use_stack_native_tooling": true,
+    "run_against_built_artifact_when_material": true,
+    "failure_evidence_bounded": true,
+    "zero_residue_required": true,
+    "implementation_state": "target-contract; Playwright exists today, while zero-residue and bounded-evidence enforcement are owned by STD-05/STD-08."
+  },
+  "build_identity": {
+    "unique_per_build": true,
+    "source_revision_required": true,
+    "dirty_state_required": true,
+    "lineage_fields": [
+      "project",
+      "platform",
+      "architecture",
+      "channel",
+      "variant"
+    ],
+    "artifact_name_fields": [
+      "product",
+      "product_version",
+      "build_id",
+      "source_revision"
+    ],
+    "implementation_state": "target-contract; enforcement is owned by STD-04."
+  },
+  "artifact_lifecycle": {
+    "immutable_successful_artifacts": true,
+    "promote_only_after_success": true,
+    "manifest_required": true,
+    "manifest_name": "build-manifest.json",
+    "checksum_algorithm": "sha256",
+    "local_keep_successful_per_lineage": 2,
+    "ci_store": "github-actions",
+    "ci_retention_days": 7,
+    "release_store": "github-releases",
+    "release_artifacts_immutable": true,
+    "implementation_state": "target-contract; staging, manifest, checksums, retention and immutable release behavior are owned by STD-04/STD-08."
+  },
+  "build_delta": {
+    "required": true,
+    "compare_to": "previous-successful-comparable-build",
+    "output": "BUILD_CHANGELOG.md",
+    "bundle_with_artifact": true,
+    "dimensions": [
+      "source",
+      "dependencies",
+      "toolchain",
+      "configuration",
+      "compatibility_migrations",
+      "artifact_metrics",
+      "validation"
+    ],
+    "implementation_state": "target-contract; generation and bundling are owned by STD-04."
+  },
+  "local_runtime": {
+    "applicable": true,
+    "bind_default": "loopback",
+    "port_strategy": "configurable-with-collision-check",
+    "foreground_default": true,
+    "readiness_required": true,
+    "graceful_shutdown_required": true,
+    "verify_no_project_listener_after_stop": true,
+    "implementation_state": "mixed; loopback/foreground/readiness behavior exists, while complete lifecycle residue verification is owned by STD-05/STD-09."
+  },
+  "ephemeral_resources": {
+    "run_identity": true,
+    "isolated_workspace": true,
+    "cleanup_paths": [
+      "success",
+      "failure",
+      "timeout",
+      "cancellation",
+      "interrupt",
+      "partial-initialization"
+    ],
+    "stale_resource_recovery": true,
+    "ownership_required_before_cleanup": true,
+    "post_cleanup_verification": true,
+    "implementation_state": "target-contract; E2E/runtime enforcement is owned by STD-05 and final lifecycle validation by STD-09."
+  }
+}
