@@ -13,7 +13,7 @@ env:
 
 jobs:
   build:
-    name: Build immutable distribution
+    name: Build and verify immutable distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -41,6 +41,16 @@ jobs:
           LOCAL_LLM_BUILD_CHANNEL: release
           LOCAL_LLM_BUILD_VARIANT: wheel-sdist
         run: uv run --no-sync python scripts/build_artifacts.py --output-root dist --channel release --variant wheel-sdist
+      - name: Fresh-install smoke the built wheel
+        shell: bash
+        run: |
+          build_dir="$(find dist/builds -mindepth 2 -maxdepth 2 -type d | head -n 1)"
+          test -n "$build_dir"
+          wheel="$(find "$build_dir/package" -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          uv run --no-sync python scripts/smoke_installed_artifact.py \
+            --wheel "$wheel" \
+            --expected-version "${GITHUB_REF_NAME#v}"
       - name: Collect release assets
         shell: bash
         run: |
