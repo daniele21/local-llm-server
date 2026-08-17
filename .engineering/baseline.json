@@ -24,10 +24,11 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l2-integration-validation",
-    "current_slice": "L2-10",
+    "status": "l2-repository-side-complete-hardware-gate-pending",
+    "current_slice": "L2-11",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
+    "l2_repository_validation_revision": "d528b6c5b676e705e7ccf24800929da6d5534203",
     "skill_files": "installed-and-project-customized",
     "repository_side_l0": {
       "canonical_commands": "implemented-and-validated",
@@ -47,18 +48,18 @@
       "specialist_fitness_functions": "implemented-and-blocking-in-repository-health"
     },
     "repository_side_l2": {
-      "architecture_fitness": "implemented-and-integrated",
-      "resource_memory_regression": "implemented-and-integrated",
-      "performance_regression": "implemented-and-integrated-pending-exact-head-gate",
-      "pressure_fault_injection": "implemented-and-integrated",
-      "lifecycle_repeatability": "implemented-and-integrated",
-      "e2e_failure_retry_recovery": "implemented-and-integrated",
+      "architecture_fitness": "implemented-and-validated",
+      "resource_memory_regression": "implemented-and-validated",
+      "performance_regression": "implemented-and-validated",
+      "pressure_fault_injection": "implemented-and-validated",
+      "lifecycle_repeatability": "implemented-and-validated",
+      "e2e_failure_retry_recovery": "implemented-and-validated",
       "built_surface_e2e": "implemented-and-validated-through-fresh-installed-wheel",
-      "complexity_dependency_review": "implemented-and-integrated",
-      "reproducible_evidence_identity": "implemented-and-integrated",
+      "complexity_dependency_review": "implemented-and-validated",
+      "reproducible_evidence_identity": "implemented-and-validated",
       "repository_policy_and_docs_drift": "implemented-and-blocking-in-repository-health",
-      "specialist_fitness_functions": "integrated-into-repository-health-pending-exact-head-validation",
-      "integration_acceptance": "active"
+      "specialist_fitness_functions": "implemented-and-blocking-in-repository-health",
+      "integration_acceptance": "passed-on-d528b6c5b676e705e7ccf24800929da6d5534203"
     },
     "accepted_deviations": {
       "canonical_branch_protection": {
