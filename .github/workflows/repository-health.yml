@@ -147,9 +147,6 @@ jobs:
           third_delta = (third / "BUILD_CHANGELOG.md").read_text(encoding="utf-8")
           assert second_manifest["build_id"] in third_delta
 
-          # Force a real post-build verification failure. The staged wheel is
-          # deliberately missing a required Studio asset; no failed candidate
-          # may appear under the successful lineage and staging must be removed.
           required_asset = Path("src/local_llm_server/static/index.html")
           hidden_asset = required_asset.with_suffix(".html.std09-hidden")
           before_failure = successful_builds()
@@ -190,3 +187,31 @@ jobs:
           test ! -e dist
           test ! -e playwright-report
           test ! -e test-results
+
+  l2-performance-regression:
+    name: L2 Performance Regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pinned uv bootstrap
+        run: python -m pip install "uv==0.8.13"
+      - name: Sync locked deterministic benchmark environment
+        run: uv sync --frozen --extra dev --no-install-package llama-cpp-python
+      - name: Run reproducible hosted performance regression
+        run: |
+          mkdir -p .artifacts/l2-performance
+          uv run --no-sync python scripts/run_performance_regression.py \
+            --output ".artifacts/l2-performance/performance-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA}.json"
+      - name: Retain bounded performance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: l2-performance-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .artifacts/l2-performance/*.json
+          if-no-files-found: ignore
+          retention-days: 7

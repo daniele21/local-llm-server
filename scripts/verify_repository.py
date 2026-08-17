@@ -25,6 +25,14 @@ L1_FITNESS_FUNCTIONS = (
     "scripts/verify_lifecycle_contracts.py",
     "scripts/verify_security_exceptions.py",
 )
+L2_FITNESS_FUNCTIONS = (
+    "scripts/verify_architecture.py",
+    "scripts/verify_resource_regression.py",
+    "scripts/verify_fault_injection.py",
+    "scripts/verify_repeatability_contracts.py",
+    "scripts/verify_change_review.py",
+    "scripts/verify_built_surface_e2e.py",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -34,10 +42,10 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _run_specialist_validator(root: Path, relative: str) -> str | None:
+def _run_specialist_validator(root: Path, relative: str, *, level: str) -> str | None:
     path = root / relative
     if not path.is_file():
-        return f"missing L1 fitness function: {relative}"
+        return f"missing {level} fitness function: {relative}"
     proc = subprocess.run(
         [sys.executable, str(path)],
         cwd=root,
@@ -51,7 +59,7 @@ def _run_specialist_validator(root: Path, relative: str) -> str | None:
             print(f"\n--- {relative} ---\n{output}")
         return None
     details = "\n".join(part.strip() for part in (proc.stdout, proc.stderr) if part.strip())
-    return f"L1 fitness function failed: {relative}\n{details}"
+    return f"{level} fitness function failed: {relative}\n{details}"
 
 
 def main() -> int:
@@ -110,7 +118,12 @@ def main() -> int:
 
         if target_level in {"L1", "L2"}:
             for relative in L1_FITNESS_FUNCTIONS:
-                failure = _run_specialist_validator(root, relative)
+                failure = _run_specialist_validator(root, relative, level="L1")
+                if failure:
+                    errors.append(failure)
+        if target_level == "L2":
+            for relative in L2_FITNESS_FUNCTIONS:
+                failure = _run_specialist_validator(root, relative, level="L2")
                 if failure:
                     errors.append(failure)
 

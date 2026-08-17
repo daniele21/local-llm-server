@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "benchmark": "canonical_request_preparation",
+  "evidence_class": "hosted-linux-cpu-pure-python",
+  "warmup_iterations": 250,
+  "iterations_per_sample": 500,
+  "samples": 7,
+  "statistic": "median_ns_per_operation",
+  "max_median_ns_per_operation": 100000,
+  "synthetic_input": true,
+  "hardware_non_claims": [
+    "model inference latency",
+    "TTFT",
+    "token throughput",
+    "backend startup latency",
+    "Apple Silicon performance",
+    "thermal behavior"
+  ]
+}

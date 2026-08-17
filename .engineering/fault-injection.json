@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "owner": "runtime-and-platform",
+  "faults": [
+    {
+      "id": "backend-load-failure-rolls-back-resource-reservation",
+      "domain": "resource_admission",
+      "fault": "backend load raises after reservation",
+      "recovery_invariant": "reservation is rolled back and no failed runtime becomes resident",
+      "test": "tests/test_runtime_resource_admission.py::test_backend_load_failure_rolls_back_reservation"
+    },
+    {
+      "id": "reload-overlap-rejection-preserves-current-runtime",
+      "domain": "resource_admission",
+      "fault": "replacement peak footprint cannot be admitted",
+      "recovery_invariant": "existing runtime remains resident and accounting is unchanged",
+      "test": "tests/test_runtime_resource_admission.py::test_reload_rejects_peak_overlap_and_preserves_existing_runtime"
+    },
+    {
+      "id": "worker-prepare-failure-stops-worker",
+      "domain": "worker_lifecycle",
+      "fault": "worker preparation raises",
+      "recovery_invariant": "owned worker is stopped before failure escapes",
+      "test": "tests/test_worker_engine.py::test_prepare_failure_stops_worker_before_raising"
+    },
+    {
+      "id": "worker-exercise-failure-still-captures-stop-window",
+      "domain": "worker_lifecycle",
+      "fault": "representative worker exercise raises",
+      "recovery_invariant": "worker stop and after-stop evidence are still attempted",
+      "test": "tests/test_reclamation_experiment.py::test_exercise_failure_still_stops_and_captures_after_stop"
+    },
+    {
+      "id": "tampered-state-archive-fails-before-restore",
+      "domain": "persistence_integrity",
+      "fault": "archive checksum or path traversal is tampered",
+      "recovery_invariant": "restore rejects the archive before promotion outside the allow-listed target",
+      "test": "tests/test_state_backup.py::test_checksum_or_traversal_tampering_is_rejected"
+    },
+    {
+      "id": "unknown-pressure-does-not-trigger-or-clear",
+      "domain": "pressure_policy",
+      "fault": "resource observer reports unknown pressure",
+      "recovery_invariant": "unknown evidence neither triggers eviction nor clears a real pressure episode",
+      "test": "tests/test_residency_pressure.py::test_unknown_pressure_never_triggers_or_clears_existing_episode"
+    },
+    {
+      "id": "critical-pressure-requires-hysteresis",
+      "domain": "pressure_policy",
+      "fault": "single critical pressure sample",
+      "recovery_invariant": "one noisy sample cannot trigger the configured pressure action",
+      "test": "tests/test_residency_pressure.py::test_policy_requires_consecutive_trigger_samples_and_protects_default"
+    },
+    {
+      "id": "queued-request-timeout-never-reaches-route",
+      "domain": "request_admission",
+      "fault": "request expires while queued",
+      "recovery_invariant": "request receives timeout and backend route is never invoked",
+      "test": "tests/test_request_scheduler.py::test_explicit_queue_timeout_returns_408_without_invoking_route"
+    },
+    {
+      "id": "cancelled-stream-releases-runtime-lease",
+      "domain": "request_lifecycle",
+      "fault": "streaming client disconnects",
+      "recovery_invariant": "runtime lease is released after stream cancellation",
+      "test": "tests/test_server_multimodel.py::test_streaming_response_releases_lease_when_client_disconnects"
+    }
+  ],
+  "required_domains": [
+    "resource_admission",
+    "worker_lifecycle",
+    "persistence_integrity",
+    "pressure_policy",
+    "request_admission",
+    "request_lifecycle"
+  ],
+  "non_claims": [
+    "automatic pressure-triggered eviction is safe on representative hardware",
+    "worker streaming or in-flight backend cancellation is implemented",
+    "native memory is reclaimed after every injected failure"
+  ]
+}

@@ -5,9 +5,15 @@ from scripts.verify_docs import _check_canonical_scopes, _check_freshness, valid
 
 
 def test_repository_documentation_policy_passes() -> None:
-    errors, active_count = validate_documents(Path("."), today=date(2026, 8, 17))
+    root = Path(".")
+    errors, active_count = validate_documents(root, today=date(2026, 8, 17))
+    expected_active = sum(
+        1
+        for path in (root / "docs" / "workstreams").glob("*.md")
+        if path.name != "README.md" and not path.name.startswith("_")
+    )
     assert errors == []
-    assert active_count == 2
+    assert active_count == expected_active
 
 
 def test_duplicate_canonical_scope_is_rejected(tmp_path: Path) -> None:

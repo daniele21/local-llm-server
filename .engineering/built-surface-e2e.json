@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "surface": "fresh-installed-wheel",
+  "workflow": ".github/workflows/package-smoke.yml",
+  "workflow_marker": "Install built wheel into a fresh environment and smoke it",
+  "smoke_runner": "scripts/smoke_installed_artifact.py",
+  "journey_runner": "scripts/installed_surface_journey.py",
+  "journey": {
+    "healthy_before": true,
+    "injected_failure": "model_not_resident",
+    "expected_failure_status": 404,
+    "retry": "valid_resident_model",
+    "expected_retry_status": 200,
+    "healthy_after": true,
+    "synthetic_engine": true,
+    "model_download": false
+  },
+  "privacy": {
+    "retain_prompt_or_output": false,
+    "retain_private_paths": false
+  },
+  "non_claims": [
+    "installed-surface journey proves a native model backend works",
+    "synthetic engine performance represents model inference",
+    "hosted Linux package smoke proves macOS packaging/runtime behavior"
+  ]
+}
