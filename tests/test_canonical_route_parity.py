@@ -20,13 +20,20 @@ class _CaptureEngine:
 
     def complete(self, payload):
         self.complete_calls.append(deepcopy(payload))
+        response_format = payload.get("response_format")
+        content = (
+            '{"ok":true}'
+            if isinstance(response_format, dict)
+            and response_format.get("type") == "json_object"
+            else "ok"
+        )
         return {
             "id": "chatcmpl-test",
             "object": "chat.completion",
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": "ok"},
+                    "message": {"role": "assistant", "content": content},
                     "finish_reason": "stop",
                 }
             ],

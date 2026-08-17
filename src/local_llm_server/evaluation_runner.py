@@ -8,9 +8,10 @@ and future remote comparison adapters without embedding backend logic here.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol, Sequence
 
+from .application_output import normalize_application_output
 from .core.contracts import (
     GenerationOptions,
     InferenceError,
@@ -106,6 +107,23 @@ class EvaluationRunner:
         started = time.perf_counter()
         try:
             result = self.executor.execute(request)
+            normalized = normalize_application_output(
+                result.content or "",
+                expect_reasoning=(
+                    manifest.reasoning_profile is not None
+                    and manifest.reasoning_profile.effective == "on"
+                ),
+                constraints=request.output,
+            )
+            result = replace(
+                result,
+                content=normalized.final_content,
+                structured_output=normalized.structured_output,
+                metadata={
+                    **dict(result.metadata),
+                    "reasoning_separated": bool(normalized.reasoning),
+                },
+            )
         except InferenceError as exc:
             elapsed = time.perf_counter() - started
             return EvaluationSampleResult(
