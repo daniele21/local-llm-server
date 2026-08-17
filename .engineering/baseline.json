@@ -23,9 +23,9 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l1-integration-validation",
-    "current_slice": "L1-08",
+    "status": "l1-repository-side-complete",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
+    "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
     "skill_files": "installed-and-project-customized",
     "repository_side_l0": {
       "canonical_commands": "implemented-and-validated",
@@ -42,7 +42,7 @@
       "performance_resource_budgets": "implemented-and-validated",
       "release_rollback_and_fresh_install": "implemented-and-validated",
       "privacy_safe_e2e_evidence": "implemented-and-validated",
-      "specialist_fitness_functions": "integrated-into-repository-health-pending-exact-head-validation"
+      "specialist_fitness_functions": "implemented-and-blocking-in-repository-health"
     },
     "accepted_deviations": {
       "canonical_branch_protection": {
