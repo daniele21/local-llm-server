@@ -5,10 +5,11 @@ import json
 import os
 import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
 
+from .backend_request import build_backend_request
 from .core.contracts import (
     ErrorCode,
     InferenceError,
@@ -61,10 +62,11 @@ class EvaluationRunOutcome:
 
 
 class ResidentRuntimeExecutor:
-    """Execute canonical deterministic evaluation requests on resident runtimes."""
+    """Execute canonical deterministic evaluation requests on one resident runtime."""
 
-    def __init__(self, manager: Any) -> None:
+    def __init__(self, manager: Any, *, runtime: Any | None = None) -> None:
         self.manager = manager
+        self.runtime = runtime
 
     def execute(self, request: InferenceRequest) -> InferenceResult:
         if request.task not in {TaskType.CHAT, TaskType.STRUCTURED_GENERATION}:
@@ -72,48 +74,19 @@ class ResidentRuntimeExecutor:
                 ErrorCode.UNSUPPORTED_TASK,
                 f"evaluation executor does not support task {request.task.value}",
             )
-        try:
-            runtime = self.manager.resolve(request.model)
-        except LookupError as exc:
-            raise InferenceError(
-                ErrorCode.MODEL_NOT_RESIDENT,
-                "selected evaluation model is not resident",
-                retryable=True,
-                details={"model": request.model},
-            ) from exc
 
-        messages = list(request.messages)
-        if not messages and request.input_text is not None:
-            messages = [{"role": "user", "content": request.input_text}]
-        if not messages:
-            raise InferenceError(ErrorCode.INVALID_REQUEST, "evaluation request has no input")
-
-        kwargs: dict[str, Any] = {
-            "messages": messages,
-            "model": runtime.model_id,
-        }
-        generation = request.generation
-        for field_name in (
-            "max_tokens",
-            "temperature",
-            "top_p",
-            "top_k",
-            "min_p",
-            "repeat_penalty",
-            "presence_penalty",
-            "frequency_penalty",
-            "seed",
-            "stop",
-        ):
-            value = getattr(generation, field_name)
-            if value is not None:
-                kwargs[field_name] = value
-        if request.task is TaskType.STRUCTURED_GENERATION or request.output.format == "json":
-            kwargs["response_format"] = {"type": "json_object"}
+        runtime = self._resolve_runtime(request)
+        canonical = _request_with_messages(request)
+        prepared = build_backend_request(
+            canonical,
+            runtime_config=runtime.cfg,
+            runtime_model_id=runtime.model_id,
+        )
+        kwargs = dict(prepared.kwargs)
 
         started = time.perf_counter()
         with self.manager.lease_runtime(runtime):
-            runtime.mark_started(int(generation.max_tokens or 0))
+            runtime.mark_started(int(prepared.max_tokens or 0))
             try:
                 raw = runtime.engine.complete(kwargs)
             except InferenceError:
@@ -140,6 +113,28 @@ class ResidentRuntimeExecutor:
             usage=usage,
             metadata={"backend": getattr(runtime.engine, "backend", runtime.cfg.get("backend", "unknown"))},
         )
+
+    def _resolve_runtime(self, request: InferenceRequest) -> Any:
+        if self.runtime is not None:
+            selected = self.runtime
+            if request.model not in {None, selected.key, selected.model_id}:
+                raise InferenceError(
+                    ErrorCode.MODEL_NOT_RESIDENT,
+                    "evaluation request does not match the pinned resident runtime",
+                    retryable=False,
+                    details={"model": request.model},
+                )
+            return selected
+
+        try:
+            return self.manager.resolve(request.model)
+        except LookupError as exc:
+            raise InferenceError(
+                ErrorCode.MODEL_NOT_RESIDENT,
+                "selected evaluation model is not resident",
+                retryable=True,
+                details={"model": request.model},
+            ) from exc
 
 
 class EvaluationStore:
@@ -231,7 +226,7 @@ class EvaluationService:
             runtime_fingerprint=fingerprint,
         )
         report = EvaluationRunner(
-            ResidentRuntimeExecutor(self.manager),
+            ResidentRuntimeExecutor(self.manager, runtime=runtime),
             (DeterministicObjectiveScorer(),),
         ).run(manifest=manifest, test_set=test_set)
 
@@ -298,6 +293,17 @@ def _score_to_dict(score: Score) -> dict[str, object]:
         "passed": score.passed,
         "details": dict(score.details),
     }
+
+
+def _request_with_messages(request: InferenceRequest) -> InferenceRequest:
+    if request.messages:
+        return request
+    if request.input_text is None:
+        raise InferenceError(ErrorCode.INVALID_REQUEST, "evaluation request has no input")
+    return replace(
+        request,
+        messages=({"role": "user", "content": request.input_text},),
+    )
 
 
 def _extract_content(raw: Mapping[str, Any]) -> str:
