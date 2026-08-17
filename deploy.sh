@@ -9,8 +9,9 @@ Build an immutable, uniquely identified wheel/sdist bundle from the already
 synchronized project environment.
 
 Options:
-  --bump-patch   Increment patch version in pyproject.toml/VERSION and refresh
-                 local-project metadata in uv.lock without network resolution.
+  --bump-patch   Increment patch version in pyproject.toml/VERSION and update
+                 only the already-resolved local editable package version in
+                 uv.lock. No dependency re-resolution is performed.
   --skip-tests   Build without running the deterministic pytest suite first.
   -h, --help     Show this help.
 EOF
@@ -30,8 +31,7 @@ done
 
 run_uv() {
   # Reuse uv's platform-standard cache (or an explicitly provided
-  # UV_CACHE_DIR). Canonical setup populates that cache; creating a private
-  # deploy-only cache would make an offline version/lock refresh incomplete.
+  # UV_CACHE_DIR). Canonical setup populates that cache.
   uv "$@"
 }
 
@@ -51,8 +51,11 @@ import re
 from pathlib import Path
 
 project = Path("pyproject.toml")
-content = project.read_text(encoding="utf-8")
-match = re.search(r'version\s*=\s*"([^"]+)"', content)
+lock = Path("uv.lock")
+project_content = project.read_text(encoding="utf-8")
+lock_content = lock.read_text(encoding="utf-8")
+
+match = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', project_content)
 if not match:
     raise SystemExit("Could not find project version in pyproject.toml")
 old = match.group(1)
@@ -61,14 +64,33 @@ if len(parts) != 3 or not all(part.isdigit() for part in parts):
     raise SystemExit(f"Expected semantic version X.Y.Z, found: {old}")
 parts[-1] = str(int(parts[-1]) + 1)
 new = ".".join(parts)
-project.write_text(content.replace(f'version = "{old}"', f'version = "{new}"', 1), encoding="utf-8")
+
+project_updated = project_content[: match.start(1)] + new + project_content[match.end(1) :]
+
+# uv.lock already contains the fully resolved dependency graph. A release-only
+# version bump must not reopen resolution. Update exactly the local editable
+# project package block and fail closed if its expected identity is ambiguous.
+package_pattern = re.compile(
+    r'(?ms)(\[\[package\]\]\nname = "local-llm-server"\nversion = ")'
+    + re.escape(old)
+    + r'("\nsource = \{ editable = "\." \})'
+)
+lock_updated, replacements = package_pattern.subn(rf"\g<1>{new}\g<2>", lock_content)
+if replacements != 1:
+    raise SystemExit(
+        "Expected exactly one local editable local-llm-server package entry "
+        f"at version {old} in uv.lock; found {replacements}"
+    )
+
+project.write_text(project_updated, encoding="utf-8")
 Path("VERSION").write_text(new + "\n", encoding="utf-8")
+lock.write_text(lock_updated, encoding="utf-8")
 print(new)
 PY
 )"
   echo "[*] Version bumped atomically to: ${current_version}"
-  echo "[*] Synchronizing local project metadata in uv.lock without network resolution"
-  run_uv lock --offline
+  echo "[*] Verifying the resolved lock remains synchronized"
+  run_uv lock --check
 else
   current_version="$(python3 - <<'PY'
 import tomllib
