@@ -9,7 +9,8 @@ Build an immutable, uniquely identified wheel/sdist bundle from the already
 synchronized project environment.
 
 Options:
-  --bump-patch   Increment patch version in both pyproject.toml and VERSION.
+  --bump-patch   Increment patch version in pyproject.toml/VERSION and refresh
+                 local-project metadata in uv.lock without network resolution.
   --skip-tests   Build without running the deterministic pytest suite first.
   -h, --help     Show this help.
 EOF
@@ -63,6 +64,8 @@ print(new)
 PY
 )"
   echo "[*] Version bumped atomically to: ${current_version}"
+  echo "[*] Synchronizing local project metadata in uv.lock without network resolution"
+  run_uv lock --offline
 else
   current_version="$(python3 - <<'PY'
 import tomllib
