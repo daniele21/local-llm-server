@@ -4,43 +4,44 @@
   "commands": {
     "setup": {
       "status": "required",
-      "run": "python3 -m pip install -e '.[dev]' && npm ci --ignore-scripts --no-audit --no-fund"
+      "run": "python3 -m pip install 'uv==0.8.13' && uv sync --frozen --extra dev && npm ci --ignore-scripts --no-audit --no-fund"
     },
     "doctor": {
       "status": "recommended",
-      "run": "python3 --version && python3 -m pip --version && node --version && npm --version"
+      "run": "python3 --version && uv --version && node --version && npm --version"
     },
     "dev": {
       "status": "n/a",
-      "reason": "Runtime startup is model/workload-specific; no single repository-wide dev daemon command is currently canonical. STD-03 may add a bounded developer fixture without replacing native CLI startup."
+      "reason": "Runtime startup is intentionally model/workload-specific; there is no single repository-wide development daemon command that can truthfully select a model/backend for every checkout."
     },
     "check": {
       "status": "required",
-      "run": "ruff check src/ tests/ --select E9,F63,F7,F82"
+      "run": "uv run --frozen ruff check src/ tests/ --select E9,F63,F7,F82"
     },
     "test": {
       "status": "required",
-      "run": "pytest tests/ -v --tb=short"
+      "run": "uv run --frozen pytest tests/ -v --tb=short"
     },
     "e2e": {
       "status": "recommended",
-      "run": "npm run test:e2e"
+      "run": "npm run test:e2e && python tests/e2e/verify_residue.py"
     },
     "build": {
       "status": "required",
       "run": "./deploy.sh"
     },
     "smoke": {
-      "status": "n/a",
-      "reason": "No standalone packaged-artifact smoke command exists yet; STD-08 owns final lifecycle integration and STD-09 validates the canonical smoke boundary."
+      "status": "recommended",
+      "run": "python tests/real_runtime/smoke_runtime.py --base-url http://127.0.0.1:1235",
+      "requires": "An already running real Local LLM Server with an unambiguous default runtime, or pass --model explicitly."
     },
     "package": {
       "status": "n/a",
-      "reason": "The current wheel/sdist product is packaged by ./deploy.sh; packaging remains intentionally co-located with build until STD-04 makes artifact staging/promotion explicit."
+      "reason": "The Python wheel/sdist distributables and their uniquely identified bundle are produced atomically by the canonical build operation; a second packaging command would duplicate the artifact source of truth."
     },
     "stop": {
       "status": "n/a",
-      "reason": "The supported server runs in the foreground and stops by process ownership/signal; no separate project-owned stop command exists yet. STD-05/STD-09 own residue verification."
+      "reason": "The supported local server is foreground-owned rather than a detached repository daemon. Its owning process/signal path performs shutdown; deterministic E2E additionally verifies the owned listener and temp state are gone."
     },
     "clean": {
       "status": "required",
@@ -55,7 +56,7 @@
     "run_against_built_artifact_when_material": true,
     "failure_evidence_bounded": true,
     "zero_residue_required": true,
-    "implementation_state": "target-contract; Playwright exists today, while zero-residue and bounded-evidence enforcement are owned by STD-05/STD-08."
+    "implementation_state": "implemented for the deterministic Studio/product boundary: Playwright owns a run-scoped synthetic evaluation workspace, CI performs an always-run residue check, and failure traces/screenshots have seven-day retention. Built/real-runtime smoke remains a distinct operation."
   },
   "build_identity": {
     "unique_per_build": true,
@@ -74,7 +75,7 @@
       "build_id",
       "source_revision"
     ],
-    "implementation_state": "target-contract; enforcement is owned by STD-04."
+    "implementation_state": "implemented by scripts/build_artifacts.py: product version, unique UTC/UUID build ID, source revision, dirty state and lineage are recorded in the promoted build manifest and bundle identity."
   },
   "artifact_lifecycle": {
     "immutable_successful_artifacts": true,
@@ -87,7 +88,7 @@
     "ci_retention_days": 7,
     "release_store": "github-releases",
     "release_artifacts_immutable": true,
-    "implementation_state": "target-contract; staging, manifest, checksums, retention and immutable release behavior are owned by STD-04/STD-08."
+    "implementation_state": "implemented for wheel/sdist builds and tagged releases: staging/promote, manifest, SHA-256 inventory, bounded local retention, seven-day CI handoff retention and fail-closed existing release/tag behavior are present. Full repeated-build lifecycle execution is validated in STD-09."
   },
   "build_delta": {
     "required": true,
@@ -103,7 +104,7 @@
       "artifact_metrics",
       "validation"
     ],
-    "implementation_state": "target-contract; generation and bundling are owned by STD-04."
+    "implementation_state": "implemented by scripts/build_artifacts.py and bundled with every promoted build; STD-09 verifies two real comparable builds and retention behavior end-to-end."
   },
   "local_runtime": {
     "applicable": true,
@@ -113,7 +114,7 @@
     "readiness_required": true,
     "graceful_shutdown_required": true,
     "verify_no_project_listener_after_stop": true,
-    "implementation_state": "mixed; loopback/foreground/readiness behavior exists, while complete lifecycle residue verification is owned by STD-05/STD-09."
+    "implementation_state": "mixed but explicit: loopback/foreground/readiness/graceful shutdown are product behavior and deterministic E2E verifies its fixture listener closes. General real-runtime post-stop lifecycle verification remains STD-09/representative-device evidence where applicable."
   },
   "ephemeral_resources": {
     "run_identity": true,
@@ -129,6 +130,6 @@
     "stale_resource_recovery": true,
     "ownership_required_before_cleanup": true,
     "post_cleanup_verification": true,
-    "implementation_state": "target-contract; E2E/runtime enforcement is owned by STD-05 and final lifecycle validation by STD-09."
+    "implementation_state": "implemented for deterministic E2E run-owned evaluation/temp state with ownership-checked deletion and independent post-run verification; broader runtime/build lifecycle validation is completed by STD-09."
   }
 }
