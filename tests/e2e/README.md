@@ -15,10 +15,12 @@ Run from the repository root:
 python -m pip install --upgrade pip
 pip install -e . --no-deps
 pip install pyyaml fastapi uvicorn python-multipart httpx huggingface-hub
-npm install --no-audit --no-fund
+npm ci --ignore-scripts --no-audit --no-fund
+npm audit --audit-level=high
 npx playwright install chromium
 npm run test:e2e
 ```
 
-The CI job uses `npx playwright install --with-deps chromium` on Ubuntu and retains
-Playwright traces/screenshots only when the browser gate fails.
+The committed lockfile makes the Node dependency graph reproducible. The CI job rejects
+high-severity npm advisories, uses `npx playwright install --with-deps chromium` on Ubuntu
+and retains Playwright traces/screenshots only when the browser gate fails.

@@ -63,7 +63,8 @@ jobs:
           pip install pyyaml fastapi uvicorn python-multipart httpx huggingface-hub
       - name: Install Playwright and Chromium
         run: |
-          npm install --no-audit --no-fund
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit --audit-level=high
           npx playwright install --with-deps chromium
       - name: Run browser E2E gate
         run: npm run test:e2e
