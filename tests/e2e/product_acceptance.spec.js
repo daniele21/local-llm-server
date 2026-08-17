@@ -1,0 +1,119 @@
+const { test, expect } = require('@playwright/test');
+
+async function openStudio(page) {
+  await page.route('https://fonts.googleapis.com/**', (route) => route.abort());
+  await page.route('https://fonts.gstatic.com/**', (route) => route.abort());
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('tab', { name: 'Playground' })).toBeVisible();
+}
+
+async function openPlayground(page) {
+  await openStudio(page);
+  await page.getByRole('tab', { name: 'Playground' }).click();
+  await expect(page.locator('#chat-tab')).toBeVisible();
+  await expect(page.locator('#model-select')).toBeEnabled();
+}
+
+async function submitMessage(page, text) {
+  const requestPromise = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return request.method() === 'POST' && url.pathname === '/v1/chat/completions';
+  });
+  await page.locator('#chat-textarea').fill(text);
+  await page.locator('#send-chat-btn').click();
+  return requestPromise;
+}
+
+test('public runtime contract exposes coherent inference identity and status surfaces', async ({ request }) => {
+  const modelsResponse = await request.get('/v1/models');
+  expect(modelsResponse.ok()).toBeTruthy();
+  const models = await modelsResponse.json();
+  expect(models.data.map((item) => item.key || item.id)).toEqual(
+    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
+  );
+
+  const identityResponse = await request.get('/v1/runtime/identity');
+  expect(identityResponse.ok()).toBeTruthy();
+  const identity = await identityResponse.json();
+  expect(identity.protocol_version).toBe('local-llm-identity-v1');
+  expect(identity.default_model).toBe('e2e-switchable');
+  expect(Object.keys(identity.models)).toEqual(
+    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
+  );
+  expect(JSON.stringify(identity)).not.toContain('/e2e/');
+
+  const statusResponse = await request.get('/status');
+  expect(statusResponse.ok()).toBeTruthy();
+  const status = await statusResponse.json();
+  expect(status.default_model).toBe('e2e-switchable');
+  expect(Object.keys(status.models)).toEqual(
+    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
+  );
+});
+
+test('playground routes an explicit request to the selected resident model', async ({ page }) => {
+  await openPlayground(page);
+
+  const modelSelect = page.locator('#model-select');
+  await expect(modelSelect.locator('option')).toHaveCount(3);
+  await modelSelect.selectOption('e2e-alt');
+
+  const request = await submitMessage(page, 'Route this request to the alternate runtime.');
+  const payload = request.postDataJSON();
+  expect(payload.model).toBe('e2e-alt');
+
+  await expect(page.locator('#typing-status')).toBeHidden();
+  await expect(page.locator('#chat-messages-container')).toContainText('84');
+});
+
+test('runtime status polling becomes visible while a request is genuinely generating', async ({ page }) => {
+  await openPlayground(page);
+
+  await submitMessage(page, 'Observe this request while it is running. [slow-status]');
+
+  await expect(page.locator('#typing-text')).toContainText('Generazione in corso', {
+    timeout: 5_000,
+  });
+  await expect(page.locator('#chat-messages-container')).toContainText('42', {
+    timeout: 10_000,
+  });
+  await expect(page.locator('#typing-status')).toBeHidden();
+});
+
+test('a failed inference does not poison the next request', async ({ page }) => {
+  await openPlayground(page);
+
+  let intercepted = false;
+  await page.route('**/v1/chat/completions', async (route) => {
+    if (!intercepted) {
+      intercepted = true;
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          detail: {
+            code: 'backend_unavailable',
+            message: 'Fixture backend is temporarily unavailable.',
+            retryable: true,
+            details: {},
+          },
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.locator('#chat-textarea').fill('Fail this request once.');
+  await page.locator('#send-chat-btn').click();
+  await expect(page.locator('#chat-messages-container')).toContainText(
+    'Fixture backend is temporarily unavailable.'
+  );
+  await expect(page.locator('#send-chat-btn')).toBeEnabled();
+
+  await page.locator('#chat-textarea').fill('Now recover.');
+  await page.locator('#send-chat-btn').click();
+  await expect(page.locator('#chat-messages-container')).toContainText('42');
+  await expect(page.locator('#typing-status')).toBeHidden();
+  await expect(page.locator('#send-chat-btn')).toBeEnabled();
+});
