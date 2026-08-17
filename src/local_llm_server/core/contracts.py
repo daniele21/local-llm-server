@@ -28,6 +28,7 @@ class TerminationReason(str, Enum):
 
 class ErrorCode(str, Enum):
     INVALID_REQUEST = "invalid_request"
+    INVALID_MODEL_OUTPUT = "invalid_model_output"
     UNSUPPORTED_TASK = "unsupported_task"
     UNSUPPORTED_MODALITY = "unsupported_modality"
     MODEL_NOT_FOUND = "model_not_found"
