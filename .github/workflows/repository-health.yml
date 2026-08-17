@@ -68,15 +68,18 @@ jobs:
                   if path.is_dir() and (path / "build-manifest.json").is_file()
               }
 
-          def run_build() -> Path:
-              before = successful_builds()
-              proc = subprocess.run(
-                  ["./deploy.sh", "--skip-tests"],
-                  check=True,
+          def invoke_build(*extra: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+              return subprocess.run(
+                  ["./deploy.sh", *extra],
+                  check=check,
                   text=True,
                   capture_output=True,
                   env=os.environ.copy(),
               )
+
+          def run_build() -> Path:
+              before = successful_builds()
+              proc = invoke_build("--skip-tests")
               after = successful_builds()
               created = after - before
               if len(created) != 1:
@@ -144,8 +147,22 @@ jobs:
           third_delta = (third / "BUILD_CHANGELOG.md").read_text(encoding="utf-8")
           assert second_manifest["build_id"] in third_delta
 
+          # Force a real post-build verification failure. The staged wheel is
+          # deliberately missing a required Studio asset; no failed candidate
+          # may appear under the successful lineage and staging must be removed.
+          required_asset = Path("src/local_llm_server/static/index.html")
+          hidden_asset = required_asset.with_suffix(".html.std09-hidden")
+          before_failure = successful_builds()
+          required_asset.rename(hidden_asset)
+          try:
+              failed = invoke_build("--skip-tests", check=False)
+              assert failed.returncode != 0, "controlled broken package unexpectedly succeeded"
+          finally:
+              hidden_asset.rename(required_asset)
+          assert successful_builds() == before_failure, "failed staging was promoted as successful output"
+
           staging = output_root / ".staging"
-          assert not staging.exists() or not any(staging.iterdir()), "successful builds left staging residue"
+          assert not staging.exists() or not any(staging.iterdir()), "build lifecycle left staging residue"
           PY
       - name: Verify release-style version bump updates lock identity
         env:
