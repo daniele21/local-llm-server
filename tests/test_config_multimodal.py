@@ -16,6 +16,25 @@ def _write_complete_vlm(path: Path) -> None:
     (path / "model.safetensors").write_bytes(b"weights")
 
 
+def test_text_only_builtin_defaults_to_explicit_text_modality(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    cfg = build_config(model="nemotron-nano-4b-q8")
+
+    assert cfg["multimodal"] is False
+    assert cfg["modalities"] == ["text"]
+
+
+def test_mutable_fallbacks_are_not_shared_between_runtime_configs(monkeypatch, tmp_path):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+
+    first = build_config(model="nemotron-nano-4b-q8")
+    second = build_config(model="nemotron-nano-4b-q8")
+    first["modalities"].append("image")
+
+    assert second["modalities"] == ["text"]
+
+
 def test_multimodal_config_prefers_complete_lmstudio_model(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     local_model = (

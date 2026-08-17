@@ -56,6 +56,7 @@ class CapabilityDescriptor:
 
 def descriptor_from_registry_entry(entry: Mapping[str, Any]) -> CapabilityDescriptor:
     """Build a conservative descriptor from current and future registry fields."""
+    legacy_modalities = _legacy_modalities(entry)
     explicit_tasks = entry.get("tasks")
     if explicit_tasks is not None:
         tasks = frozenset(_parse_task(value) for value in _as_string_list(explicit_tasks, "tasks"))
@@ -63,18 +64,21 @@ def descriptor_from_registry_entry(entry: Mapping[str, Any]) -> CapabilityDescri
         # Legacy migration deliberately does not infer TRANSCRIPTION merely from
         # an audio modality: current audio-capable chat paths do not prove a
         # first-class ASR contract.
-        legacy_modalities = set(_as_string_list(entry.get("modalities", ["text"]), "modalities"))
+        legacy_modality_set = set(legacy_modalities)
         tasks_set = {TaskType.CHAT}
-        if "text" in legacy_modalities:
+        if "text" in legacy_modality_set:
             tasks_set.add(TaskType.STRUCTURED_GENERATION)
-        if "image" in legacy_modalities:
+        if "image" in legacy_modality_set:
             tasks_set.add(TaskType.VISION_LANGUAGE)
         tasks = frozenset(tasks_set)
 
-    input_modalities = frozenset(
-        _parse_modality(value)
-        for value in _as_string_list(entry.get("input_modalities", entry.get("modalities", ["text"])), "input_modalities")
+    explicit_input_modalities = entry.get("input_modalities")
+    input_values = (
+        legacy_modalities
+        if explicit_input_modalities is None
+        else _as_string_list(explicit_input_modalities, "input_modalities")
     )
+    input_modalities = frozenset(_parse_modality(value) for value in input_values)
     output_modalities = frozenset(
         _parse_modality(value)
         for value in _as_string_list(entry.get("output_modalities", ["text"]), "output_modalities")
@@ -130,6 +134,20 @@ def _request_modalities(request: InferenceRequest) -> frozenset[Modality]:
             elif part_type in {"audio", "input_audio"}:
                 modalities.add(Modality.AUDIO)
     return frozenset(modalities)
+
+
+def _legacy_modalities(entry: Mapping[str, Any]) -> list[str]:
+    """Normalize the historical empty/missing text-only sentinel conservatively.
+
+    Older effective runtime configs could expose ``modalities=[]`` even though
+    their proven behavior was ordinary text chat. Treat only that legacy shape
+    as text-only. Explicit ``input_modalities`` remains strict and is validated
+    separately, so an explicitly empty capability declaration still fails.
+    """
+    value = entry.get("modalities")
+    if value is None or value == []:
+        return ["text"]
+    return _as_string_list(value, "modalities")
 
 
 def _as_string_list(value: Any, field_name: str) -> list[str]:
