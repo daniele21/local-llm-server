@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "source_root": "src/local_llm_server",
+  "owners": [
+    {"boundary": "backend_neutral_contracts", "path": "src/local_llm_server/core"},
+    {"boundary": "product_assembly", "path": "src/local_llm_server/product_composition.py"},
+    {"boundary": "resource_budget", "path": "src/local_llm_server/resource_manager.py"},
+    {"boundary": "request_admission", "path": "src/local_llm_server/request_scheduler.py"},
+    {"boundary": "residency_eviction", "path": "src/local_llm_server/residency_eviction.py"},
+    {"boundary": "pressure_policy", "path": "src/local_llm_server/residency_pressure.py"}
+  ],
+  "rules": [
+    {
+      "id": "core-backend-neutral",
+      "paths": ["core/*.py"],
+      "forbidden_import_prefixes": ["fastapi", "starlette", "pydantic", "uvicorn", "llama_cpp", "mlx", "local_llm_server.server", "local_llm_server.product_composition", "local_llm_server.control_plane_api", "local_llm_server.identity_api", "local_llm_server.runtime", "local_llm_server.product_runtime_manager", "local_llm_server.resource_manager", "local_llm_server.request_scheduler", "local_llm_server.engine"],
+      "rationale": "Canonical task/request/capability vocabulary must not depend on transport, runtime orchestration or backend implementation types."
+    },
+    {
+      "id": "resource-policy-not-http-owned",
+      "paths": ["resource_manager.py", "request_scheduler.py", "residency_eviction.py", "residency_pressure.py"],
+      "forbidden_import_prefixes": ["fastapi", "starlette", "uvicorn", "local_llm_server.server", "local_llm_server.product_composition", "local_llm_server.control_plane_api", "local_llm_server.identity_api", "local_llm_server.cli"],
+      "rationale": "Resource admission, scheduling and pressure policy are domain/runtime policy and must remain reusable below HTTP/CLI composition."
+    },
+    {
+      "id": "low-level-runtime-not-product-composition-owned",
+      "paths": ["resource_manager.py", "request_scheduler.py", "residency_eviction.py", "residency_pressure.py", "engine.py"],
+      "forbidden_import_prefixes": ["local_llm_server.product_composition", "local_llm_server.control_plane_api", "local_llm_server.identity_api", "local_llm_server.cli"],
+      "rationale": "Low-level runtime/backend policy may be assembled by product composition but must not depend back on product/API composition roots."
+    }
+  ]
+}
