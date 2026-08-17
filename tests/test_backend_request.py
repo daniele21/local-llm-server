@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import pytest
+
 from local_llm_server.backend_request import build_backend_request
-from local_llm_server.core import chat_payload_to_inference_request
+from local_llm_server.core import ErrorCode, InferenceError, chat_payload_to_inference_request
 
 
 def _cfg():
     return {
         "model": "demo",
         "model_id": "org/demo",
+        "backend": "llama_server",
         "modalities": ["text"],
         "default_temperature": 0.0,
         "default_top_p": 0.8,
@@ -118,9 +121,52 @@ def test_structured_output_and_force_json_map_without_client_scoring_logic():
     assert forced.kwargs["response_format"] == {"type": "json_object"}
 
 
-def test_non_switchable_thinking_is_not_forwarded_as_backend_kwarg():
+def test_none_thinking_mode_rejects_enable_request():
     cfg = _cfg()
     cfg["thinking_mode"] = "none"
+    canonical = chat_payload_to_inference_request(
+        {
+            "messages": [{"role": "user", "content": "hello"}],
+            "enable_thinking": True,
+        }
+    )
+
+    with pytest.raises(InferenceError) as exc_info:
+        build_backend_request(
+            canonical,
+            runtime_config=cfg,
+            runtime_model_id="org/demo",
+        )
+
+    assert exc_info.value.code is ErrorCode.INVALID_REQUEST
+    assert exc_info.value.details["thinking_mode"] == "none"
+
+
+def test_always_thinking_mode_rejects_disable_request():
+    cfg = _cfg()
+    cfg["thinking_mode"] = "always"
+    canonical = chat_payload_to_inference_request(
+        {
+            "messages": [{"role": "user", "content": "hello"}],
+            "enable_thinking": False,
+        }
+    )
+
+    with pytest.raises(InferenceError) as exc_info:
+        build_backend_request(
+            canonical,
+            runtime_config=cfg,
+            runtime_model_id="org/demo",
+        )
+
+    assert exc_info.value.code is ErrorCode.INVALID_REQUEST
+    assert exc_info.value.details["thinking_mode"] == "always"
+
+
+def test_llama_cpp_switchable_declaration_is_fixed_and_never_forwards_fake_toggle():
+    cfg = _cfg()
+    cfg["backend"] = "llama_cpp"
+    cfg["enable_thinking"] = True
     canonical = chat_payload_to_inference_request(
         {"messages": [{"role": "user", "content": "hello"}]}
     )
@@ -132,3 +178,17 @@ def test_non_switchable_thinking_is_not_forwarded_as_backend_kwarg():
     )
 
     assert "enable_thinking" not in prepared.kwargs
+
+    disable = chat_payload_to_inference_request(
+        {
+            "messages": [{"role": "user", "content": "hello"}],
+            "enable_reasoning": False,
+        }
+    )
+    with pytest.raises(InferenceError) as exc_info:
+        build_backend_request(
+            disable,
+            runtime_config=cfg,
+            runtime_model_id="org/demo",
+        )
+    assert exc_info.value.details["thinking_mode"] == "always"
