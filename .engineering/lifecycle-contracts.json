@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "owner": "runtime-and-platform",
+  "contracts": [
+    {
+      "id": "load-admission-rejects-before-backend",
+      "phase": "startup",
+      "claim": "predictable resource rejection happens before expensive backend load and leaves no reservation/runtime",
+      "test": "tests/test_runtime_resource_admission.py::test_rejected_load_never_invokes_backend"
+    },
+    {
+      "id": "backend-load-failure-rolls-back-reservation",
+      "phase": "startup_failure",
+      "claim": "backend initialization failure releases provisional accounting and leaves no resident runtime",
+      "test": "tests/test_runtime_resource_admission.py::test_backend_load_failure_rolls_back_reservation"
+    },
+    {
+      "id": "unload-releases-accounting",
+      "phase": "shutdown",
+      "claim": "runtime unload stops the engine and releases committed resource accounting",
+      "test": "tests/test_runtime_resource_admission.py::test_unload_releases_committed_accounting"
+    },
+    {
+      "id": "queue-timeout-does-not-enter-backend-route",
+      "phase": "timeout",
+      "claim": "request queue timeout is typed and does not invoke the backend route",
+      "test": "tests/test_request_scheduler.py::test_explicit_queue_timeout_returns_408_without_invoking_route"
+    },
+    {
+      "id": "queued-cancellation-releases-future-slot",
+      "phase": "cancellation",
+      "claim": "cancelling a queued request cannot consume a later runtime slot",
+      "test": "tests/test_async_scheduler.py::test_cancelling_queued_request_does_not_consume_future_slot"
+    },
+    {
+      "id": "running-cancel-holds-ownership-until-release",
+      "phase": "cancellation",
+      "claim": "a cancellation request does not free active runtime capacity before the running owner releases it",
+      "test": "tests/test_async_scheduler.py::test_running_cancel_sets_token_without_freeing_slot_until_release"
+    },
+    {
+      "id": "stream-release-prunes-gate",
+      "phase": "completion_cleanup",
+      "claim": "stream ownership is retained until iterator completion and then removed from the runtime gate",
+      "test": "tests/test_request_scheduler.py::test_streaming_body_holds_gate_until_iterator_finishes_and_then_prunes"
+    },
+    {
+      "id": "signal-notifies-app-before-server-exit",
+      "phase": "process_shutdown",
+      "claim": "SIGINT/SIGTERM notifies application streams before Uvicorn begins exit",
+      "test": "tests/test_policy_server_shutdown.py::test_signal_notifies_application_before_uvicorn_marks_exit"
+    },
+    {
+      "id": "shutdown-notification-idempotent",
+      "phase": "process_shutdown",
+      "claim": "repeated application shutdown notification remains safe before final cleanup",
+      "test": "tests/test_policy_server_shutdown.py::test_shutdown_notification_is_idempotent_before_normal_finally_cleanup"
+    },
+    {
+      "id": "worker-invalid-response-fails-owned-transport",
+      "phase": "dependency_failure",
+      "claim": "invalid worker protocol response is rejected and the owned worker cannot remain falsely ready",
+      "test": "tests/test_worker_transport.py::test_invalid_response_marks_worker_failed"
+    },
+    {
+      "id": "worker-stop-clears-process-ownership",
+      "phase": "dependency_shutdown",
+      "claim": "owned subprocess worker stop transitions to stopped and clears the process handle",
+      "test": "tests/test_worker_transport.py::test_subprocess_transport_owns_start_request_and_stop_lifecycle"
+    }
+  ],
+  "explicit_non_claims": [
+    "worker-backed streaming/cancellation is not promoted to a supported product capability by this matrix",
+    "hardware reclamation success is not inferred from deterministic lifecycle tests",
+    "automatic pressure eviction remains disabled until representative evidence justifies it"
+  ]
+}
