@@ -1,5 +1,7 @@
 const { defineConfig } = require('@playwright/test');
 
+const isCI = Boolean(process.env.CI);
+
 module.exports = defineConfig({
   testDir: './tests/e2e',
   testMatch: '**/*.spec.js',
@@ -9,19 +11,17 @@ module.exports = defineConfig({
   timeout: 30_000,
   expect: { timeout: 10_000 },
   outputDir: 'test-results',
-  reporter: process.env.CI
-    ? [['line'], ['html', { outputFolder: 'playwright-report', open: 'never' }]]
+  reporter: isCI
+    ? [['line'], ['json', { outputFile: 'test-results/playwright-results.json' }]]
     : [['list']],
   use: {
     baseURL: 'http://127.0.0.1:8765',
     browserName: 'chromium',
-    trace: 'retain-on-failure',
-    screenshot: 'only-on-failure',
+    trace: isCI ? 'off' : 'retain-on-failure',
+    screenshot: isCI ? 'off' : 'only-on-failure',
     video: 'off',
   },
   webServer: {
-    // `exec` makes fixture_runner.py the process Playwright waits on rather than
-    // leaving a shell as the tracked lifecycle owner.
     command: 'exec python tests/e2e/fixture_runner.py',
     url: 'http://127.0.0.1:8765/health',
     reuseExistingServer: false,

@@ -28,7 +28,11 @@ Playwright tracks the runner directly (`exec python tests/e2e/fixture_runner.py`
 
 ## Failure evidence
 
-Playwright traces are retained only on failure and screenshots are captured only on failure. Video is not part of the current evidence contract. CI uploads browser failure evidence only on failure and retains it for seven days. Deterministic fixture content must remain synthetic and must not ingest user model files, prompts, outputs or private evaluation corpora.
+Local developer runs may retain failure traces/screenshots for debugging. CI intentionally does **not** publish those rich artifacts because rendered content, stack traces and absolute paths can cross the privacy boundary.
+
+On CI failure Playwright writes a JSON reporter file locally. `prepare_failure_evidence.py` reduces it to an allow-listed `e2e-failure-evidence/manifest.json` containing only run/source identity, relative E2E test file, test title, status and duration. Error text, stdout/stderr, screenshots, traces, video, page content and absolute paths are excluded. The bundle is uploaded only on failure with run/attempt identity in the artifact name and seven-day retention.
+
+The deterministic fixture remains synthetic and must not ingest user model files, prompts, outputs or private evaluation corpora.
 
 ## Local execution
 
