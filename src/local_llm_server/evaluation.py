@@ -10,7 +10,7 @@ import hashlib
 import json
 import random
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Mapping, Protocol
 
 from .core.contracts import InferenceResult, TaskType
 

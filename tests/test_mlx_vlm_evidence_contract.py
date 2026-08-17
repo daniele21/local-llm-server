@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
-
 from local_llm_server.engine import MLXVLMServerEngine
 from local_llm_server.metrics_adapters import metrics_from_completion_response
 

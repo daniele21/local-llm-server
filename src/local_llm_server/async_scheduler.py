@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import Any
-
 from .core.contracts import ErrorCode, InferenceError, InferenceRequest
 from .scheduler import BoundedScheduler, QueueState, ScheduledRequest
 
