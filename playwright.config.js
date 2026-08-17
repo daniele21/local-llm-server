@@ -24,5 +24,9 @@ module.exports = defineConfig({
     url: 'http://127.0.0.1:8765/health',
     reuseExistingServer: false,
     timeout: 30_000,
+    gracefulShutdown: {
+      signal: 'SIGTERM',
+      timeout: 5_000,
+    },
   },
 });
