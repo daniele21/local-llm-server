@@ -44,3 +44,35 @@ jobs:
           pip install pyyaml fastapi uvicorn python-multipart pytest httpx ruff huggingface-hub
       - name: Run deterministic unit tests
         run: pytest tests/ -v --tb=short
+
+  browser-e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install deterministic product fixture dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e . --no-deps
+          pip install pyyaml fastapi uvicorn python-multipart httpx huggingface-hub
+      - name: Install Playwright and Chromium
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Run browser E2E gate
+        run: npm run test:e2e
+      - name: Upload Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-e2e-failure
+          if-no-files-found: ignore
+          path: |
+            playwright-report/
+            test-results/
