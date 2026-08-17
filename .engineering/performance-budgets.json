@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "owner": "runtime-and-platform",
+  "budgets": [
+    {
+      "id": "managed-backend-startup-timeout",
+      "class": "operational-hard-limit",
+      "metric": "startup_time",
+      "unit": "seconds",
+      "maximum": 60,
+      "source": "LOCAL_LLM_STARTUP_TIMEOUT fallback",
+      "ci_enforceable": true
+    },
+    {
+      "id": "inference-timeout",
+      "class": "operational-hard-limit",
+      "metric": "request_wall_time",
+      "unit": "seconds",
+      "maximum": 1200,
+      "source": "LOCAL_LLM_TIMEOUT fallback",
+      "ci_enforceable": true
+    },
+    {
+      "id": "default-runtime-concurrency",
+      "class": "resource-cardinality-default",
+      "metric": "active_requests_per_runtime",
+      "unit": "requests",
+      "maximum": 1,
+      "source": "LOCAL_LLM_MAX_CONCURRENT_REQUESTS fallback",
+      "ci_enforceable": true
+    },
+    {
+      "id": "default-context-capacity",
+      "class": "resource-capacity-default",
+      "metric": "context_tokens",
+      "unit": "tokens",
+      "maximum": 4096,
+      "source": "LOCAL_LLM_CTX_SIZE fallback",
+      "ci_enforceable": true
+    },
+    {
+      "id": "local-artifact-retention",
+      "class": "storage-retention-hard-limit",
+      "metric": "successful_builds_per_lineage",
+      "unit": "builds",
+      "maximum": 2,
+      "source": "artifact lifecycle contract",
+      "ci_enforceable": true
+    },
+    {
+      "id": "playwright-failure-evidence-retention",
+      "class": "storage-retention-hard-limit",
+      "metric": "failure_evidence_retention",
+      "unit": "days",
+      "maximum": 7,
+      "source": "CI E2E evidence contract",
+      "ci_enforceable": true
+    }
+  ],
+  "representative_device_metrics": {
+    "required": [
+      "startup_time_seconds",
+      "time_to_first_token_seconds",
+      "decode_tokens_per_second",
+      "peak_memory_bytes",
+      "post_unload_memory_bytes",
+      "shutdown_time_seconds"
+    ],
+    "threshold_policy": "thresholds belong to an explicit model/backend/hardware evidence campaign; no cross-hardware universal threshold is inferred",
+    "evidence_owner": "docs/device-evidence-runbook.md"
+  }
+}
