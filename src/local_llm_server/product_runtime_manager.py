@@ -8,6 +8,7 @@ from typing import Any
 
 from .resource_manager import ResourceManager
 from .runtime import ModelRuntime, ModelRuntimeManager, RuntimeState
+from .stream_contract import ensure_stream_contract
 
 
 def _close_engine(engine: Any) -> None:
@@ -54,7 +55,7 @@ class ProductRuntimeManager(ModelRuntimeManager):
         key: str | None = None,
     ) -> ModelRuntime:
         previous_resident_default = self.default_model
-        runtime = super().add(cfg, engine, key=key)
+        runtime = super().add(cfg, ensure_stream_contract(engine), key=key)
         with self._manager_lock:
             self._last_used_at_monotonic[runtime.key] = time.monotonic()
             configured = self.configured_default_model
@@ -97,6 +98,7 @@ class ProductRuntimeManager(ModelRuntimeManager):
 
     def reload(self, model: str, **explicit: Any) -> ModelRuntime:
         replacement = super().reload(model, **explicit)
+        replacement.engine = ensure_stream_contract(replacement.engine)
         with self._manager_lock:
             self._last_used_at_monotonic[replacement.key] = time.monotonic()
         return replacement
