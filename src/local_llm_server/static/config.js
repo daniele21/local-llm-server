@@ -27,6 +27,7 @@
         ['localLlmControlPlaneLive', '/static/control-plane-live.js'],
         ['localLlmControlPlaneModels', '/static/control-plane-models.js'],
         ['localLlmControlPlaneCapabilities', '/static/control-plane-capabilities.js'],
+        ['localLlmThinkingControls', '/static/control-plane-thinking.js'],
         ['localLlmControlPlaneSystem', '/static/control-plane-system.js'],
         ['localLlmControlPlaneEvaluation', '/static/control-plane-evaluation.js'],
         ['localLlmControlPlaneEvaluationHistory', '/static/control-plane-evaluation-history.js'],
