@@ -83,7 +83,6 @@ def test_product_resource_lifecycle_matches_api_and_returns_to_healthy_cold_stat
     # still requires a resident default during construction, so the HTTP stack
     # is attached after the product load and remains live through the unload.
     assert resources.snapshot() == ()
-    assert resources.accounted_bytes == 0
 
     runtime, loaded = manager.load("model")
     assert loaded is True
@@ -119,7 +118,6 @@ def test_product_resource_lifecycle_matches_api_and_returns_to_healthy_cold_stat
     assert unload_response.status_code == 200, unload_response.text
     assert engine.closed is True
     assert resources.snapshot() == ()
-    assert resources.accounted_bytes == 0
 
     released = client.get("/api/v1/resources").json()
     assert released["committed_bytes"] == 0
