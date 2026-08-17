@@ -2,8 +2,9 @@
 
 This module deliberately reports deltas rather than automated "better/worse"
 verdicts. Dataset/sample identity is required for comparison. Runtime
-fingerprints make a comparison evidence-grade; a changed fingerprint is surfaced
-as a confounder rather than silently attributed to the evaluated model.
+fingerprints and explicit reasoning profiles make a comparison evidence-grade;
+changed or legacy-unknown request identity is surfaced as a confounder rather
+than silently attributed to the evaluated model.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ class EvaluationRunSummary:
     test_set_identity: str
     sample_ids: tuple[str, ...]
     runtime_fingerprint: str | None
+    reasoning_profile: Mapping[str, Any] | None
     complete: bool
     sample_count: int
     succeeded_count: int
@@ -35,6 +37,11 @@ class EvaluationRunSummary:
             "test_set_identity": self.test_set_identity,
             "sample_ids": list(self.sample_ids),
             "runtime_fingerprint": self.runtime_fingerprint,
+            "reasoning_profile": (
+                dict(self.reasoning_profile)
+                if self.reasoning_profile is not None
+                else None
+            ),
             "complete": self.complete,
             "sample_count": self.sample_count,
             "succeeded_count": self.succeeded_count,
@@ -111,12 +118,15 @@ def summarize_report_payload(payload: Mapping[str, Any]) -> EvaluationRunSummary
 
     count = len(results)
     fingerprint = manifest.get("runtime_fingerprint")
+    raw_reasoning = manifest.get("reasoning_profile")
+    reasoning_profile = dict(raw_reasoning) if isinstance(raw_reasoning, Mapping) else None
     return EvaluationRunSummary(
         run_id=str(manifest.get("run_id") or ""),
         model=str(manifest.get("model") or ""),
         test_set_identity=str(manifest.get("test_set_identity") or ""),
         sample_ids=sample_ids,
         runtime_fingerprint=str(fingerprint) if fingerprint is not None else None,
+        reasoning_profile=reasoning_profile,
         complete=bool(payload.get("complete")),
         sample_count=count,
         succeeded_count=succeeded,
@@ -145,22 +155,44 @@ def compare_run_summaries(
         comparable = False
         reasons.append("selected sample IDs differ")
 
+    reasoning_known = (
+        baseline.reasoning_profile is not None
+        and candidate.reasoning_profile is not None
+    )
+    if comparable and not reasoning_known:
+        reasons.append("reasoning profile missing from one or both runs")
+
     evidence_grade = (
         comparable
+        and reasoning_known
         and baseline.runtime_fingerprint is not None
         and candidate.runtime_fingerprint is not None
     )
-    if comparable and not evidence_grade:
+    if comparable and baseline.runtime_fingerprint is None or (
+        comparable and candidate.runtime_fingerprint is None
+    ):
         reasons.append("runtime fingerprint missing from one or both runs")
 
     fingerprint_matches = (
         evidence_grade
         and baseline.runtime_fingerprint == candidate.runtime_fingerprint
     )
+    reasoning_matches = (
+        reasoning_known
+        and dict(baseline.reasoning_profile or {}) == dict(candidate.reasoning_profile or {})
+    )
     model_matches = baseline.model == candidate.model
-    attribution_safe = bool(comparable and evidence_grade and fingerprint_matches and model_matches)
+    attribution_safe = bool(
+        comparable
+        and evidence_grade
+        and fingerprint_matches
+        and reasoning_matches
+        and model_matches
+    )
     if comparable and evidence_grade and not fingerprint_matches:
         reasons.append("runtime fingerprint changed; deltas are descriptive only")
+    if comparable and reasoning_known and not reasoning_matches:
+        reasons.append("reasoning profile changed; deltas are descriptive only")
     if comparable and not model_matches:
         reasons.append("model changed; deltas describe a cross-model comparison")
 
