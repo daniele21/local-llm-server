@@ -53,8 +53,7 @@ def _locked_runtime_requirements(target: Path) -> None:
     retained: list[str] = []
     excluded = 0
     for line in raw.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped.lower().startswith("llama-cpp-python=="):
+        if line.strip().lower().startswith("llama-cpp-python=="):
             excluded += 1
             continue
         retained.append(line)
@@ -69,6 +68,7 @@ def smoke(wheel: Path, expected_version: str) -> None:
     wheel = wheel.resolve()
     if not wheel.is_file() or wheel.suffix != ".whl":
         raise ValueError(f"wheel does not exist: {wheel}")
+
     with tempfile.TemporaryDirectory(prefix="local-llm-install-smoke-") as raw_root:
         temp = Path(raw_root)
         env_root = temp / "venv"
@@ -77,67 +77,12 @@ def smoke(wheel: Path, expected_version: str) -> None:
         _run("uv", "venv", env_root, "--python", sys.executable)
         python = _venv_python(env_root)
         _run(
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            python,
-            "--no-deps",
-            "--requirement",
-            requirements,
+            "uv", "pip", "install", "--python", python,
+            "--no-deps", "--requirement", requirements,
         )
-        _run("uv", "pip", "install", "--python", python, "--no-deps", wheel)
-        command = _venv_command(env_root, "local-llm")
-        _run(command, "--help")
-        verification = """
-import importlib.metadata as metadata
-import importlib.resources as resources
-version = metadata.version('local-llm-server')
-assert version == EXPECTED, (version, EXPECTED)
-root = resources.files('local_llm_server')
-assert root.joinpath('models_registry.yaml').is_file()
-assert root.joinpath('static/index.html').is_file()
-eps = [ep for ep in metadata.entry_points(group='console_scripts') if ep.name == 'local-llm']
-assert len(eps) == 1
-print(f'installed artifact smoke passed for local-llm-server {version}')
-"""
-        subprocess.run(
-            [str(python), "-c", verification],
-            cwd=ROOT,
-            env={**os.environ, "EXPECTED": expected_version},
-            check=True,
-        )
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--wheel", type=Path, required=True)
-    parser.add_argument("--expected-version", required=True)
-    args = parser.parse_args()
-    # Pass the expected value as a literal inside the isolated interpreter
-    # environment without importing source-checkout code.
-    global EXPECTED  # noqa: PLW0603 - explicit script boundary
-    EXPECTED = args.expected_version
-    # Rebuild the verification snippet with the literal available as env var.
-    # The child imports only the installed distribution.
-    smoke_with_env(args.wheel, args.expected_version)
-    return 0
-
-
-def smoke_with_env(wheel: Path, expected_version: str) -> None:
-    wheel = wheel.resolve()
-    if not wheel.is_file() or wheel.suffix != ".whl":
-        raise ValueError(f"wheel does not exist: {wheel}")
-    with tempfile.TemporaryDirectory(prefix="local-llm-install-smoke-") as raw_root:
-        temp = Path(raw_root)
-        env_root = temp / "venv"
-        requirements = temp / "runtime-requirements.txt"
-        _locked_runtime_requirements(requirements)
-        _run("uv", "venv", env_root, "--python", sys.executable)
-        python = _venv_python(env_root)
-        _run("uv", "pip", "install", "--python", python, "--no-deps", "--requirement", requirements)
         _run("uv", "pip", "install", "--python", python, "--no-deps", wheel)
         _run(_venv_command(env_root, "local-llm"), "--help")
+
         code = """
 import importlib.metadata as metadata
 import importlib.resources as resources
@@ -158,6 +103,15 @@ print(f'installed artifact smoke passed for local-llm-server {version}')
             env={**os.environ, "LOCAL_LLM_EXPECTED_VERSION": expected_version},
             check=True,
         )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--wheel", type=Path, required=True)
+    parser.add_argument("--expected-version", required=True)
+    args = parser.parse_args()
+    smoke(args.wheel, args.expected_version)
+    return 0
 
 
 if __name__ == "__main__":
