@@ -26,6 +26,17 @@ async function openPlayground(page) {
   await expect(page.locator('#param-show-thinking')).toBeEnabled();
 }
 
+async function setCheckbox(page, selector, checked) {
+  const control = page.locator(selector);
+  await control.evaluate((element, value) => {
+    element.checked = value;
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, checked);
+  if (checked) await expect(control).toBeChecked();
+  else await expect(control).not.toBeChecked();
+}
+
 async function sendMessage(page, text = 'What is 17 + 25?') {
   const requestPromise = page.waitForRequest((request) => {
     const url = new URL(request.url());
@@ -56,8 +67,8 @@ test('control-plane tabs support keyboard roving focus', async ({ page }) => {
 
 test('switchable thinking sends an explicit OFF request', async ({ page }) => {
   await openPlayground(page);
-  await page.locator('#param-enable-thinking').setChecked(false, { force: true });
-  await page.locator('#param-show-thinking').setChecked(false, { force: true });
+  await setCheckbox(page, '#param-enable-thinking', false);
+  await setCheckbox(page, '#param-show-thinking', false);
 
   const payload = await sendMessage(page);
   expect(payload.enable_thinking).toBe(false);
@@ -68,8 +79,8 @@ test('switchable thinking sends an explicit OFF request', async ({ page }) => {
 
 test('thinking can execute while reasoning stays hidden', async ({ page }) => {
   await openPlayground(page);
-  await page.locator('#param-enable-thinking').setChecked(true, { force: true });
-  await page.locator('#param-show-thinking').setChecked(false, { force: true });
+  await setCheckbox(page, '#param-enable-thinking', true);
+  await setCheckbox(page, '#param-show-thinking', false);
 
   const payload = await sendMessage(page);
   expect(payload.enable_thinking).toBe(true);
@@ -80,9 +91,9 @@ test('thinking can execute while reasoning stays hidden', async ({ page }) => {
 
 test('structured JSON never mixes hidden reasoning into application output', async ({ page }) => {
   await openPlayground(page);
-  await page.locator('#param-enable-thinking').setChecked(true, { force: true });
-  await page.locator('#param-show-thinking').setChecked(false, { force: true });
-  await page.locator('#param-force-json').setChecked(true, { force: true });
+  await setCheckbox(page, '#param-enable-thinking', true);
+  await setCheckbox(page, '#param-show-thinking', false);
+  await setCheckbox(page, '#param-force-json', true);
 
   const payload = await sendMessage(page, 'Return one JSON object.');
   expect(payload.enable_thinking).toBe(true);
