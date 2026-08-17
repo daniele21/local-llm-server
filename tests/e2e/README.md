@@ -24,15 +24,15 @@ Every fixture process creates an isolated temporary root with a random run ident
 
 The application shutdown hook cleans the run root during normal shutdown. The fixture process repeats the cleanup in a `finally` path to cover interruption and partial initialization, then verifies that the run root is gone and the loopback listener is no longer reachable. Uvicorn graceful shutdown is bounded to five seconds.
 
-`tests/e2e/verify_residue.py` is the independent post-run check. It fails when port `8765` is still open or any marked `local-llm-e2e-*` temporary root remains. `STD-08` owns wiring this verifier into the shared CI workflow after the Playwright process exits; until that integration lands, the verifier is available but not claimed as a blocking CI gate.
+`tests/e2e/verify_residue.py` is the independent post-run check. It fails when port `8765` is still open or any marked `local-llm-e2e-*` temporary root remains. The shared CI workflow runs this verifier with `if: always()` after Playwright, so residue is checked even when the browser assertions fail.
 
 ## Failure evidence
 
-Playwright traces are retained only on failure and screenshots are captured only on failure. Video is not part of the current evidence contract. CI evidence is diagnostic and bounded; deterministic fixture content must remain synthetic and must not ingest user model files, prompts, outputs or private evaluation corpora.
+Playwright traces are retained only on failure and screenshots are captured only on failure. Video is not part of the current evidence contract. CI uploads browser failure evidence only on failure and retains it for seven days. Deterministic fixture content must remain synthetic and must not ingest user model files, prompts, outputs or private evaluation corpora.
 
 ## Local execution
 
-From the repository root, install the project's development environment and the committed Node dependency graph, then run Playwright. The canonical setup command is owned by `.engineering/commands.json`; current CI uses committed Python/Node lock state after `STD-03` integration.
+The canonical setup and E2E intents are owned by `.engineering/commands.json`. For a browser-only local run after the Python development environment is ready:
 
 ```bash
 npm ci --ignore-scripts --no-audit --no-fund
@@ -42,4 +42,4 @@ npm run test:e2e
 python tests/e2e/verify_residue.py
 ```
 
-On Ubuntu CI, Chromium is installed with `npx playwright install --with-deps chromium`.
+On Ubuntu CI, Chromium is installed with `npx playwright install --with-deps chromium`. Python dependencies come from committed `uv.lock`; Node dependencies come from committed `package-lock.json`.
