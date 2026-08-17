@@ -5,7 +5,8 @@ usage() {
   cat <<'EOF'
 Usage: ./deploy.sh [--bump-patch] [--skip-tests]
 
-Build an immutable, uniquely identified wheel/sdist bundle.
+Build an immutable, uniquely identified wheel/sdist bundle from the already
+synchronized project environment.
 
 Options:
   --bump-patch   Increment patch version in both pyproject.toml and VERSION.
@@ -29,6 +30,16 @@ done
 run_uv() {
   UV_CACHE_DIR="${UV_CACHE_DIR:-/private/tmp/local-llm-uv-cache}" uv "$@"
 }
+
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Error: uv is required. Run the canonical setup command first." >&2
+  exit 1
+fi
+
+if [[ ! -x .venv/bin/python && ! -x .venv/Scripts/python.exe ]]; then
+  echo "Error: project environment is missing. Run the canonical setup command first." >&2
+  exit 1
+fi
 
 if [[ "$bump_patch" == true ]]; then
   current_version="$(python3 - <<'PY'
@@ -68,17 +79,17 @@ PY
 fi
 
 if [[ "$skip_tests" != true ]]; then
-  echo "[*] Running deterministic tests"
-  run_uv run --frozen pytest tests/ -v --tb=short
+  echo "[*] Running deterministic tests from the synchronized environment"
+  run_uv run --no-sync pytest tests/ -v --tb=short
 fi
 
 echo "[*] Cleaning transient backend state only; successful dist builds are retained"
 rm -rf build src/*.egg-info
 
-echo "[*] Ensuring the Python build frontend is available"
-run_uv pip install build setuptools wheel
-
-echo "[*] Building staged immutable artifacts"
-run_uv run python scripts/build_artifacts.py --output-root dist --channel "${LOCAL_LLM_BUILD_CHANNEL:-local}" --variant "${LOCAL_LLM_BUILD_VARIANT:-wheel-sdist}"
+echo "[*] Building staged immutable artifacts from the locked project toolchain"
+run_uv run --no-sync python scripts/build_artifacts.py \
+  --output-root dist \
+  --channel "${LOCAL_LLM_BUILD_CHANNEL:-local}" \
+  --variant "${LOCAL_LLM_BUILD_VARIANT:-wheel-sdist}"
 
 echo "[*] Build complete. Successful builds are retained under dist/builds/ by lineage."
