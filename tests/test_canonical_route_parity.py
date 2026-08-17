@@ -56,7 +56,12 @@ def _cfg():
         "model": "demo",
         "model_id": "org/demo",
         "model_path": "/private/demo",
-        "backend": "fake",
+        # This fixture exercises parity for a runtime that intentionally
+        # supports request-level thinking control. Keep the capture engine
+        # fake, but use a production backend capability contract with a proven
+        # switchable path so TH-1 does not grant capabilities to arbitrary
+        # unknown adapters.
+        "backend": "llama_server",
         "modalities": ["text"],
         "tasks": ["chat", "structured_generation"],
         "input_modalities": ["text"],
