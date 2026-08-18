@@ -52,12 +52,18 @@ def test_product_http_stack_installs_scheduler_policy_completion_stream_metrics_
     assert app.state.completion_metrics_installed is True
     assert app.state.streaming_metrics_installed is True
     assert app.state.product_api_installed is True
+    assert app.state.residency_api_installed is True
+    assert app.state.policy_evidence_api_installed is True
+    assert app.state.pressure_dry_run_api_installed is True
     route_paths = [
         path
         for route in app.routes
         if (path := getattr(route, "path", None)) is not None
     ]
     assert route_paths.count("/v1/audio/transcriptions") == 1
+    # The admin-only pressure route is deliberately absent when the admin API
+    # is disabled even though composition remains idempotently installed.
+    assert "/api/v1/residency/pressure/evaluate" not in route_paths
 
 
 def test_product_http_stack_keeps_scheduler_disabled_when_queue_is_unconfigured(tmp_path):
@@ -71,6 +77,7 @@ def test_product_http_stack_keeps_scheduler_disabled_when_queue_is_unconfigured(
     assert app.state.request_scheduler_settings.enabled is False
     assert app.state.runtime_gate_registry is None
     assert app.state.completion_metrics_installed is True
+    assert app.state.pressure_dry_run_api_installed is True
 
 
 def test_supported_server_entrypoints_use_shared_product_composition():
