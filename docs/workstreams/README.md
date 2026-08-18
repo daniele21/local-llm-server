@@ -15,4 +15,5 @@ Do not create separate plan/progress/status files for the same workstream. Git h
 ## Active
 
 - [`runtime-correctness-evidence-hardening.md`](runtime-correctness-evidence-hardening.md) — thinking/structured-output correctness, evaluation canonicalization, verified artifact identity, resource-policy validation and representative hardware evidence.
-- [`l2-reference-grade.md`](l2-reference-grade.md) — architecture fitness, regression/fault/repeatability evidence, built-surface E2E, complexity/evidence governance and repository policy hardening for reference-grade adoption.
+- [`l2-reference-grade.md`](l2-reference-grade.md) — repository-side L2 is accepted; full engineering L2 remains gated by retained representative Apple Silicon/model/backend evidence.
+- [`v040-product-ui-l2.md`](v040-product-ui-l2.md) — explicit `repo-template-sw 0.4.0` migration, `product-ui` L2 guardrails, design-system drift control and real manual product-experience evidence boundary.
