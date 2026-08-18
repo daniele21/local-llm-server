@@ -5,7 +5,7 @@ Document type: documentation-governance
 Owner: repository
 Canonical scope: documentation.routing
 Read when: locating the canonical owner of operational, architecture, feature, roadmap, UX/UI or delivery information
-Last reviewed: 2026-08-17
+Last reviewed: 2026-08-18
 
 Local LLM Server documentation follows progressive disclosure. A fact should have one canonical owner; summaries link to it instead of copying detailed state/checklists.
 
@@ -36,7 +36,8 @@ Swagger at `/docs` is the executable schema for the checked-out revision; the re
 | Why was a durable architecture choice made? | [`adr/README.md`](adr/README.md) and the applicable ADR |
 | What feature behavior lacks a better API/operations owner? | [`features/README.md`](features/README.md) |
 | What UX/UI is targeted/integrated? | [`ux-ui-implementation-plan.md`](ux-ui-implementation-plan.md), [`ux-ui-implementation-progress.md`](ux-ui-implementation-progress.md) |
-| What brand/visual language applies? | [`brand-guidelines.md`](brand-guidelines.md) |
+| What brand/visual language applies? | [`brand-guidelines.md`](brand-guidelines.md) plus `../design/brand-kit.json` for machine-readable token routing |
+| What product-experience evidence/privacy/manual validation applies? | [`product-experience-validation.md`](product-experience-validation.md) plus `../design/ux-contract.json` |
 | What must be true before completion/release? | [`definition-of-done.md`](definition-of-done.md) |
 
 ## Architecture vs progress
@@ -72,7 +73,7 @@ Swagger at `/docs` is the executable schema for the checked-out revision; the re
 
 ### Product/design
 
-`implementation-plan.md`, UX/UI plan/progress and `brand-guidelines.md` own product intent and design constraints.
+`implementation-plan.md`, UX/UI plan/progress and `brand-guidelines.md` own product intent and design constraints. `design/ux-contract.json` and `design/brand-kit.json` are the machine-readable `product-ui` contracts; `product-experience-validation.md` owns automated/manual evidence boundaries and privacy-safe usability research.
 
 ## Workstream lifecycle
 
@@ -95,11 +96,13 @@ Keep these distinct:
 ```text
 unit / contract / integration tests
 browser E2E product acceptance
+automated accessibility / adaptive / design-system fitness
+manual accessibility / representative-user usability
 real-runtime smoke
-representative-device / manual evidence
+representative-device hardware evidence
 ```
 
-A stronger claim requires the applicable evidence class. Hosted CI is not proof of real model quality, memory reclamation, Apple Silicon resource behavior, throughput or thermal stability.
+A stronger claim requires the applicable evidence class. Hosted CI is not proof of real model quality, memory reclamation, Apple Silicon resource behavior, throughput, thermal stability or representative-user usability.
 
 ## Before creating another document
 
