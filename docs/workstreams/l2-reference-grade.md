@@ -1,15 +1,15 @@
 # L2 reference-grade engineering
 
-Status: active
+Status: active — representative evidence pending
 Owner: repository engineering
-Read when: coordinating `repo-template-sw 0.3.0` L2 adoption
-Last reviewed: 2026-08-17
+Read when: coordinating `repo-template-sw 0.4.0` L2 completion
+Last reviewed: 2026-08-18
 
 ## Goal
 
-Raise Local LLM Server from L1 to a truthful L2 reference-grade baseline. The adopted standard is pinned to `repo-template-sw` `0.3.0` revision `41ba67a124b0daa33db2a02055d76897391d7092`; upstream 0.4.0 is intentionally a separate future adoption decision.
+Complete a truthful L2 reference-grade baseline on `repo-template-sw` **0.4.0** revision `60e0f498a459e2de114ccb23f6cd50994c19513f`, including the adopted `product-ui` profile, without promoting hosted-CI or one-device observations into broader hardware/product claims.
 
-Canonical branch protection remains an owner-deferred exception. Hardware-dependent claims require retained representative-device evidence and are never inferred from hosted CI.
+Canonical branch protection remains an owner-deferred exception. Repository-side engineering and product-ui guardrails are accepted; full L2 still requires real representative-device evidence and the two human product-experience evidence tasks.
 
 ## Work graph
 
@@ -25,57 +25,70 @@ Canonical branch protection remains an owner-deferred exception. Hardware-depend
 | L2-08 | complexity/dependency review + reproducible evidence identity | L2-01 | DONE |
 | L2-09 | repository policy + stale/duplicate/completed-doc drift detection | L2-01 | DONE |
 | L2-10 | shared integration and repository-side L2 acceptance | L2-02..L2-09 | DONE |
-| L2-11 | representative hardware gate + durable state transfer/finalization | L2-10, runtime evidence | BLOCKED |
+| L2-PX | 0.4.0 product-ui deterministic guardrails | L2-10 | DONE |
+| L2-BRIDGE | deterministic bridge from real device/human evidence to bounded summaries | L2-10, L2-PX | ACTIVE |
+| L2-11 | representative hardware + human evidence gate and durable finalization | L2-BRIDGE, runtime/product evidence | BLOCKED |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
 
-## Repository-side acceptance
+## Accepted repository baseline
 
-Repository-side L2 acceptance revision: `d528b6c5b676e705e7ccf24800929da6d5534203`.
+Engineering repository-side L2 acceptance revision remains `d528b6c5b676e705e7ccf24800929da6d5534203`. The 0.4.0/product-ui repository guardrail acceptance revision is `89d360698234016ddfe1f3fff0bacbc4f9bb7852`, integrated to `dev` through PR #145.
 
-That exact integrated `dev` revision passed:
-
-- Repository Health with all L1/L2 specialist validators and documentation drift checks;
-- `L2 Performance Regression` with a 100 µs/op median ceiling for synthetic canonical request preparation;
-- Artifact Lifecycle through three canonical builds, retention, failed-stage cleanup and release-style lock identity;
-- Security Audit;
-- fresh-installed-wheel Package Install Smoke including real localhost Uvicorn failure → retry → recovery;
-- lint, Python 3.10/3.11/3.12, Playwright E2E and post-run zero residue.
-
-Durable L2 contracts now cover:
+The accepted deterministic surface covers:
 
 - architecture ownership/dependency direction;
-- deterministic resource-ledger and Python-heap regression with native/unified-memory non-claims;
-- reproducible hosted performance regression with privacy-safe evidence identity;
+- deterministic resource-ledger/Python-heap regression with native/unified-memory non-claims;
+- reproducible hosted performance regression;
 - critical fault injection and recovery invariants;
 - repeatability/cleanliness across development, test, E2E, build, smoke and runtime lifecycles;
 - built/installed-surface failure/retry/recovery;
-- complexity/dependency review;
-- documentation freshness, canonical-scope ownership, duplicate detection and workstream lifecycle consistency.
+- complexity/dependency review and privacy-safe evidence identity;
+- documentation freshness/canonical-scope/workstream lifecycle drift;
+- product-ui task/brand/design-system/accessibility/adaptive/journey/review/privacy contracts.
 
-## L2-11 hardware gate
+Repository Health, L2 Performance Regression, Artifact Lifecycle, Security Audit, Package Install Smoke, lint, Python 3.10/3.11/3.12, Playwright and zero-residue remain the deterministic acceptance surface.
 
-Full L2 remains **BLOCKED** on `docs/workstreams/runtime-correctness-evidence-hardening.md`. Current representative-device evidence still required includes the target-Mac thinking comparison, comparable evaluation runs, compatible Apple Silicon reclamation cycles and bounded resource-policy smoke. Release/reconciliation evidence that depends on those runs cannot be finalized first.
+## L2 evidence bridge
 
-Hosted CI evidence is intentionally insufficient to prove:
+The evidence bridge is repository code, not evidence itself. Its purpose is to make the final physical/human campaigns reviewable without manual claim assembly or accidental retention of private content.
 
-- Apple unified/native/accelerator memory reclamation;
-- model/backend TTFT or token throughput;
-- thermal or sustained-device behavior;
-- backend-specific thinking behavior;
-- automatic pressure eviction safety on representative hardware.
+The target implementation provides:
+
+- `python -m local_llm_server.l2_evidence_bridge capture-thinking` for explicit ON/OFF-hidden exercise without retaining prompt/output;
+- `validate-hardware-bundle` for TH-E1 + EV-3 + HE-2 + RES-2 compatibility/completeness review;
+- `validate-product-ui` for bounded manual accessibility/usability evidence;
+- `.engineering/l2-evidence-bridge.json` as the machine-readable bridge contract;
+- `scripts/verify_l2_evidence_bridge.py` as a Repository Health fitness function;
+- non-evidence templates that are rejected as real completion evidence.
+
+The bridge never mutates `.engineering/baseline.json`, never authorizes automatic eviction and cannot replace the physical/human execution.
+
+## L2-11 remaining evidence
+
+Full engineering L2 remains blocked on `docs/workstreams/runtime-correctness-evidence-hardening.md`. Required representative Mac evidence is:
+
+- TH-E1 explicit thinking OFF/ON-hidden campaign;
+- EV-3 two attribution-safe `general-purpose v1.0.0`, 10-sample, seed-0 OFF runs;
+- HE-2 two compatible verified 3-cycle Apple Silicon reclamation reports plus conservative review;
+- RES-2 bounded admit/account/release/reject resource-policy smoke.
+
+Full `product-ui` L2 additionally requires the real manual accessibility review and representative-user usability session owned by `docs/workstreams/v040-product-ui-l2.md`.
+
+Hosted CI cannot prove Apple unified/native/accelerator memory reclamation, representative model/backend TTFT or throughput, thermal/sustained behavior, backend-specific real-model thinking behavior, pressure-eviction safety or human usability/accessibility outcomes.
 
 ## Unblock condition
 
-L2-11 may move to DONE only when the runtime workstream retains compatible evidence identities for the required physical runs and durable docs reconcile those observations without contradiction. Then:
+L2-11 may move to DONE only when:
 
-1. record the full L2 evidence/acceptance revision;
-2. update `.engineering/baseline.json` from hardware-gate-pending to complete;
-3. transfer any remaining durable hardware truth into owning docs;
-4. remove this workstream from `docs/workstreams/README.md`;
-5. delete this completed workstream by default;
-6. run the complete repository validation after deletion.
+1. the representative hardware bundle is produced by real physical runs and the bounded validator reports complete;
+2. the two product-ui human evidence sets exist and their validator reports acceptance-ready after any justified remediation/review;
+3. durable docs reconcile the observed results without embedding private paths/content;
+4. no negative/inconclusive observation is hidden or rerun merely to manufacture a pass;
+5. the final deterministic repository gate is green after evidence-ledger/doc changes.
+
+Then record the full L2 evidence/acceptance revision, transfer durable truth into owning docs, remove completed workstreams from the active index and delete completed workstream files by default.
 
 ## Stop conditions
 
-Do not weaken a hosted gate to obtain L2, convert deterministic heap evidence into native-memory claims, retain prompt/output/private paths for convenience, or mark representative hardware evidence complete when a required physical run is missing/incompatible/inconclusive.
+Do not weaken hosted gates, convert Python-heap evidence into native-memory claims, retain prompt/output/private paths for convenience, alter evidence merely to obtain a favorable result, or mark representative hardware/human evidence complete when a required real run/session is missing, incompatible or unresolved.
