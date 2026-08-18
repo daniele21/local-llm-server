@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "owner": "repository-engineering+web-product",
+  "hardware_bundle": {
+    "required_files": [
+      "thinking-campaign.json",
+      "evaluation-off-a.json",
+      "evaluation-off-b.json",
+      "reclamation-a.json",
+      "reclamation-b.json",
+      "reclamation-review.json",
+      "resource-policy-smoke.json"
+    ],
+    "evaluation": {
+      "required_test_set_id": "general-purpose",
+      "required_test_set_version": "1.0.0",
+      "required_sample_count": 10,
+      "required_seed": 0,
+      "required_reasoning_policy": "off",
+      "require_attribution_safe_repeat": true
+    },
+    "reclamation": {
+      "min_reports": 2,
+      "min_complete_cycles": 6,
+      "require_verified_identity": true,
+      "require_zero_error_cycles": true,
+      "forbid_automatic_eviction_recommendation": true
+    },
+    "resource_smoke": {
+      "require_successful_admission": true,
+      "require_http_success": true,
+      "require_zero_accounting_after_unload": true,
+      "require_pre_backend_rejection": true,
+      "require_automatic_eviction_false": true
+    },
+    "public_summary_forbidden_keys": [
+      "prompt",
+      "raw_output",
+      "content",
+      "model_path",
+      "path",
+      "hostname",
+      "username",
+      "token",
+      "secret"
+    ]
+  },
+  "product_ui": {
+    "manual_accessibility_required_checks": [
+      "keyboard-primary-shell",
+      "focus-order-and-visibility",
+      "accessibility-tree-or-screen-reader",
+      "zoom-and-text-scaling",
+      "reduced-motion",
+      "error-loading-empty-disabled-states"
+    ],
+    "accessibility_outcomes": ["pass", "fail", "inconclusive", "not-applicable"],
+    "usability_required_journeys": [
+      "control-plane-status-and-navigation",
+      "chat-inference-and-recovery",
+      "advanced-control-discovery",
+      "evidence-interpretation"
+    ],
+    "usability_allowed_fields": [
+      "study_id",
+      "journey_id",
+      "task_completed",
+      "needed_recovery",
+      "assistance_required",
+      "duration_bucket",
+      "severity",
+      "sanitized_observation"
+    ],
+    "forbidden_field_fragments": [
+      "prompt",
+      "output",
+      "content",
+      "path",
+      "hostname",
+      "machine",
+      "username",
+      "email",
+      "token",
+      "secret"
+    ],
+    "completion_semantics": "validators report evidence presence and blocking findings but never mutate baseline completion automatically"
+  }
+}

@@ -77,7 +77,7 @@ This is an explicit scope decision, not evidence that visual regressions are imp
 
 Current status: **pending**.
 
-A representative manual review should use the built product surface and record only the bounded result fields described below. At minimum:
+A representative manual review should use the built product surface and record only bounded results. At minimum:
 
 1. navigate the primary shell and critical actions using keyboard only;
 2. verify focus order remains logical and visible through navigation, forms and recovery states;
@@ -86,7 +86,9 @@ A representative manual review should use the built product surface and record o
 5. verify reduced-motion preference removes non-essential transitions/animation without removing feedback;
 6. inspect representative error/loading/empty/disabled states for understandable announcements and next actions.
 
-Negative or inconclusive findings are evidence and must be retained as such. Do not repeat a session merely until it produces a favorable result.
+Negative or inconclusive findings are evidence and must be retained as such. Do not repeat a session merely until it produces a favorable result. A rerun is justified after a concrete product fix or a material change in the tested surface.
+
+The canonical non-evidence template is `docs/evidence-templates/manual-accessibility.example.json`. Copy it outside the repository evidence templates, replace the `example-*` identifier, bind it to the exact 40-character source revision and record one bounded result for every required check.
 
 ## Representative-user usability
 
@@ -100,11 +102,18 @@ The purpose is to answer bounded experience questions for important/high-risk fl
 - Can the user find advanced controls when needed without those controls dominating normal use?
 - Can the user distinguish measured/available evidence from unavailable or estimated information?
 
-Suggested tasks should cover status/orientation, one normal inference, one recoverable failure and one advanced-control discovery task.
+The minimum retained journey set is:
+
+- `control-plane-status-and-navigation`;
+- `chat-inference-and-recovery`;
+- `advanced-control-discovery`;
+- `evidence-interpretation`.
+
+The canonical non-evidence template is `docs/evidence-templates/representative-usability.example.json`.
 
 ### Allowed retained fields
 
-Only the following bounded fields may be retained by default:
+Only the following bounded fields may be retained per usability record by default:
 
 - `study_id`;
 - `journey_id`;
@@ -131,6 +140,31 @@ Do not retain by default:
 
 Product telemetry remains **off by default**. A future telemetry mechanism requires a separate explicit privacy/product decision; this protocol is not authorization to add background analytics.
 
+## Validate real human evidence
+
+After a real manual accessibility review and/or representative-user session has been recorded, run the packaged validator against the bounded JSON files:
+
+```bash
+python -m local_llm_server.l2_evidence_bridge validate-product-ui \
+  --accessibility /path/to/manual-accessibility.json \
+  --usability /path/to/representative-usability.json \
+  --output /path/to/product-ui-evidence-summary.json
+```
+
+The validator:
+
+- rejects the example template identifiers as completion evidence;
+- requires the exact accessibility check set and usability journey set;
+- enforces the usability allow-list from `.engineering/product-ui-l2.json`;
+- rejects observations that appear to contain private paths, email addresses or secret-like values;
+- preserves negative/inconclusive findings instead of rewriting them;
+- reports evidence presence, blocking findings and acceptance readiness separately;
+- emits a bounded summary and **never mutates** `.engineering/product-ui-l2.json` or `.engineering/baseline.json`.
+
+For manual accessibility, a failed or inconclusive required check is blocking until the underlying issue is resolved and a justified follow-up review is performed. For representative-user usability, `high` or `critical` findings are surfaced as blocking; lower-severity findings remain evidence and still require product judgment rather than silent dismissal.
+
+A validator exit code of `2` means the evidence is validly incomplete/not acceptance-ready. It is not permission to edit observations or thresholds merely to obtain a green result.
+
 ## Significant UX change review
 
 A meaningful UI change must evaluate, where applicable:
@@ -150,16 +184,18 @@ The pull-request template contains machine-checked markers for these questions. 
 
 UI/E2E evidence follows the repository's existing evidence contract:
 
-- associate retained CI evidence with source/run identity;
+- associate retained evidence with source/run identity;
 - keep CI retention bounded;
 - keep raw user/model content out of default retained failure evidence;
 - close owned browser/server/process/listener/temp state after runs;
-- preserve the existing zero-residue gate independently from the success of the browser assertions.
+- preserve the existing zero-residue gate independently from the success of browser assertions.
+
+Human-evidence summaries must use the exact tested source revision. The repository may retain only the bounded summary/observations required for the claim; source recordings or raw local content are not implied by this contract.
 
 ## Completion semantics
 
-Repository-side `repo-template-sw 0.4.0` product-ui guardrails can be accepted when all deterministic contracts and workflows are green on the same integrated revision.
+Repository-side `repo-template-sw 0.4.0` product-ui guardrails are already accepted when deterministic contracts and workflows are green on the same integrated revision.
 
 **Full product-ui L2 is not complete while manual accessibility and representative-user usability statuses remain `pending`.** A status may become `not-justified` only through an explicit documented product-risk decision; it must not be used simply to bypass evidence collection.
 
-This product-ui completion boundary is independent from the separate full-engineering-L2 Apple Silicon/model/backend evidence gate.
+The bridge validator provides evidence readiness; status promotion remains an explicit repository change reviewed against the retained bounded evidence. This product-ui completion boundary is independent from the separate full-engineering-L2 Apple Silicon/model/backend evidence gate.

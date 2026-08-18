@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "manual_accessibility",
+  "study_id": "example-a11y-study",
+  "source_revision": "0000000000000000000000000000000000000000",
+  "checks": [
+    {
+      "check_id": "keyboard-primary-shell",
+      "outcome": "inconclusive",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation; do not include prompts, outputs, private paths, machine identity or credentials."
+    },
+    {
+      "check_id": "focus-order-and-visibility",
+      "outcome": "inconclusive",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation."
+    },
+    {
+      "check_id": "accessibility-tree-or-screen-reader",
+      "outcome": "inconclusive",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation."
+    },
+    {
+      "check_id": "zoom-and-text-scaling",
+      "outcome": "inconclusive",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation."
+    },
+    {
+      "check_id": "reduced-motion",
+      "outcome": "inconclusive",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation."
+    },
+    {
+      "check_id": "error-loading-empty-disabled-states",
+      "outcome": "inconclusive",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation."
+    }
+  ]
+}
