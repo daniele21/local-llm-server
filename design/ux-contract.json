@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "contract_version": "0.4.0",
+  "applicable": true,
+  "design_source_of_truth": {
+    "type": "code-first",
+    "location": "src/local_llm_server/static/design-system.css + src/local_llm_server/static/control-plane-*.{css,js}; durable visual/product-language intent in docs/brand-guidelines.md"
+  },
+  "principles": {
+    "user_task_model_over_internal_architecture": true,
+    "progressive_disclosure": true,
+    "sensible_defaults": true,
+    "clear_primary_action_hierarchy": true,
+    "platform_appropriate": true,
+    "bounded_information_density": true,
+    "actionable_error_recovery": true
+  },
+  "critical_states": [
+    "loading",
+    "empty",
+    "error",
+    "disabled",
+    "warning",
+    "partial-result",
+    "selected"
+  ],
+  "accessibility": {
+    "target": "WCAG 2.2 AA for the browser control-plane surface",
+    "keyboard_when_applicable": true,
+    "focus_visibility_order": true,
+    "assistive_semantics": true,
+    "text_scaling_when_applicable": true,
+    "no_color_only_critical_meaning": true,
+    "reduced_motion_when_applicable": true
+  },
+  "adaptive_layout": {
+    "applicable": true,
+    "supported_contexts": [
+      "wide desktop >= 1101px",
+      "compact desktop/tablet 721-1100px",
+      "narrow 421-720px",
+      "small viewport <= 420px"
+    ]
+  },
+  "design_system": {
+    "component_source": "src/local_llm_server/static/design-system.css with source-backed renderers under src/local_llm_server/static/control-plane-*.js and components.js",
+    "brand_tokens": "design/brand-kit.json",
+    "reuse_existing_semantic_component_first": true
+  },
+  "critical_journeys": [
+    {
+      "id": "control-plane-status-and-navigation",
+      "name": "Open the control plane, understand server/runtime status and navigate between core surfaces",
+      "e2e": "required"
+    },
+    {
+      "id": "chat-inference-and-recovery",
+      "name": "Configure a model request, submit inference, observe progress/failure and recover for the next request",
+      "e2e": "required"
+    },
+    {
+      "id": "model-runtime-management",
+      "name": "Understand model availability/residency and perform an intentional runtime-management action",
+      "e2e": "recommended"
+    },
+    {
+      "id": "evaluation-review",
+      "name": "Start/review evaluation state and inspect comparable result/history information without confusing unavailable data with zero",
+      "e2e": "recommended"
+    }
+  ],
+  "reference_views": [
+    "implemented control-plane shell and overview sources under src/local_llm_server/static/control-plane-*",
+    "implemented Local LLM Studio chat/configuration surface in src/local_llm_server/static/index.html",
+    "critical loading/empty/error/status source states covered by tests/e2e and tests/test_accessibility_ui_assets.py"
+  ],
+  "validation": {
+    "accessibility_automation": "pytest -q tests/test_accessibility_ui_assets.py plus Playwright critical-journey assertions",
+    "visual_regression": "n/a for current unstable/incidental pixels; semantic visual contracts and design-system drift are blocking, pixel baselines are added only for stable high-risk surfaces",
+    "manual_accessibility": "docs/product-experience-validation.md#manual-accessibility-review",
+    "usability_evidence": "docs/product-experience-validation.md#representative-user-usability"
+  },
+  "evidence": {
+    "bounded_ci_retention": true,
+    "identity_with_source_build_environment": true,
+    "zero_residue_after_ui_e2e": true
+  }
+}
