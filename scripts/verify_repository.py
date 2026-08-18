@@ -17,7 +17,7 @@ REQUIRED = (
     ".engineering/baseline.json", ".engineering/documentation-policy.json", ".engineering/commands.json",
     ".github/pull_request_template.md", ".github/workflows/repository-health.yml",
     "docs/README.md", "docs/architecture.md", "docs/current-state.md", "docs/features/README.md", "docs/adr/README.md",
-    "docs/workstreams/README.md", "scripts/verify_operations.py",
+    "docs/workstreams/README.md", "scripts/verify_operations.py", "scripts/verify_product_experience.py",
 )
 PLACEHOLDER_MARKERS = ("<PROJECT_NAME>", "<REPLACE_WITH_", "<DESCRIBE_", "<LIST_")
 L1_FITNESS_FUNCTIONS = (
@@ -32,6 +32,8 @@ L2_FITNESS_FUNCTIONS = (
     "scripts/verify_repeatability_contracts.py",
     "scripts/verify_change_review.py",
     "scripts/verify_built_surface_e2e.py",
+    "scripts/verify_product_experience.py",
+    "scripts/verify_product_ui_l2.py",
 )
 
 

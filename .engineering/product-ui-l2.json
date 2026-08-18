@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "contract_version": "0.4.0",
+  "owner": "web-product-and-docs",
+  "design_system": {
+    "canonical_css": "src/local_llm_server/static/design-system.css",
+    "token_namespace": "--ds-",
+    "component_namespace": ".ds-",
+    "required_tokens": [
+      "--ds-bg",
+      "--ds-surface-1",
+      "--ds-surface-2",
+      "--ds-border",
+      "--ds-text",
+      "--ds-text-muted",
+      "--ds-focus",
+      "--ds-electric-blue",
+      "--ds-status-ready",
+      "--ds-status-warning",
+      "--ds-status-error",
+      "--ds-font-ui",
+      "--ds-font-data",
+      "--ds-font-mono",
+      "--ds-space-4",
+      "--ds-radius-md",
+      "--ds-control-min-height"
+    ],
+    "required_components": [
+      ".ds-card",
+      ".ds-button",
+      ".ds-field",
+      ".ds-status",
+      ".ds-table-wrap",
+      ".ds-skip-link"
+    ],
+    "forbid_namespaced_token_definitions_outside_canonical_css": true,
+    "forbid_namespaced_component_definitions_outside_canonical_css": true
+  },
+  "adaptive_layout": {
+    "source": "src/local_llm_server/static/control-plane-shell.css",
+    "required_breakpoints_px": [1100, 720, 420]
+  },
+  "critical_journey_evidence": [
+    {
+      "journey_id": "control-plane-status-and-navigation",
+      "files": ["tests/e2e/product_acceptance.spec.js", "tests/test_accessibility_ui_assets.py"]
+    },
+    {
+      "journey_id": "chat-inference-and-recovery",
+      "files": ["tests/e2e/studio.spec.js", "tests/e2e/verify_residue.py"]
+    },
+    {
+      "journey_id": "model-runtime-management",
+      "files": ["tests/e2e/product_acceptance.spec.js"]
+    },
+    {
+      "journey_id": "evaluation-review",
+      "files": ["tests/e2e/product_acceptance.spec.js"]
+    }
+  ],
+  "privacy_research": {
+    "product_telemetry_default": "off",
+    "raw_prompt_collection": false,
+    "raw_output_collection": false,
+    "local_path_collection": false,
+    "hostname_or_machine_identity_collection": false,
+    "allowed_usability_fields": [
+      "study_id",
+      "journey_id",
+      "task_completed",
+      "needed_recovery",
+      "assistance_required",
+      "duration_bucket",
+      "severity",
+      "sanitized_observation"
+    ],
+    "protocol": "docs/product-experience-validation.md"
+  },
+  "significant_ux_change_review": {
+    "required_pr_markers": [
+      "product-experience:task-model",
+      "product-experience:hierarchy",
+      "product-experience:cognitive-load",
+      "product-experience:recovery",
+      "product-experience:accessibility",
+      "product-experience:adaptive",
+      "product-experience:design-system",
+      "product-experience:evidence"
+    ]
+  },
+  "manual_evidence": {
+    "manual_accessibility_status": "pending",
+    "representative_user_usability_status": "pending",
+    "completion_rule": "pending manual evidence is explicit and blocks a full product-ui L2 claim; repository-side guardrails may still be accepted"
+  }
+}
