@@ -34,6 +34,7 @@ L2_FITNESS_FUNCTIONS = (
     "scripts/verify_built_surface_e2e.py",
     "scripts/verify_product_experience.py",
     "scripts/verify_product_ui_l2.py",
+    "scripts/verify_l2_evidence_bridge.py",
 )
 
 
