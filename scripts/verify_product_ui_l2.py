@@ -134,7 +134,8 @@ def main() -> int:
         for css_path in sorted(static_dir.glob("*.css")):
             if css_path == canonical:
                 continue
-            duplicates = sorted(declarations(css_path))
+            css = css_path.read_text(encoding="utf-8")
+            duplicates = sorted(declarations(css))
             if duplicates:
                 errors.append(
                     f"{css_path.relative_to(ROOT)} declares reserved --ds-* tokens outside canonical CSS: "
