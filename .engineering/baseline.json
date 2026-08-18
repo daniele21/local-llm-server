@@ -25,11 +25,12 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l2-v040-product-ui-integration-validation",
-    "current_slice": "PX4-07",
+    "status": "l2-v040-product-ui-repository-guardrails-complete-manual-and-hardware-gates-pending",
+    "current_slice": "PX4-09+PX4-10",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
     "l2_repository_validation_revision": "d528b6c5b676e705e7ccf24800929da6d5534203",
+    "product_ui_repository_validation_revision": "89d360698234016ddfe1f3fff0bacbc4f9bb7852",
     "skill_files": "installed-and-project-customized",
     "repository_side_l0": {
       "canonical_commands": "implemented-and-validated",
@@ -63,15 +64,16 @@
       "integration_acceptance": "passed-on-d528b6c5b676e705e7ccf24800929da6d5534203"
     },
     "product_ui_l2": {
-      "contract_and_design_source": "implemented-pending-exact-head-validation",
-      "brand_and_semantic_tokens": "implemented-pending-exact-head-validation",
-      "accessibility_automation": "implemented-pending-exact-head-validation",
-      "adaptive_layout_contract": "implemented-pending-exact-head-validation",
-      "critical_journey_e2e_mapping": "implemented-pending-exact-head-validation",
-      "design_system_drift_control": "implemented-pending-exact-head-validation",
-      "privacy_safe_research_contract": "implemented-pending-exact-head-validation",
-      "significant_ux_change_review": "implemented-pending-exact-head-validation",
+      "contract_and_design_source": "implemented-and-validated",
+      "brand_and_semantic_tokens": "implemented-and-validated",
+      "accessibility_automation": "implemented-and-validated",
+      "adaptive_layout_contract": "implemented-and-validated",
+      "critical_journey_e2e_mapping": "implemented-and-validated",
+      "design_system_drift_control": "implemented-and-blocking-in-repository-health",
+      "privacy_safe_research_contract": "implemented-and-validated",
+      "significant_ux_change_review": "implemented-and-validated",
       "visual_regression": "deferred-until-stable-high-risk-surface-justifies-pixel-contract",
+      "repository_guardrail_acceptance": "passed-on-89d360698234016ddfe1f3fff0bacbc4f9bb7852",
       "manual_accessibility_evidence": "pending",
       "representative_user_usability_evidence": "pending"
     },
