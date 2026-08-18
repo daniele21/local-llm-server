@@ -3,49 +3,43 @@
 Status: active procedure
 Owner: local-llm-server
 Read when: executing TH-E1, EV-3, HE-2 or RES-2 on the representative Mac
+Last reviewed: 2026-08-18
 
-This runbook turns the remaining evidence wave into repeatable commands. It intentionally uses placeholders because local model keys and filesystem paths are private/device-specific.
+This runbook turns the remaining L2 evidence wave into repeatable commands. Private model paths stay local. The final bundle validator emits a bounded public-safe summary and never promotes repository maturity automatically.
 
 ## Scope and safety
 
-Run these procedures from the converged `dev` branch after installing the current package/environment.
-
-Set local placeholders once:
+Run from the converged `dev` branch after installing the current environment.
 
 ```bash
 MODEL="<model-key>"
 MODEL_PATH="<absolute-path-to-model.gguf>"
-EVIDENCE_DIR="$HOME/.local-llm-server/evidence/2026-08-17-converged"
+EVIDENCE_DIR="$HOME/.local-llm-server/evidence/$(date +%F)-l2"
 mkdir -p "$EVIDENCE_DIR"
 ```
 
 Rules:
 
 - use the same exact GGUF for all comparable runs;
-- do not put private model paths into committed evidence/docs;
-- do not run multiple heavy model loads concurrently on one Mac merely to simulate plan parallelism;
+- do not commit private model paths or raw inference content;
+- serialize heavy model executions on one Mac;
 - do not induce OOM, critical OS pressure or automatic eviction;
-- retain negative, mixed and inconclusive results;
+- retain negative, mixed and inconclusive observations;
 - do not generalize one-device or ten-sample observations into production-safety/model-quality claims.
 
 ## 0. Verify the exact artifact
 
-Before HE-2 and preferably before TH-E1/EV-3, explicitly create/refresh the local verification receipt:
+Before HE-2 and preferably before all comparable runs:
 
 ```bash
 local-llm verify-artifact "$MODEL" --model-path "$MODEL_PATH"
 ```
 
-Expected contract:
+The receipt remains machine-local. Public evidence may expose only the strong digest/fingerprint and verification grade, never the private path. If the file changes, verification must be repeated.
 
-- command succeeds and reports a strong SHA-256 summary;
-- receipt remains machine-local;
-- later public runtime/evidence payloads may expose digest/fingerprint but never the private path;
-- if the file changes, verification must be repeated.
+## 1. Start the representative runtime
 
-## TH-E1 — real thinking OFF/ON smoke
-
-Start the converged server with the representative runtime and admin API. Keep `Show thinking` disabled for the hidden-output checks.
+TH-E1 and EV-3 use the same running server:
 
 ```bash
 local-llm serve \
@@ -55,52 +49,31 @@ local-llm serve \
   --enable-admin-api
 ```
 
-In a second terminal, use the same prompt and deterministic sampling for both requests.
+Keep this server isolated from other heavy model loads while the comparable runs execute.
 
-### OFF
+## TH-E1 — explicit thinking OFF/ON without retaining output
 
-```bash
-curl -sS http://127.0.0.1:8000/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d "{
-    \"model\": \"$MODEL\",
-    \"messages\": [{\"role\": \"user\", \"content\": \"Reply with a concise explanation of why local inference can improve privacy.\"}],
-    \"temperature\": 0,
-    \"enable_thinking\": false,
-    \"show_thinking\": false,
-    \"stream\": false
-  }" | tee "$EVIDENCE_DIR/thinking-off-response.json"
-```
-
-### ON, hidden
+In a second terminal run the packaged capture bridge:
 
 ```bash
-curl -sS http://127.0.0.1:8000/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d "{
-    \"model\": \"$MODEL\",
-    \"messages\": [{\"role\": \"user\", \"content\": \"Reply with a concise explanation of why local inference can improve privacy.\"}],
-    \"temperature\": 0,
-    \"enable_thinking\": true,
-    \"show_thinking\": false,
-    \"stream\": false
-  }" | tee "$EVIDENCE_DIR/thinking-on-hidden-response.json"
+python -m local_llm_server.l2_evidence_bridge capture-thinking \
+  --base-url http://127.0.0.1:8000 \
+  --model "$MODEL" \
+  --output "$EVIDENCE_DIR/thinking-campaign.json"
 ```
 
-Optionally perform one ON request with `show_thinking=true` to confirm visibility is independently controlled. Do not use the visible reasoning text as a correctness oracle.
+The command itself sends the same deterministic local workload twice:
 
-Record alongside the local responses:
+- explicit `enable_thinking=false`, `show_thinking=false`;
+- explicit `enable_thinking=true`, `show_thinking=false`.
 
-- runtime identity payload from `/v1/runtime/identity`;
-- whether both requests completed or returned typed errors;
-- confirmation that hidden mode did not mix reasoning into normal application content;
-- any model-output difference as an observation only.
+It retains only bounded request-policy flags, HTTP/result state, whether normal application content contains a `<think>` boundary, and the public runtime identity. It does **not** retain the prompt, output, raw response or private paths.
 
-TH-E1 is complete when explicit OFF and ON are both exercised on the representative converged runtime and the output-exposure contract is confirmed.
+TH-E1 is acceptance-ready only when both requests complete with normal content and neither hidden response mixes reasoning boundaries into normal application content. Typed failures are still retained truthfully but do not become a fabricated successful campaign.
 
 ## EV-3 — repeatable post-convergence evaluation
 
-Run the server with `--enable-admin-api`, then execute the exact OFF workload twice.
+With the same verified resident runtime, execute the exact OFF workload twice.
 
 ### OFF run A
 
@@ -114,7 +87,7 @@ curl -sS http://127.0.0.1:8000/api/v1/evaluation/runs \
     \"sample_count\": 10,
     \"seed\": 0,
     \"reasoning_policy\": \"off\"
-  }" | tee "$EVIDENCE_DIR/evaluation-off-a.json"
+  }" > "$EVIDENCE_DIR/evaluation-off-a.json"
 ```
 
 ### OFF run B
@@ -129,19 +102,18 @@ curl -sS http://127.0.0.1:8000/api/v1/evaluation/runs \
     \"sample_count\": 10,
     \"seed\": 0,
     \"reasoning_policy\": \"off\"
-  }" | tee "$EVIDENCE_DIR/evaluation-off-b.json"
+  }" > "$EVIDENCE_DIR/evaluation-off-b.json"
 ```
 
-Verify in both reports:
+The final bundle validator checks that the two reports have:
 
-- same `test_set_identity`;
-- same ten `sample_ids`;
-- same seed;
-- reasoning profile requested/effective state is explicitly represented;
-- runtime fingerprint is present when verified identity/backend evidence are complete;
-- every sample is either successful or carries an explicit failure code.
+- `general-purpose` `v1.0.0`, exactly ten samples and seed `0`;
+- identical test-set identity and sample selection;
+- explicit requested/effective reasoning `off`;
+- compatible verified runtime fingerprint;
+- complete results where every failed sample carries an explicit error code.
 
-An optional ON run must be treated as a separate experiment:
+An optional ON evaluation is a separate experiment and is not part of the minimum L2 bundle:
 
 ```bash
 curl -sS http://127.0.0.1:8000/api/v1/evaluation/runs \
@@ -153,14 +125,14 @@ curl -sS http://127.0.0.1:8000/api/v1/evaluation/runs \
     \"sample_count\": 10,
     \"seed\": 0,
     \"reasoning_policy\": \"on\"
-  }" | tee "$EVIDENCE_DIR/evaluation-on.json"
+  }" > "$EVIDENCE_DIR/evaluation-on.json"
 ```
 
-Do not describe score deltas as global model-quality improvement. Inspect concrete sample/scorer changes.
+Do not describe score deltas as global model-quality improvement.
 
 ## HE-2 — two verified 3-cycle reclamation reports
 
-Artifact verification must have succeeded first. Run two independent reports with the same model/backend/procedure.
+Stop the long-running server before starting isolated reclamation workers. Artifact verification must already have succeeded.
 
 ```bash
 local-llm evidence-reclamation \
@@ -197,17 +169,11 @@ local-llm evidence-review \
   --output "$EVIDENCE_DIR/reclamation-review.json"
 ```
 
-Acceptance:
+Do **not** use `--allow-exploratory-identity` for HE-2 acceptance. The final bundle validator recomputes the review from the two raw reports and rejects a stored review that disagrees with the conservative recomputation.
 
-- two reports are compatible on artifact/backend/config/environment/procedure;
-- six cycles are attempted and lifecycle errors are reported truthfully;
-- reviewer consumes verified identity by default;
-- whatever recovery state is observed is retained;
-- no automatic-eviction recommendation or production-safety claim is inferred.
+The observed recovery state may be positive, negative, mixed or inconclusive. No automatic-eviction recommendation or production-safety claim is inferred.
 
-Do **not** use `--allow-exploratory-identity` for HE-2 acceptance.
-
-## RES-2 — bounded real-device resource policy smoke
+## RES-2 — bounded real-device resource-policy smoke
 
 Run the dedicated macOS safety-gated procedure:
 
@@ -223,34 +189,44 @@ python -m local_llm_server.resource_policy_smoke \
   --output "$EVIDENCE_DIR/resource-policy-smoke.json"
 ```
 
-The runner itself refuses execution when measured macOS available memory is below the model estimate plus configured success and host-safety margins.
+The runner refuses execution when measured macOS available memory is below the model estimate plus configured success and host-safety margins. Do not lower the safety margin merely to force a pass.
 
-A valid retained report must show:
+A complete report must show safe admission, positive committed accounting while resident, one HTTP inference, zero committed/reserved accounting after unload, green/cold health, insufficient-budget rejection before backend construction and `automatic_eviction_exercised=false`.
 
-- successful safe admission/load;
-- positive committed accounting while resident;
-- one successful HTTP inference;
-- unload returns committed/reserved bytes and reservation count to zero;
-- health is green and `cold` after final unload;
-- deliberately insufficient budget is rejected before backend load;
-- zero residency/reservations remain after reject;
-- `automatic_eviction_exercised` is `false`.
+## 5. Validate the complete hardware bundle
 
-If the safety gate refuses the run, record that result and free ordinary host memory before trying later; do not lower the host-safety margin merely to force a pass.
+After the four campaigns exist, run one deterministic review over the local directory:
+
+```bash
+python -m local_llm_server.l2_evidence_bridge validate-hardware-bundle \
+  --directory "$EVIDENCE_DIR" \
+  --output "$EVIDENCE_DIR/l2-device-bundle-summary.json"
+```
+
+The command exits successfully only when the minimum L2 evidence contracts are complete. It:
+
+- verifies explicit TH-E1 OFF/ON-hidden evidence;
+- uses the canonical evaluation comparison logic for EV-3;
+- recomputes the HE-2 conservative review from both reclamation reports;
+- verifies the RES-2 admit/account/release/reject invariants;
+- emits no input paths, prompts or model outputs in the summary;
+- never changes `.engineering/baseline.json` or authorizes automatic eviction.
+
+A non-zero exit is evidence of an incomplete/incompatible bundle, not a reason to edit thresholds until green.
 
 ## Evidence completion checklist
 
-Wave D is complete only when the local evidence directory contains, at minimum:
+The local evidence directory must contain at minimum:
 
 ```text
-thinking-off-response.json
-thinking-on-hidden-response.json
+thinking-campaign.json
 evaluation-off-a.json
 evaluation-off-b.json
 reclamation-a.json
 reclamation-b.json
 reclamation-review.json
 resource-policy-smoke.json
+l2-device-bundle-summary.json
 ```
 
-The local directory may contain private inference outputs and therefore should not be committed wholesale. Durable repository docs should record bounded conclusions, compatible identities/fingerprints where public-safe, and references/metadata needed for reproducibility without private paths or prompts.
+The source evidence directory may contain private evaluation/model content and must not be committed wholesale. Durable repository truth should use only bounded public-safe conclusions, compatible identities/fingerprints and the validated summary needed for reproducibility.
