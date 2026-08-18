@@ -6,7 +6,7 @@ from scripts.verify_docs import _check_canonical_scopes, _check_freshness, valid
 
 def test_repository_documentation_policy_passes() -> None:
     root = Path(".")
-    errors, active_count = validate_documents(root, today=date(2026, 8, 17))
+    errors, active_count = validate_documents(root, today=date.today())
     expected_active = sum(
         1
         for path in (root / "docs" / "workstreams").glob("*.md")
