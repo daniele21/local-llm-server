@@ -2,30 +2,31 @@
   "schema_version": 1,
   "standard": {
     "source": "daniele21/repo-template-sw",
-    "version": "0.3.0",
-    "revision": "41ba67a124b0daa33db2a02055d76897391d7092"
+    "version": "0.4.0",
+    "revision": "60e0f498a459e2de114ccb23f6cd50994c19513f"
   },
   "target_level": "L2",
   "profiles": [
     "python",
     "local-ai",
     "typescript",
-    "macos"
+    "macos",
+    "product-ui"
   ],
   "skills": {
     "plan-workstream": {"source_version": "0.1.0", "customized": true},
-    "structured-change": {"source_version": "0.2.0", "customized": true},
-    "validate-change": {"source_version": "0.3.0", "customized": true},
+    "structured-change": {"source_version": "0.4.0", "customized": true},
+    "validate-change": {"source_version": "0.4.0", "customized": true},
     "finalize-workstream": {"source_version": "0.1.0", "customized": true},
-    "review-reference-quality": {"source_version": "0.3.0", "customized": true}
+    "review-reference-quality": {"source_version": "0.4.0", "customized": true}
   },
   "documentation": {
     "completed_workstreams": "delete-by-default",
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l2-repository-side-complete-hardware-gate-pending",
-    "current_slice": "L2-11",
+    "status": "l2-v040-product-ui-integration-validation",
+    "current_slice": "PX4-07",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
     "l2_repository_validation_revision": "d528b6c5b676e705e7ccf24800929da6d5534203",
@@ -61,6 +62,19 @@
       "specialist_fitness_functions": "implemented-and-blocking-in-repository-health",
       "integration_acceptance": "passed-on-d528b6c5b676e705e7ccf24800929da6d5534203"
     },
+    "product_ui_l2": {
+      "contract_and_design_source": "implemented-pending-exact-head-validation",
+      "brand_and_semantic_tokens": "implemented-pending-exact-head-validation",
+      "accessibility_automation": "implemented-pending-exact-head-validation",
+      "adaptive_layout_contract": "implemented-pending-exact-head-validation",
+      "critical_journey_e2e_mapping": "implemented-pending-exact-head-validation",
+      "design_system_drift_control": "implemented-pending-exact-head-validation",
+      "privacy_safe_research_contract": "implemented-pending-exact-head-validation",
+      "significant_ux_change_review": "implemented-pending-exact-head-validation",
+      "visual_regression": "deferred-until-stable-high-risk-surface-justifies-pixel-contract",
+      "manual_accessibility_evidence": "pending",
+      "representative_user_usability_evidence": "pending"
+    },
     "accepted_deviations": {
       "canonical_branch_protection": {
         "status": "owner-deferred",
@@ -70,7 +84,9 @@
     "pending_empirical_evidence": {
       "full_l2_representative_hardware_gate": "blocked-on-runtime-correctness-evidence-workstream",
       "real_runtime_smoke": "owned-by-runtime-correctness-evidence-workstream",
-      "representative_hardware_claims": "owned-by-runtime-correctness-evidence-workstream"
+      "representative_hardware_claims": "owned-by-runtime-correctness-evidence-workstream",
+      "product_ui_manual_accessibility": "pending-real-manual-review",
+      "product_ui_representative_user_usability": "pending-real-representative-session"
     }
   }
 }
