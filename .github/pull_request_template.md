@@ -29,13 +29,41 @@
 <!-- complexity-review:sunset -->
 **How this complexity will be re-evaluated/removed later:**
 
+## Product experience
+
+<!-- Required for meaningful user-facing changes when product-ui is adopted. Otherwise answer N/A with a concrete reason. -->
+
+<!-- product-experience:task-model -->
+**User task / mental model affected:**
+
+<!-- product-experience:hierarchy -->
+**Primary action / information hierarchy:**
+
+<!-- product-experience:cognitive-load -->
+**Progressive disclosure / cognitive-load impact:**
+
+<!-- product-experience:recovery -->
+**Loading, empty, error, disabled and recovery behavior:**
+
+<!-- product-experience:accessibility -->
+**Accessibility impact/evidence:**
+
+<!-- product-experience:adaptive -->
+**Adaptive/responsive contexts affected:**
+
+<!-- product-experience:design-system -->
+**Canonical component/token reuse or intentional design-system change:**
+
+<!-- product-experience:evidence -->
+**E2E/visual/manual/usability evidence and remaining PENDING items:**
+
 ## Build / runtime / artifact lifecycle
 
 <!-- Canonical command intents affected; build identity; manifest/checksum/build delta/retention; localhost/process/port/temp cleanup. Otherwise N/A. -->
 
 ## Validation
 
-<!-- Exact check/test/e2e/build/smoke/manual/device checks executed. Distinguish deterministic CI from real-device evidence and never claim a run that was not executed. -->
+<!-- Exact check/test/e2e/build/smoke/manual/device checks executed. Distinguish deterministic CI from real-device/manual evidence and never claim a run that was not executed. -->
 
 ## E2E evidence
 
@@ -47,4 +75,4 @@
 
 ## Documentation lifecycle
 
-<!-- Durable docs updated, or why none are required. Finalize/delete completed active workstreams when applicable. -->
+<!-- Durable docs/design contracts updated, or why none are required. Finalize/delete completed active workstreams when applicable. -->
