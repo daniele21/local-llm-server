@@ -210,7 +210,9 @@ def test_hardware_bundle_validates_all_four_real_evidence_gates(tmp_path: Path) 
     assert summary["errors"] == []
     rendered = json.dumps(summary)
     assert str(tmp_path) not in rendered
-    assert "prompt" not in rendered.lower()
+    assert "local inference can improve privacy" not in rendered
+    assert "private prompt" not in rendered
+    assert summary["privacy"]["prompt_or_output_retained"] is False
     assert "production_safety_claim" in rendered
 
 
