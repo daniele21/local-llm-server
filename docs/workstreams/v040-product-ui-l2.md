@@ -1,6 +1,6 @@
 # repo-template-sw 0.4.0 product-ui L2 migration
 
-Status: active
+Status: active — integration validation
 Owner: repository engineering + web product
 Read when: coordinating the 0.3.0 -> 0.4.0 migration and product-ui L2 evidence
 Last reviewed: 2026-08-18
@@ -33,16 +33,26 @@ The existing full-L2 representative-hardware gate remains owned by `l2-reference
 
 | ID | Work | Depends on | State |
 | --- | --- | --- | --- |
-| PX4-01 | pin 0.4.0 revision, add `product-ui`, record semantic delta | — | ACTIVE |
-| PX4-02 | specialized UX + brand contracts and upstream validator | PX4-01 | ACTIVE |
-| PX4-03 | map accessibility, adaptive layouts and critical journeys to existing evidence | PX4-02 | ACTIVE |
-| PX4-04 | design-system token/component drift and duplication fitness function | PX4-02 | ACTIVE |
-| PX4-05 | privacy-safe research/usability evidence contract and manual protocol | PX4-02 | ACTIVE |
-| PX4-06 | significant UX change review contract + PR/Skill integration | PX4-02 | ACTIVE |
-| PX4-07 | Repository Health integration and exact-head acceptance | PX4-03..PX4-06 | BLOCKED |
+| PX4-01 | pin 0.4.0 revision, add `product-ui`, record semantic delta | — | DONE |
+| PX4-02 | specialized UX + brand contracts and upstream validator | PX4-01 | DONE |
+| PX4-03 | map accessibility, adaptive layouts and critical journeys to existing evidence | PX4-02 | DONE |
+| PX4-04 | design-system token/component drift and duplication fitness function | PX4-02 | DONE |
+| PX4-05 | privacy-safe research/usability evidence contract and manual protocol | PX4-02 | DONE |
+| PX4-06 | significant UX change review contract + PR/Skill integration | PX4-02 | DONE |
+| PX4-07 | Repository Health integration and exact-head acceptance | PX4-03..PX4-06 | ACTIVE |
 | PX4-08 | durable state transfer/finalize migration; keep any real manual gate explicit | PX4-07 | BLOCKED |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
+
+## Implemented repository guardrails
+
+- `design/ux-contract.json` declares task hierarchy, states, WCAG target, adaptive contexts, critical journeys and existing evidence owners.
+- `design/brand-kit.json` routes semantic brand tokens to the existing `--ds-*` design system and existing logo/favicon rather than duplicating assets.
+- `scripts/verify_product_experience.py` carries the upstream 0.4.0 structural contract.
+- `.engineering/product-ui-l2.json` + `scripts/verify_product_ui_l2.py` enforce local L2 ownership for semantic tokens/components, adaptive breakpoints, journey evidence, privacy-safe usability fields and UX review markers.
+- `docs/product-experience-validation.md` owns the manual accessibility/usability protocol and explicitly forbids raw prompt/output/path/machine identity retention.
+- the PR template and three customized review/change Skills now require user-task/hierarchy/cognitive-load/recovery/accessibility/adaptive/design-system/evidence review for meaningful UI changes.
+- `scripts/verify_repository.py` invokes both upstream and project-specific product-ui checks for the L2 target.
 
 ## Acceptance boundary
 
@@ -57,6 +67,16 @@ Repository-side 0.4.0 product-ui acceptance requires the same exact head to pass
 - Artifact Lifecycle, Security Audit, Package Install Smoke and L2 Performance Regression.
 
 Full product-ui L2 must not claim representative-user usability evidence until a real session is retained under the bounded protocol. Full engineering L2 additionally remains blocked on the separate representative-hardware evidence gate.
+
+## PX4-08 finalization rule
+
+After PX4-07 passes on one exact integrated revision:
+
+1. record the exact 0.4.0 product-ui repository acceptance revision in `.engineering/baseline.json`;
+2. mark deterministic product-ui capabilities accepted while retaining manual accessibility/usability as explicit pending evidence;
+3. move durable migration truth into `docs/current-state.md` and owning design docs;
+4. keep this workstream active if a manual product-ui L2 gate remains pending rather than deleting evidence debt;
+5. never conflate the product-ui manual gate with the separate Apple Silicon/model/backend hardware gate.
 
 ## Stop conditions
 
