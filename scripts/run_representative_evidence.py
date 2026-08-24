@@ -9,7 +9,7 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -173,7 +173,7 @@ def _parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = _parser().parse_args()
     model_path = args.model_path.expanduser().resolve()
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output_dir = (
         args.output_dir.expanduser().resolve()
         if args.output_dir is not None
@@ -237,6 +237,7 @@ def main() -> int:
         "--no-download",
     ]
 
+    server_ready = args.dry_run
     if args.dry_run:
         steps.append(
             {
@@ -258,12 +259,13 @@ def main() -> int:
         )
         try:
             _wait_for_server(base_url, server_process, args.startup_timeout_seconds)
+            server_ready = True
             steps.append({"name": "server", "status": "passed", "log": server_log_path.name})
         except RuntimeError as exc:
             steps.append({"name": "server", "status": "failed", "error": str(exc)})
 
     try:
-        if args.dry_run or (server_process is not None and server_process.poll() is None):
+        if server_ready:
             steps.append(
                 _http_step(
                     name="runtime-identity",
@@ -503,7 +505,7 @@ def main() -> int:
     failed = [step["name"] for step in steps if step.get("status") == "failed"]
     manifest = {
         "schema_version": 1,
-        "created_at": datetime.now(UTC).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "dry_run": args.dry_run,
         "model": args.model,
         "backend": args.backend,
