@@ -32,6 +32,7 @@
         ['localLlmControlPlaneEvaluation', '/static/control-plane-evaluation.js'],
         ['localLlmControlPlaneEvaluationHistory', '/static/control-plane-evaluation-history.js'],
         ['localLlmEvaluationReasoning', '/static/control-plane-evaluation-reasoning.js'],
+        ['localLlmEvaluationMigration', '/static/control-plane-evaluation-migration.js'],
     ];
     scripts.forEach(([marker, src]) => {
         if (document.querySelector(`script[data-${marker.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`)) return;
