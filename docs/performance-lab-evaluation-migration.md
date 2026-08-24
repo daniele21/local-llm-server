@@ -6,28 +6,28 @@ Last reviewed: 2026-08-24
 
 ## Decision
 
-Long-term benchmark/evaluation product ownership moves to `daniele21/performance-lab`.
+Long-term benchmark/evaluation product ownership belongs to `daniele21/performance-lab`.
 
 Local LLM Server remains the serving/runtime control plane. It owns resident model lifecycle, request execution, capability truth, public runtime identity, provider-observed metrics, resource admission/reclamation and hardware/runtime correctness evidence.
 
-The existing Local LLM Server evaluation subsystem is **transitional**, not removed yet. Current representative-device evidence still depends on its frozen evaluation identity.
+The existing Local LLM Server evaluation subsystem is transitional and receives no new product scope. It is retained only while the current evidence wave and migration gates require it.
 
 ## Keep in Local LLM Server
 
-These are runtime/provider responsibilities and are not migration candidates:
+These runtime/provider responsibilities are not migration candidates:
 
-- `/v1/models` and `/v1/chat/completions` serving contracts;
+- `/v1/models` and `/v1/chat/completions`;
 - resident runtime loading/routing/leases and task/capability validation;
 - `/v1/runtime/identity` and `local-llm-identity-v1` evidence;
 - `/status` and completion/streaming/runtime metrics;
 - hardware/resource/admission/reclamation evidence and bounded real-device runners;
 - backend-specific thinking/reasoning capability resolution and output normalization required for truthful serving behavior.
 
-Performance Lab may consume these surfaces, but must preserve their provider provenance rather than re-owning them.
+Performance Lab may consume these surfaces, but preserves their provider provenance rather than re-owning them.
 
 ## Transition out of Local LLM Server
 
-After replacement evidence, the following become redundant here:
+After replacement evidence, these become redundant here:
 
 - `evaluation.py` sample/test-set/score/run-manifest contracts;
 - `evaluation_builtin.py` generic evaluation content/scoring;
@@ -36,14 +36,12 @@ After replacement evidence, the following become redundant here:
 - local evaluation report persistence, history and baseline/candidate comparison;
 - `/api/v1/evaluation/*` run/test-set/history surfaces;
 - Studio Benchmark & Evaluation / evaluation-history surfaces;
-- evaluation-only tests after their owner is removed;
-- legacy root `test_inference.py`, `inference_test_config.json` and `inference_results_report.json` after consumer/history review.
+- evaluation-only tests after their production owner disappears;
+- legacy root `test_inference.py`, `inference_test_config.json` and `inference_results_report.json` after final archive/consumer review.
 
 ## Frozen migration dependency
 
-Do **not** remove or semantically change `general-purpose@1.0.0` before the current runtime-correctness evidence wave is complete.
-
-`docs/current-state.md` and the device-evidence runbook require EV-3:
+Do **not** remove or semantically change `general-purpose@1.0.0` before EV-3 completes:
 
 ```text
 general-purpose v1.0.0
@@ -53,47 +51,61 @@ reasoning = off
 2 comparable retained runs
 ```
 
-That evidence must be produced on the converged real-device runtime. Historical pre-convergence runs are not substitutes.
+Those runs must be produced on the converged real-device runtime. Historical pre-convergence runs are not substitutes.
 
-After EV-3, choose one explicit continuity policy:
+## MIG-002 continuity policy: legacy stays legacy
 
-1. **Freeze/import legacy identity into Performance Lab** when exact cross-product historical continuity is valuable; or
-2. **Historical-only LLS archive** where existing reports remain readable but future evaluation uses Performance Lab-owned suites.
+The initial migration deliberately chooses **historical-only Local LLM Server evidence** instead of importing old evaluation JSON into Performance Lab.
 
-Do not silently relabel Performance Lab's different `general-diagnostic-starter` suite as equivalent to `general-purpose@1.0.0`.
+- Existing and EV-3 reports remain immutable LLS evidence under the contracts that produced them.
+- After cutover, all new benchmark/evaluation evidence is created and stored by Performance Lab.
+- Performance Lab's `general-diagnostic-starter` is a different experiment from `general-purpose@1.0.0`; neither is relabeled to make history look continuous.
+- No cross-product baseline/candidate comparison is claimed unless a future explicit compatibility protocol proves it valid.
+- A one-time legacy importer is out of scope unless a concrete archival/query requirement later justifies it.
+- Root `inference_results_report.json` is legacy output, not canonical current evaluation history and not an import source for Performance Lab.
 
-## Known parity boundaries
+This avoids creating a second compatibility layer solely for cosmetic continuity.
 
-Performance Lab already owns immutable dataset/evaluator/run/comparison evidence, versioned local/custom dataset loading, deterministic evaluators, portable bundles, Runs/Run Detail/Compare and the browser evaluation flow.
+## Replacement policy: user outcome, not feature-for-feature cloning
 
-Two areas require explicit MIG-002 handling before deprecation can be called complete:
+Performance Lab already replaces the core user outcome: evaluate an external inference endpoint with versioned evidence, inspect immutable results and compare compatible runs.
 
-- **custom test-set semantics:** Local LLM Server supports expectation keys `exact`, `exact_ci`, `contains`, `word_count`, `comma_count` and `json`; each required consumer must have an explicit Performance Lab evaluator/import path rather than assuming generic dataset import is identical;
-- **evaluation reasoning policy:** Local LLM Server records requested/effective thinking policy. Performance Lab's current canonical generation config does not directly encode the LLS `enable_thinking/show_thinking` controls, so any required parity needs a bounded integration mapping while runtime capability truth stays server-owned.
+Legacy mechanics are migrated only when a retained consumer needs them:
 
-## History and consumer policy
+- custom expectation keys `exact`, `exact_ci`, `contains`, `word_count`, `comma_count` and `json` are not a requirement to preserve the old upload schema. A real required workload should be expressed through Performance Lab's native dataset/evaluator contracts;
+- evaluation-specific requested/effective thinking policy is not automatically copied into Performance Lab. Thinking capability remains LLS runtime truth; a PL integration control is added only if a real replacement use case requires it;
+- `general-purpose@1.0.0` mixes request/task semantics that are not identical to Performance Lab's current generic chat orchestrator. Exact replay is therefore an optional legacy compatibility feature, not a migration prerequisite.
 
-Before disabling evaluation routes/UI:
+## Repository-known consumers
 
-- inventory API/UI/script consumers;
-- treat persisted evaluation JSON as immutable historical evidence;
-- choose one-time import, documented read-only archive or explicit retirement;
-- provide a visible replacement path to Performance Lab;
-- verify no navigation, docs or automation still requires the old routes;
-- run a cross-repository real-runtime smoke using Local LLM Server serving/identity/status plus the Performance Lab evaluation product.
+The repository proves the following consumers of the evaluation subsystem:
 
-Runtime evidence generated by Local LLM Server is not part of evaluation-history removal.
+- `static/control-plane-evaluation.js` directly calls test-set list/import and evaluation-run endpoints and renders the current result;
+- `static/control-plane-evaluation-history.js` directly calls history list/detail/compare endpoints;
+- evaluation API/service/history/UI tests cover those same owners;
+- the active real-device evidence workflow requires EV-3 on `general-purpose@1.0.0`.
+
+No additional external consumer can be established from repository contents. That is not proof that external scripts do not exist, so route removal still requires visible deprecation/replacement messaging and a release boundary.
+
+## Cutover sequence
+
+1. **Retain EV-3.** Finish the two required post-convergence real-device legacy runs.
+2. **Prove the replacement.** Run Performance Lab against the same real LLS serving product with `/v1/runtime/identity` required and `/status` sampled; retain the PL fingerprint and `.plab.zip`.
+3. **Redirect Studio/users.** Replace Benchmark & Evaluation navigation/copy with the supported Performance Lab workflow before disabling evaluation run/write behavior.
+4. **Freeze legacy history.** At cutover, stop creating new LLS evaluation evidence. Retained reports remain historical artifacts under their existing identities.
+5. **Disable/remove redundant evaluation.** Remove evaluation run/test-set/history product paths and their tests only after known consumers are redirected.
+6. **Run cross-repository smoke.** Verify `/v1/models`, `/v1/chat/completions`, `/v1/runtime/identity`, `/status`, resource/reclamation behavior and Performance Lab evaluation all remain correct.
 
 ## Removal gate
 
 Redundant evaluation code may be removed only after all are true:
 
-- current EV-3 evidence is retained;
+- EV-3 evidence is retained;
 - Performance Lab representative real-runtime evidence is retained;
-- exact dataset/history continuity policy is documented;
-- reasoning/custom-test-set consumers have explicit replacement outcomes;
-- evaluation UI/API consumers are redirected;
-- cross-repository E2E/smoke is green on a real runtime;
+- Studio/users have a replacement path;
+- legacy history is frozen under the historical-only policy;
+- no repository-known consumer still requires evaluation run/write routes;
+- cross-repository smoke is green on a real runtime;
 - serving, identity, telemetry, resource and hardware-evidence behavior remains unchanged.
 
-Until then, evaluation is retained as a bounded compatibility/evidence surface and should not gain new product scope.
+Until then, evaluation is a bounded compatibility/evidence surface and should not gain new product scope.
