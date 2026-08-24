@@ -18,7 +18,7 @@ Cross-repository ownership is also settled: long-term benchmark/evaluation produ
 | Workstream / transition | Executable now | State | Blocker |
 | --- | --- | --- | --- |
 | [`runtime-correctness-evidence-hardening`](workstreams/runtime-correctness-evidence-hardening.md) | `TH-E1`, `EV-3`, `HE-2`, `RES-2` | ACTIVE — evidence wave | requires physical target-Mac execution; REL-1 waits on retained evidence |
-| [Performance Lab evaluation migration](performance-lab-evaluation-migration.md) | replacement-path preparation and deprecation redirect | MIG-002 POLICY DONE / EVIDENCE-BLOCKED | EV-3 + PL representative real-runtime run + user redirect + cross-repo smoke |
+| [Performance Lab evaluation migration](performance-lab-evaluation-migration.md) | Studio transition notice + real-runtime replacement evidence | MIG-002 POLICY DONE / REDIRECT IN CURRENT CHANGE / EVIDENCE-BLOCKED | EV-3 + PL representative real-runtime run + cross-repo smoke |
 
 Executable device commands and evidence boundaries are in [`device-evidence-runbook.md`](device-evidence-runbook.md).
 
@@ -36,7 +36,7 @@ The converged correctness implementation is integrated through PR #111 and the 0
 - Ctrl+C shutdown notifies long-lived ASGI streams before Uvicorn drain.
 - Automatic pressure eviction remains disabled. Worker streaming/cancellation remains explicitly unsupported rather than emulated.
 
-PR #111 CI passed Ruff plus Python 3.10/3.11/3.12; Python 3.11 executed 518 passing tests. The evaluation-ownership transition PR #147 also passed Ruff, Python 3.10/3.11/3.12 and Playwright E2E.
+PR #111 CI passed Ruff plus Python 3.10/3.11/3.12; Python 3.11 executed 518 passing tests. The evaluation-ownership transition PR #147 and MIG-002 policy PR #148 also passed Ruff, Python 3.10/3.11/3.12 and Playwright E2E.
 
 ## Evaluation ownership and history policy
 
@@ -44,7 +44,7 @@ The current evaluation subsystem is a transitional compatibility/evidence surfac
 
 Runtime responsibilities stay here: `/v1/models`, `/v1/chat/completions`, resident runtime lifecycle, capability truth, `/v1/runtime/identity`, `/status`, provider-observed metrics, resource/reclamation behavior and hardware correctness evidence.
 
-The migration continuity decision is now explicit:
+The migration continuity decision is explicit:
 
 - existing and EV-3 evaluation reports remain immutable **historical Local LLM Server evidence**;
 - after cutover, all new evaluation evidence is created/stored by Performance Lab;
@@ -52,7 +52,7 @@ The migration continuity decision is now explicit:
 - `general-purpose@1.0.0` and Performance Lab's `general-diagnostic-starter` remain distinct evidence identities and are not cross-compared by assumption;
 - exact custom-test-set/reasoning/request semantics are not cloned unless an actual retained consumer requires them.
 
-Repository-known evaluation consumers are the Studio Benchmark & Evaluation surface, its history/compare surface, their API/UI tests and the EV-3 evidence workflow. Route removal still requires visible deprecation/redirect because repository inspection cannot prove that no external script exists.
+Repository-known evaluation consumers are the Studio Benchmark & Evaluation surface, its history/compare surface, their API/UI tests and the EV-3 evidence workflow. This change adds a visible Studio transition notice that points new evaluation work to Performance Lab while deliberately leaving legacy run/history behavior active for EV-3.
 
 Most importantly, `general-purpose@1.0.0` remains frozen through EV-3. Do not remove or semantically change it before two post-convergence `10 / seed 0 / reasoning off` real-device runs are retained. See [`performance-lab-evaluation-migration.md`](performance-lab-evaluation-migration.md).
 
@@ -76,13 +76,13 @@ There are no known code-contract blockers from the original hardening graph. Rem
 - **HE-2:** two new compatible verified 3-cycle Apple Silicon reports and conservative review required.
 - **RES-2:** bounded runner merged; real Mac admit/account/release/reject report pending.
 - **DOC-1/REL-1:** final docs/release gate must use actual Wave D observations.
-- **Evaluation migration:** architecture/history policy is decided; redundant evaluation UI/API/code remains blocked only by EV-3, Performance Lab representative runtime evidence, user redirect and cross-repository smoke.
+- **Evaluation migration:** architecture/history policy is decided and the Studio redirect is being made visible; redundant evaluation UI/API/code remains blocked by EV-3, Performance Lab representative runtime evidence and the post-disable cross-repository smoke.
 - Broader backend/device coverage and manual visual/accessibility acceptance remain release-candidate gates outside this immediate correctness workstream.
 
 ## Next
 
 Run the four representative-device slices from `device-evidence-runbook.md`; serialize them where simultaneous model loads would compete for the same Mac memory/residency.
 
-In parallel, prepare the non-destructive cutover: point Studio/users toward Performance Lab, keep legacy reports under their original identities, and prepare removal of evaluation run/write/history product paths only after EV-3 and the real Performance Lab replacement run are retained.
+In parallel, surface the non-destructive Studio transition notice. Do not disable evaluation run/write/history product paths until EV-3 and the real Performance Lab replacement run are retained.
 
 Retain negative, mixed or inconclusive evidence exactly as observed. Do not induce OOM/critical pressure and do not enable automatic eviction as part of these runs.
