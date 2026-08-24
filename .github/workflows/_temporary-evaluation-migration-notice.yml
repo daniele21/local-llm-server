@@ -3,6 +3,8 @@ name: Temporary evaluation migration notice patcher
 on:
   push:
     branches: [feat/evaluation-deprecation-notice]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
