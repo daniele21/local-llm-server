@@ -67,6 +67,27 @@ Default evidence destination:
 
 Override it with `--output-dir` when needed.
 
+## Review the retained evidence
+
+After the physical run, execute the public-safe reviewer against the evidence directory:
+
+```bash
+python scripts/review_representative_evidence.py \
+  ~/.local-llm-server/evidence/representative-<UTC timestamp>
+```
+
+It writes `representative-review.json` and exits with:
+
+- `0` — `ready_for_mig003`: all automated evidence-completeness/identity/comparability checks passed;
+- `1` — `blocked`: one or more required artifacts/contracts are missing, invalid, non-comparable or failed;
+- `2` — `review_required`: evidence is structurally valid but needs a conservative human decision, for example mixed HE-2 observations.
+
+The reviewer verifies the SHA-256 inventory before trusting evidence, checks the exact EV-3 identity and sample selection across both runs, confirms the real LLS fingerprint, checks the hidden-thinking response boundary, verifies Performance Lab produced a successful run plus SQLite and `.plab.zip`, checks graceful server lifecycle, interprets the existing HE-2 conservative review and verifies the bounded RES-2 admit/release/reject contract.
+
+It deliberately does **not** copy prompts, outputs, model paths, raw evidence paths or Performance Lab store/bundle paths into the public-safe summary. EV-3 sample failures remain descriptive evidence and do not become a synthetic gate failure when the run is complete and the failures are explicitly recorded.
+
+`ready_for_mig003` means the automated prerequisite evidence is complete enough to start the migration-removal review. It is not a broad performance, thermal, memory-reclamation safety or production-safety claim.
+
 ## Safety behavior
 
 - Real execution refuses non-macOS hosts.
@@ -100,8 +121,9 @@ reclamation-b.json
 reclamation-review.json
 resource-policy-smoke.json
 evidence-manifest.json
+representative-review.json   # after reviewer execution
 ```
 
 Performance Lab's nested output is expected to include its SQLite run evidence and `.plab.zip` bundle. The manifest SHA-256 list provides a local integrity index; it is not a release/publication mechanism.
 
-After the run, review the detailed acceptance criteria in `device-evidence-runbook.md`. Completion is evidence-driven: a process exit of zero means every automated slice completed, but claims still depend on inspecting identities, comparability, recovery/resource observations and the retained Performance Lab bundle.
+After the run, review the detailed acceptance criteria in `device-evidence-runbook.md`. Completion is evidence-driven: a runner exit of zero plus a reviewer `ready_for_mig003` result proves the automated prerequisite contracts completed; durable claims still depend on the bounded interpretation rules in the detailed runbook.
