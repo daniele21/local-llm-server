@@ -19,6 +19,14 @@ REQUIRED_PRINCIPLES = {
     "bounded_information_density",
     "actionable_error_recovery",
 }
+REQUIRED_DECISION_MODEL = {
+    "user_outcome_first",
+    "task_model_before_layout",
+    "hierarchy_before_visual_polish",
+    "states_before_motion",
+    "motion_requires_purpose",
+    "evidence_before_completion",
+}
 REQUIRED_ACCESSIBILITY = {
     "keyboard_when_applicable",
     "focus_visibility_order",
@@ -26,6 +34,25 @@ REQUIRED_ACCESSIBILITY = {
     "text_scaling_when_applicable",
     "no_color_only_critical_meaning",
     "reduced_motion_when_applicable",
+}
+REQUIRED_MOTION_FLAGS = {
+    "purpose_required",
+    "frequent_interactions_are_restrained",
+    "gesture_motion_tracks_input",
+    "performance_over_decorative_complexity",
+    "reduced_motion",
+}
+REQUIRED_MOTION_PURPOSES = {
+    "feedback",
+    "continuity",
+    "spatial_relationship",
+    "state_transition",
+    "progress",
+    "attention",
+}
+REQUIRED_GRAPHICS_FLAGS = {
+    "functional_before_decorative",
+    "ui_understandable_without_decorative_imagery",
 }
 REQUIRED_EVIDENCE = {
     "bounded_ci_retention",
@@ -44,6 +71,10 @@ REQUIRED_COLORS = {
     "border",
     "focus",
 }
+REQUIRED_STYLE = {"iconography", "motion", "imagery", "voice_microcopy"}
+REQUIRED_DURATION_TOKENS = {"instant", "fast", "standard", "large"}
+REQUIRED_EASING_TOKENS = {"enter", "exit", "move"}
+REQUIRED_SPRING_TOKENS = {"default", "bounce"}
 E2E_VALUES = {"required", "recommended", "n/a", "na"}
 
 
@@ -103,6 +134,33 @@ def require_true(section: dict, key: str, errors: list[str], prefix: str) -> Non
         errors.append(f"{prefix}.{key} must be true")
 
 
+def require_nonempty_list(section: dict, key: str, errors: list[str], prefix: str) -> list:
+    value = section.get(key)
+    if not isinstance(value, list) or not value:
+        errors.append(f"{prefix}.{key} must be a non-empty list")
+        return []
+    return value
+
+
+def require_text_map(
+    section: dict,
+    key: str,
+    required_keys: set[str],
+    errors: list[str],
+    prefix: str,
+    template_mode: bool,
+) -> None:
+    value = section.get(key)
+    if not isinstance(value, dict):
+        errors.append(f"{prefix}.{key} must be an object")
+        return
+    missing = sorted(required_keys - set(value))
+    if missing:
+        errors.append(f"{prefix}.{key} missing: " + ", ".join(missing))
+    for child_key in sorted(required_keys & set(value)):
+        require_text(value, child_key, errors, f"{prefix}.{key}", template_mode)
+
+
 def main() -> int:
     args = parse_args()
     root = Path(args.root).resolve()
@@ -149,6 +207,20 @@ def main() -> int:
             require_text(source, "type", errors, "design_source_of_truth", args.template_mode)
             require_text(source, "location", errors, "design_source_of_truth", args.template_mode)
 
+        context = ux.get("experience_context")
+        if not isinstance(context, dict):
+            errors.append("ux-contract.experience_context must be an object")
+        else:
+            for key in ("primary_users", "primary_jobs", "primary_surfaces"):
+                require_nonempty_list(context, key, errors, "experience_context")
+
+        decision_model = ux.get("decision_model")
+        if not isinstance(decision_model, dict):
+            errors.append("ux-contract.decision_model must be an object")
+            decision_model = {}
+        for key in sorted(REQUIRED_DECISION_MODEL):
+            require_true(decision_model, key, errors, "decision_model")
+
         principles = ux.get("principles")
         if not isinstance(principles, dict):
             errors.append("ux-contract.principles must be an object")
@@ -173,9 +245,7 @@ def main() -> int:
         if not isinstance(adaptive, dict):
             errors.append("ux-contract.adaptive_layout must be an object")
         elif adaptive.get("applicable") is True:
-            contexts = adaptive.get("supported_contexts")
-            if not isinstance(contexts, list) or not contexts:
-                errors.append("adaptive_layout.supported_contexts must be a non-empty list when applicable")
+            require_nonempty_list(adaptive, "supported_contexts", errors, "adaptive_layout")
 
         system = ux.get("design_system")
         if not isinstance(system, dict):
@@ -184,6 +254,25 @@ def main() -> int:
             require_text(system, "component_source", errors, "design_system", args.template_mode)
             require_text(system, "brand_tokens", errors, "design_system", args.template_mode)
             require_true(system, "reuse_existing_semantic_component_first", errors, "design_system")
+
+        motion = ux.get("motion")
+        if not isinstance(motion, dict):
+            errors.append("ux-contract.motion must be an object")
+            motion = {}
+        for key in sorted(REQUIRED_MOTION_FLAGS):
+            require_true(motion, key, errors, "motion")
+        purposes = set(motion.get("supported_purposes") or [])
+        missing_purposes = sorted(REQUIRED_MOTION_PURPOSES - purposes)
+        if missing_purposes:
+            errors.append("ux-contract.motion.supported_purposes missing: " + ", ".join(missing_purposes))
+
+        graphics = ux.get("graphics")
+        if not isinstance(graphics, dict):
+            errors.append("ux-contract.graphics must be an object")
+            graphics = {}
+        for key in sorted(REQUIRED_GRAPHICS_FLAGS):
+            require_true(graphics, key, errors, "graphics")
+        require_nonempty_list(graphics, "supported_roles", errors, "graphics")
 
         journeys = ux.get("critical_journeys")
         if not isinstance(journeys, list) or not journeys:
@@ -238,6 +327,49 @@ def main() -> int:
             errors.append("brand-kit.tokens.colors missing: " + ", ".join(missing_colors))
         require_text(tokens, "typography", errors, "tokens", args.template_mode)
         require_text(tokens, "spacing", errors, "tokens", args.template_mode)
+
+        style = brand.get("style")
+        if not isinstance(style, dict):
+            errors.append("brand-kit.style must be an object")
+            style = {}
+        for key in sorted(REQUIRED_STYLE):
+            require_text(style, key, errors, "style", args.template_mode)
+
+        motion_tokens = brand.get("motion_tokens")
+        if not isinstance(motion_tokens, dict):
+            errors.append("brand-kit.motion_tokens must be an object")
+            motion_tokens = {}
+        require_text_map(
+            motion_tokens,
+            "durations",
+            REQUIRED_DURATION_TOKENS,
+            errors,
+            "motion_tokens",
+            args.template_mode,
+        )
+        require_text_map(
+            motion_tokens,
+            "easing",
+            REQUIRED_EASING_TOKENS,
+            errors,
+            "motion_tokens",
+            args.template_mode,
+        )
+        require_text_map(
+            motion_tokens,
+            "spring",
+            REQUIRED_SPRING_TOKENS,
+            errors,
+            "motion_tokens",
+            args.template_mode,
+        )
+        require_text(
+            motion_tokens,
+            "reduced_motion_strategy",
+            errors,
+            "motion_tokens",
+            args.template_mode,
+        )
 
     if not args.template_mode:
         for label, data in (("ux-contract", ux), ("brand-kit", brand)):
