@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "contract_version": "0.4.0",
+  "contract_version": "0.5.0",
   "product_name": "Local LLM Studio",
   "assets": {
     "logo_primary": "src/local_llm_server/static/logo.svg",
@@ -33,8 +33,26 @@
   },
   "style": {
     "iconography": "Monoline/geometric inline SVG with consistent stroke treatment; vendor-neutral for core task concepts",
-    "motion": "Short functional transitions only; non-essential motion honors prefers-reduced-motion",
+    "motion": "Short functional transitions only; non-essential motion honors prefers-reduced-motion and must not compensate for unclear structure",
     "imagery": "Operational product UI first; screenshots must be real implemented surfaces and concept mockups are reference-only",
     "voice_microcopy": "Concise, technical, state-explicit and recovery-oriented; avoid anthropomorphic or unmeasured marketing claims"
+  },
+  "motion_tokens": {
+    "durations": {
+      "instant": "0ms for immediate state changes and reduced-motion fallback",
+      "fast": "--ds-transition-fast = 120ms ease for frequent control feedback",
+      "standard": "n/a — no separate canonical standard-duration token is currently shipped; use fast functional motion unless a semantic need justifies a new token",
+      "large": "n/a — no large decorative/navigation duration is currently canonical"
+    },
+    "easing": {
+      "enter": "ease via --ds-transition-fast for current functional transitions",
+      "exit": "ease via --ds-transition-fast for current functional transitions",
+      "move": "ease via --ds-transition-fast for current functional transitions"
+    },
+    "spring": {
+      "default": "n/a — spring motion is not part of the current browser product language",
+      "bounce": "n/a — bounce is intentionally avoided for frequent technical workflows"
+    },
+    "reduced_motion_strategy": "Global @media (prefers-reduced-motion: reduce) disables transitions/animations and restores immediate scrolling behavior in design-system.css."
   }
 }
