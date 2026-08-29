@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "contract_version": "0.3.0",
+  "contract_version": "0.5.0",
   "commands": {
     "setup": {
       "status": "required",
@@ -23,7 +23,7 @@
       "run": "uv run --frozen pytest tests/ -v --tb=short"
     },
     "e2e": {
-      "status": "recommended",
+      "status": "required",
       "run": "npm run test:e2e && python tests/e2e/verify_residue.py"
     },
     "build": {
@@ -48,6 +48,48 @@
       "run": "rm -rf build dist src/*.egg-info .pytest_cache .ruff_cache playwright-report test-results"
     }
   },
+  "publication_gate": {
+    "agent_preflight_required": true,
+    "target_base_freshness_required": true,
+    "full_diff_review_required": true,
+    "material_ambiguity_must_be_resolved": true,
+    "failure_root_cause_required": true,
+    "execution_capability_classification_required": true,
+    "blast_radius_profile_selection_required": true,
+    "automatable_gates_must_not_be_delegated_to_user": true,
+    "remote_automated_fallback_required_when_agent_local_unavailable": true,
+    "deterministic_ci_command_parity_required": true,
+    "non_automated_evidence_must_be_declared": true,
+    "exact_head_evidence_required": true
+  },
+  "validation_execution": {
+    "classes": ["agent_local", "remote_automated", "real_environment"],
+    "no_human_runner_for_automatable_gates": true,
+    "remote_automation_required_when_agent_local_unavailable": true
+  },
+  "validation_profiles": {
+    "default": "auto",
+    "profiles": ["lean", "scoped", "strong", "full"],
+    "selector": "python3 scripts/select_validation_profile.py",
+    "unknown_executable_paths_fail_safe": true,
+    "selector_changes_force_full": true,
+    "promotion_validation_full": true,
+    "automatic_escalation_allowed": true,
+    "silent_downgrade_below_auto_forbidden": true,
+    "report_selected_profile_and_reason": true
+  },
+  "remote_preflight": {
+    "status": "recommended",
+    "trigger": "Open or update a same-repository pull request targeting dev; GitHub pull_request workflows run deterministic validation on the exact PR head, and failed jobs may be rerun through GitHub Actions.",
+    "default_profile": "auto",
+    "stronger_profile_override_allowed": true,
+    "weaker_profile_override_requires_explicit_justification": true,
+    "exact_head_required": true,
+    "trusted_requesters_only": true,
+    "same_repository_prs_only_by_default": true,
+    "execution_job_write_credentials": false,
+    "report_result_to_pr": true
+  },
   "end_to_end": {
     "recommended_when_full_workflow_boundary_exists": true,
     "critical_journeys_prioritized": true,
@@ -56,26 +98,15 @@
     "run_against_built_artifact_when_material": true,
     "failure_evidence_bounded": true,
     "zero_residue_required": true,
-    "implementation_state": "implemented for the deterministic Studio/product boundary: Playwright owns a run-scoped synthetic evaluation workspace, CI performs an always-run residue check, and failure traces/screenshots have seven-day retention. Built/real-runtime smoke remains a distinct operation."
+    "implementation_state": "Implemented for the deterministic Studio/product boundary: Playwright owns a run-scoped synthetic evaluation workspace, CI performs an always-run residue check, and failure traces/screenshots have seven-day retention. Built-wheel and representative-hardware evidence remain distinct stronger environments."
   },
   "build_identity": {
     "unique_per_build": true,
     "source_revision_required": true,
     "dirty_state_required": true,
-    "lineage_fields": [
-      "project",
-      "platform",
-      "architecture",
-      "channel",
-      "variant"
-    ],
-    "artifact_name_fields": [
-      "product",
-      "product_version",
-      "build_id",
-      "source_revision"
-    ],
-    "implementation_state": "implemented by scripts/build_artifacts.py: product version, unique UTC/UUID build ID, source revision, dirty state and lineage are recorded in the promoted build manifest and bundle identity."
+    "lineage_fields": ["project", "platform", "architecture", "channel", "variant"],
+    "artifact_name_fields": ["product", "product_version", "build_id", "source_revision"],
+    "implementation_state": "Implemented by scripts/build_artifacts.py: product version, unique UTC/UUID build ID, source revision, dirty state and lineage are recorded in the promoted build manifest and bundle identity."
   },
   "artifact_lifecycle": {
     "immutable_successful_artifacts": true,
@@ -88,23 +119,15 @@
     "ci_retention_days": 7,
     "release_store": "github-releases",
     "release_artifacts_immutable": true,
-    "implementation_state": "implemented for wheel/sdist builds and tagged releases: staging/promote, manifest, SHA-256 inventory, bounded local retention, seven-day CI handoff retention and fail-closed existing release/tag behavior are present. Full repeated-build lifecycle execution is validated in STD-09."
+    "implementation_state": "Implemented for wheel/sdist builds and tagged releases: staging/promote, manifest, SHA-256 inventory, bounded local retention, seven-day CI handoff retention and fail-closed existing release/tag behavior are present."
   },
   "build_delta": {
     "required": true,
     "compare_to": "previous-successful-comparable-build",
     "output": "BUILD_CHANGELOG.md",
     "bundle_with_artifact": true,
-    "dimensions": [
-      "source",
-      "dependencies",
-      "toolchain",
-      "configuration",
-      "compatibility_migrations",
-      "artifact_metrics",
-      "validation"
-    ],
-    "implementation_state": "implemented by scripts/build_artifacts.py and bundled with every promoted build; STD-09 verifies two real comparable builds and retention behavior end-to-end."
+    "dimensions": ["source", "dependencies", "toolchain", "configuration", "compatibility_migrations", "artifact_metrics", "validation"],
+    "implementation_state": "Implemented by scripts/build_artifacts.py and bundled with every promoted build."
   },
   "local_runtime": {
     "applicable": true,
@@ -114,22 +137,15 @@
     "readiness_required": true,
     "graceful_shutdown_required": true,
     "verify_no_project_listener_after_stop": true,
-    "implementation_state": "mixed but explicit: loopback/foreground/readiness/graceful shutdown are product behavior and deterministic E2E verifies its fixture listener closes. General real-runtime post-stop lifecycle verification remains STD-09/representative-device evidence where applicable."
+    "implementation_state": "Loopback/foreground/readiness/graceful shutdown are product behavior; deterministic E2E verifies its owned fixture listener closes, while representative real-runtime lifecycle evidence remains a distinct hardware/environment claim."
   },
   "ephemeral_resources": {
     "run_identity": true,
     "isolated_workspace": true,
-    "cleanup_paths": [
-      "success",
-      "failure",
-      "timeout",
-      "cancellation",
-      "interrupt",
-      "partial-initialization"
-    ],
+    "cleanup_paths": ["success", "failure", "timeout", "cancellation", "interrupt", "partial-initialization"],
     "stale_resource_recovery": true,
     "ownership_required_before_cleanup": true,
     "post_cleanup_verification": true,
-    "implementation_state": "implemented for deterministic E2E run-owned evaluation/temp state with ownership-checked deletion and independent post-run verification; broader runtime/build lifecycle validation is completed by STD-09."
+    "implementation_state": "Implemented for deterministic E2E run-owned evaluation/temp state with ownership-checked deletion and independent post-run verification."
   }
 }
