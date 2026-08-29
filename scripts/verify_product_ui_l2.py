@@ -13,8 +13,9 @@ POLICY_PATH = ROOT / ".engineering" / "product-ui-l2.json"
 BASELINE_PATH = ROOT / ".engineering" / "baseline.json"
 UX_PATH = ROOT / "design" / "ux-contract.json"
 PR_TEMPLATE = ROOT / ".github" / "pull_request_template.md"
-EXPECTED_STANDARD_VERSION = "0.4.0"
-EXPECTED_STANDARD_REVISION = "60e0f498a459e2de114ccb23f6cd50994c19513f"
+EXPECTED_STANDARD_VERSION = "0.8.0"
+EXPECTED_STANDARD_REVISION = "4167fe353c53cff0849fc23c9a698c0655aac4ea"
+EXPECTED_PRODUCT_UI_CONTRACT_VERSION = "0.5.0"
 ALLOWED_MANUAL_STATES = {"pending", "complete", "not-justified"}
 SENSITIVE_FIELD_FRAGMENTS = {
     "prompt",
@@ -85,7 +86,7 @@ def main() -> int:
             f"found {standard.get('version')!r}"
         )
     if standard.get("revision") != EXPECTED_STANDARD_REVISION:
-        errors.append("product-ui L2 standard revision does not match the reviewed 0.4.0 baseline")
+        errors.append("product-ui L2 standard revision does not match the reviewed 0.8.0 baseline")
     if baseline.get("target_level") != "L2":
         errors.append("product-ui L2 validator requires target_level L2 when product-ui is adopted")
 
@@ -93,8 +94,10 @@ def main() -> int:
     ux = load_object(UX_PATH, errors)
     if policy.get("schema_version") != 1:
         errors.append("product-ui-l2.schema_version must be 1")
-    if policy.get("contract_version") != EXPECTED_STANDARD_VERSION:
-        errors.append("product-ui-l2.contract_version must be 0.4.0")
+    if policy.get("contract_version") != EXPECTED_PRODUCT_UI_CONTRACT_VERSION:
+        errors.append(
+            f"product-ui-l2.contract_version must be {EXPECTED_PRODUCT_UI_CONTRACT_VERSION}"
+        )
 
     system = policy.get("design_system")
     if not isinstance(system, dict):
