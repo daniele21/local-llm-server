@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "contract_version": "0.4.0",
+  "contract_version": "0.5.0",
   "owner": "web-product-and-docs",
   "design_system": {
     "canonical_css": "src/local_llm_server/static/design-system.css",
@@ -54,8 +54,12 @@
       "files": ["tests/e2e/product_acceptance.spec.js"]
     },
     {
-      "journey_id": "evaluation-review",
-      "files": ["tests/e2e/product_acceptance.spec.js"]
+      "journey_id": "evaluation-review-and-repeatability",
+      "files": ["tests/e2e/product_acceptance.spec.js", "tests/test_l2_evidence_bridge.py"]
+    },
+    {
+      "journey_id": "owned-lifecycle-cleanup",
+      "files": ["tests/e2e/verify_residue.py", "tests/test_e2e_lifecycle.py"]
     }
   ],
   "privacy_research": {

@@ -14,13 +14,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Select pull-request validation profile
+        if: github.event_name == 'pull_request'
+        env:
+          VALIDATION_BASE_REF: ${{ github.event.pull_request.base.sha }}
+          VALIDATION_HEAD_REF: HEAD
+        run: python3 scripts/select_validation_profile.py
       - name: Validate repository baseline
         run: python3 scripts/verify_repository.py
       - name: Validate operating contract
         run: python3 scripts/verify_operations.py
+      - name: Validate E2E environment fidelity
+        run: python3 scripts/verify_e2e.py
       - name: Validate documentation lifecycle
         run: python3 scripts/verify_docs.py
       - name: Validate agent context budget

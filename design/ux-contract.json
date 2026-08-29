@@ -1,10 +1,35 @@
 {
   "schema_version": 1,
-  "contract_version": "0.4.0",
+  "contract_version": "0.5.0",
   "applicable": true,
   "design_source_of_truth": {
     "type": "code-first",
     "location": "src/local_llm_server/static/design-system.css + src/local_llm_server/static/control-plane-*.{css,js}; durable visual/product-language intent in docs/brand-guidelines.md"
+  },
+  "experience_context": {
+    "primary_users": [
+      "developers and technical users operating local AI models",
+      "engineers evaluating runtime capability resource behavior and model configurations"
+    ],
+    "primary_jobs": [
+      "understand whether the local AI runtime is ready and what is resident or available",
+      "configure and execute inference without needing to reason about unnecessary internal plumbing",
+      "inspect evaluation evidence and resource/runtime state truthfully",
+      "recover safely from unsupported configurations runtime failures and resource pressure"
+    ],
+    "primary_surfaces": [
+      "Local LLM Studio browser control plane",
+      "model and runtime management surfaces",
+      "evaluation and evidence surfaces"
+    ]
+  },
+  "decision_model": {
+    "user_outcome_first": true,
+    "task_model_before_layout": true,
+    "hierarchy_before_visual_polish": true,
+    "states_before_motion": true,
+    "motion_requires_purpose": true,
+    "evidence_before_completion": true
   },
   "principles": {
     "user_task_model_over_internal_architecture": true,
@@ -47,26 +72,62 @@
     "brand_tokens": "design/brand-kit.json",
     "reuse_existing_semantic_component_first": true
   },
+  "motion": {
+    "purpose_required": true,
+    "supported_purposes": [
+      "feedback",
+      "continuity",
+      "spatial_relationship",
+      "state_transition",
+      "progress",
+      "attention",
+      "hierarchy",
+      "meaningful_completion"
+    ],
+    "frequent_interactions_are_restrained": true,
+    "gesture_motion_tracks_input": true,
+    "performance_over_decorative_complexity": true,
+    "reduced_motion": true
+  },
+  "graphics": {
+    "functional_before_decorative": true,
+    "ui_understandable_without_decorative_imagery": true,
+    "supported_roles": [
+      "explanation",
+      "orientation",
+      "onboarding",
+      "empty_state",
+      "status",
+      "meaningful_completion",
+      "data_visualization",
+      "brand"
+    ]
+  },
   "critical_journeys": [
     {
       "id": "control-plane-status-and-navigation",
-      "name": "Open the control plane, understand server/runtime status and navigate between core surfaces",
+      "name": "Open the control plane, understand truthful server/runtime status and navigate between core surfaces",
       "e2e": "required"
     },
     {
       "id": "chat-inference-and-recovery",
-      "name": "Configure a model request, submit inference, observe progress/failure and recover for the next request",
+      "name": "Configure a model request, submit inference, observe progress or failure and recover for the next request",
       "e2e": "required"
     },
     {
       "id": "model-runtime-management",
-      "name": "Understand model availability/residency and perform an intentional runtime-management action",
+      "name": "Understand model availability and residency and perform an intentional runtime-management action",
       "e2e": "recommended"
     },
     {
-      "id": "evaluation-review",
-      "name": "Start/review evaluation state and inspect comparable result/history information without confusing unavailable data with zero",
+      "id": "evaluation-review-and-repeatability",
+      "name": "Start or review evaluation state and inspect comparable result/history evidence without confusing unavailable data with zero",
       "e2e": "recommended"
+    },
+    {
+      "id": "owned-lifecycle-cleanup",
+      "name": "Complete a product run and leave no project-owned listener process temporary state or unbounded diagnostic residue",
+      "e2e": "required"
     }
   ],
   "reference_views": [

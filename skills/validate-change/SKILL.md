@@ -1,13 +1,15 @@
 # validate-change
 
-Choose validation by claim and blast radius rather than running every expensive gate by default.
+Choose validation by claim, blast radius and environment fidelity rather than running every expensive gate by default.
 
-1. Run syntax/static checks for edited languages and zero-dependency repository validators for governance changes.
-2. Run focused unit/contract tests for local behavior, then the canonical `test` intent when shared behavior changed.
-3. When `product-ui` is adopted and user-facing behavior changes, read `design/ux-contract.json` and `design/brand-kit.json`; run `scripts/verify_product_experience.py` plus `scripts/verify_product_ui_l2.py` at repository integration scope.
-4. Validate the experience properties actually changed: task/information hierarchy, progressive disclosure/cognitive load, loading/empty/error/disabled and recovery states, accessibility, adaptive layout, canonical component/token reuse and critical-journey evidence.
-5. Run browser `e2e` only when the claim crosses the assembled Studio/product boundary; screenshots alone do not prove interaction, accessibility, recovery or usability.
-6. Run `build` when distributable output or build scripts changed; run `smoke` when minimum built/runtime viability is the claim.
-7. Run representative-device procedures only for hardware/model/resource/performance claims. Run manual accessibility or representative-user procedures only when the UX claim requires human evidence; label unavailable evidence `PENDING` rather than inferring it from automation.
-8. Verify project-owned process/listener/temp/evidence cleanup whenever lifecycle/E2E behavior changed.
-9. Report exact PASS/FAIL/PENDING/N/A evidence and never infer a stronger result from a weaker test class.
+1. Read `.engineering/commands.json`; when a complete workflow or environment-dependent claim is affected also read `.engineering/e2e.json`.
+2. Start with the cheapest deterministic falsifier available to the current agent: syntax/static checks and focused owner tests.
+3. Add direct-consumer/contract/persistence tests when a shared boundary changes; add canonical `check`/`test` and repository health when scope crosses owners or governance.
+4. When `product-ui` behavior changes, read `design/ux-contract.json`/`brand-kit.json`, confirm proportional `design-product-experience` reasoning, and validate the experience property actually changed: task/hierarchy/disclosure, states/recovery, accessibility, adaptive layout, semantic component/token reuse, purposeful motion and critical journeys.
+5. Run E2E only when the claim crosses the assembled product boundary. Use the smallest affected journey and cheapest declared automated environment in `.engineering/e2e.json`; require built-wheel execution when package/install behavior is material.
+6. Keep execution capability separate from fidelity: GitHub CI can be `REMOTE_AUTOMATED` while `ci-studio-deterministic` remains only `host_or_fake`. Do not infer Apple Silicon/model/memory/performance evidence from it.
+7. Run `build` for distributable/build changes and `smoke` for minimum real-runtime viability when applicable. Representative-device procedures remain the owner for model/backend/memory/latency/throughput/thermal claims.
+8. Verify project-owned process/listener/temp/evidence cleanup whenever lifecycle/E2E behavior changes.
+9. On a red gate, classify root cause before editing: current regression, baseline failure, environment/toolchain, flaky behavior, base drift or wrong assumption. Fix the owning invariant rather than suppressing the gate.
+10. If the current agent cannot run a deterministic gate, mark it `REMOTE_AUTOMATED` for `preflight-change`; do not ask the user to become the CI runner.
+11. Report exact PASS/FAIL/PENDING/N/A evidence plus E2E environment/fidelity and residual gaps. Before publication hand this evidence to `preflight-change` for exact-head readiness.

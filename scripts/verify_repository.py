@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zero-dependency structural checks for an adopted repository."""
+"""Zero-dependency structural checks for the adopted Local LLM Server repository."""
 
 from __future__ import annotations
 
@@ -10,14 +10,38 @@ import subprocess
 import sys
 
 CORE_SKILLS = (
-    "plan-workstream", "structured-change", "validate-change", "finalize-workstream", "review-reference-quality",
+    "plan-workstream",
+    "structured-change",
+    "design-product-experience",
+    "validate-change",
+    "preflight-change",
+    "remote-preflight",
+    "finalize-workstream",
+    "review-reference-quality",
 )
 REQUIRED = (
-    "README.md", "AGENTS.md", "CONTRIBUTING.md", "SECURITY.md", ".editorconfig", ".gitignore",
-    ".engineering/baseline.json", ".engineering/documentation-policy.json", ".engineering/commands.json",
-    ".github/pull_request_template.md", ".github/workflows/repository-health.yml",
-    "docs/README.md", "docs/architecture.md", "docs/current-state.md", "docs/features/README.md", "docs/adr/README.md",
-    "docs/workstreams/README.md", "scripts/verify_operations.py", "scripts/verify_product_experience.py",
+    "README.md",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    ".editorconfig",
+    ".gitignore",
+    ".engineering/baseline.json",
+    ".engineering/documentation-policy.json",
+    ".engineering/commands.json",
+    ".engineering/e2e.json",
+    ".github/pull_request_template.md",
+    ".github/workflows/repository-health.yml",
+    "docs/README.md",
+    "docs/architecture.md",
+    "docs/current-state.md",
+    "docs/features/README.md",
+    "docs/adr/README.md",
+    "docs/workstreams/README.md",
+    "scripts/verify_operations.py",
+    "scripts/verify_e2e.py",
+    "scripts/verify_product_experience.py",
+    "scripts/select_validation_profile.py",
 )
 PLACEHOLDER_MARKERS = ("<PROJECT_NAME>", "<REPLACE_WITH_", "<DESCRIBE_", "<LIST_")
 L1_FITNESS_FUNCTIONS = (
@@ -92,8 +116,8 @@ def main() -> int:
             standard = baseline.get("standard", {})
             if standard.get("source") != "daniele21/repo-template-sw":
                 errors.append("baseline standard.source must identify daniele21/repo-template-sw")
-            if not standard.get("version"):
-                errors.append("baseline standard.version is required")
+            if standard.get("version") != "0.8.0":
+                errors.append("baseline standard.version must be 0.8.0")
             target_level = baseline.get("target_level")
             if target_level not in {"L0", "L1", "L2"}:
                 errors.append("target_level must be L0, L1 or L2")
