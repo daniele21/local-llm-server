@@ -31,16 +31,16 @@
 
 ## Product experience
 
-<!-- Required for meaningful user-facing changes when product-ui is adopted. Otherwise answer N/A with a concrete reason. -->
+<!-- Required for meaningful user-facing changes when product-ui is adopted. Follow user outcome -> task model -> IA/journey -> hierarchy -> disclosure/defaults -> states/recovery -> adaptive/accessibility -> components -> motion/polish. Otherwise answer N/A. -->
 
 <!-- product-experience:task-model -->
-**User task / mental model affected:**
+**User outcome / task / mental model affected:**
 
 <!-- product-experience:hierarchy -->
-**Primary action / information hierarchy:**
+**Critical journey and primary action / information hierarchy:**
 
 <!-- product-experience:cognitive-load -->
-**Progressive disclosure / cognitive-load impact:**
+**Progressive disclosure / defaults / cognitive-load impact:**
 
 <!-- product-experience:recovery -->
 **Loading, empty, error, disabled and recovery behavior:**
@@ -52,7 +52,7 @@
 **Adaptive/responsive contexts affected:**
 
 <!-- product-experience:design-system -->
-**Canonical component/token reuse or intentional design-system change:**
+**Canonical component/token reuse; motion/graphics purpose if changed:**
 
 <!-- product-experience:evidence -->
 **E2E/visual/manual/usability evidence and remaining PENDING items:**
@@ -61,13 +61,41 @@
 
 <!-- Canonical command intents affected; build identity; manifest/checksum/build delta/retention; localhost/process/port/temp cleanup. Otherwise N/A. -->
 
+## Publication preflight
+
+<!-- Record exact head/base and the auto-selected blast-radius profile. Automatable gates unavailable locally are REMOTE_AUTOMATED, not user tasks. -->
+
+**HEAD:**
+
+**TARGET/base revision:**
+
+**Validation profile + reason:**
+
+**Full diff review:** PASS / FAIL / PENDING
+
+**AGENT_LOCAL gates:**
+
+**REMOTE_AUTOMATED gates:**
+
+**REAL_ENVIRONMENT gates:**
+
 ## Validation
 
-<!-- Exact check/test/e2e/build/smoke/manual/device checks executed. Distinguish deterministic CI from real-device/manual evidence and never claim a run that was not executed. -->
+<!-- Exact check/test/e2e/build/smoke/manual/device checks executed. Distinguish deterministic automation from real-device/manual evidence and never claim a run that was not executed. -->
 
-## E2E evidence
+## E2E environment evidence
 
-<!-- Critical journey(s), environment/artifact tested, cleanup verification and bounded trace/screenshot/log policy. Otherwise N/A. -->
+<!-- Use .engineering/e2e.json. Name the critical journey, execution environment ID, fidelity class, artifact surface, cleanup verification and residual target-environment gaps. Otherwise N/A. -->
+
+**Critical journey(s):**
+
+**Execution environment / fidelity:**
+
+**Artifact surface:**
+
+**Residual fidelity gaps / real-environment confirmation:**
+
+**Cleanup / bounded evidence:**
 
 ## Hardware / representative-device evidence
 
