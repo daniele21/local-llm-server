@@ -2,8 +2,8 @@
   "schema_version": 1,
   "standard": {
     "source": "daniele21/repo-template-sw",
-    "version": "0.4.0",
-    "revision": "60e0f498a459e2de114ccb23f6cd50994c19513f"
+    "version": "0.8.0",
+    "revision": "4167fe353c53cff0849fc23c9a698c0655aac4ea"
   },
   "target_level": "L2",
   "profiles": [
@@ -15,8 +15,11 @@
   ],
   "skills": {
     "plan-workstream": {"source_version": "0.1.0", "customized": true},
-    "structured-change": {"source_version": "0.4.0", "customized": true},
-    "validate-change": {"source_version": "0.4.0", "customized": true},
+    "structured-change": {"source_version": "0.6.0", "customized": true},
+    "design-product-experience": {"source_version": "0.5.0", "customized": true},
+    "validate-change": {"source_version": "0.8.0", "customized": true},
+    "preflight-change": {"source_version": "0.8.0", "customized": true},
+    "remote-preflight": {"source_version": "0.2.0", "customized": true},
     "finalize-workstream": {"source_version": "0.1.0", "customized": true},
     "review-reference-quality": {"source_version": "0.4.0", "customized": true}
   },
@@ -25,8 +28,8 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l2-deterministic-guardrails-and-evidence-bridge-complete-real-hardware-and-human-evidence-pending",
-    "current_slice": "TH-E1+EV-3+HE-2+RES-2+PX4-09+PX4-10",
+    "status": "l2-repository-guardrails-aligned-to-template-0.8-real-hardware-and-human-evidence-pending",
+    "current_slice": "template-0.8-environment-aware-preflight",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
     "l2_repository_validation_revision": "d528b6c5b676e705e7ccf24800929da6d5534203",
@@ -65,6 +68,15 @@
       "evidence_bridge_acceptance": "passed-on-de899cc945e1d1c735a2ded91c5da717ce0fe2b0",
       "specialist_fitness_functions": "implemented-and-blocking-in-repository-health",
       "integration_acceptance": "passed-on-d528b6c5b676e705e7ccf24800929da6d5534203"
+    },
+    "template_0_8": {
+      "product_experience_decision_order": "adopted",
+      "publication_preflight_contract": "adopted",
+      "execution_capability_classification": "adopted",
+      "blast_radius_validation_profiles": "adopted",
+      "remote_automated_fallback": "github-pr-workflows",
+      "environment_aware_e2e_contract": "adopted",
+      "final_environment_confirms_residual_risk": true
     },
     "product_ui_l2": {
       "contract_and_design_source": "implemented-and-validated",
