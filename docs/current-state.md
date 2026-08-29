@@ -1,26 +1,33 @@
 # Current State
 
 Status: active
-Last reviewed: 2026-08-18
+Last reviewed: 2026-08-29
 
 Local LLM Server is a local-first, privacy-preserving multi-backend inference server. Local LLM Studio is its bundled browser control plane. Hosted CI proves deterministic software contracts; hardware- and human-dependent claims require identified real evidence.
 
 ## Engineering baseline
 
-- Standard: `daniele21/repo-template-sw` **0.4.0**, revision `60e0f498a459e2de114ccb23f6cd50994c19513f`.
+- Standard: `daniele21/repo-template-sw` **0.8.0**, revision `4167fe353c53cff0849fc23c9a698c0655aac4ea`.
 - Target maturity: **L2** with Python, local-AI, TypeScript, macOS and `product-ui` profiles.
 - L1 acceptance: `d068a76d07bf204ca58ee2dfc29890bf3f1177cb`.
 - Engineering repository-side L2 acceptance: `d528b6c5b676e705e7ccf24800929da6d5534203`.
 - `product-ui` repository guardrails acceptance: `89d360698234016ddfe1f3fff0bacbc4f9bb7852`.
 - Real-evidence bridge acceptance: `de899cc945e1d1c735a2ded91c5da717ce0fe2b0`.
+- Template 0.8 adds publication preflight, execution-capability classification, blast-radius validation profiles and environment-aware E2E fidelity without weakening the existing specialist L1/L2 gates.
 - Full engineering L2 remains **real-hardware-evidence pending**; full `product-ui` L2 remains **real-human-evidence pending**.
 - Canonical branch protection remains owner-deferred.
 
 ## Accepted deterministic L2 surface
 
-Repository Health permanently blocks on L1/L2 architecture, resource, lifecycle, security, repeatability, built-surface, product-experience, design-system and real-evidence-bridge fitness functions. Separate blocking surfaces include L2 Performance Regression, Artifact Lifecycle, Security Audit, Package Install Smoke, Python 3.10/3.11/3.12, lint, Playwright and zero residue.
+Repository Health permanently blocks on L1/L2 architecture, resource, lifecycle, security, repeatability, built-surface, product-experience, design-system and real-evidence-bridge fitness functions. It also validates the repo-template 0.8 operating/preflight contract and `.engineering/e2e.json`. Separate blocking surfaces include L2 Performance Regression, Artifact Lifecycle, Security Audit, Package Install Smoke, Python 3.10/3.11/3.12, lint, Playwright and zero residue.
 
-The accepted product-ui system keeps `design-system.css` as semantic token/component owner; `design/ux-contract.json` owns task/state/accessibility/adaptive/journey contracts; `design/brand-kit.json` routes brand roles to existing shipped assets/tokens. Product telemetry remains off by default.
+The automated E2E boundary is explicitly environment-aware:
+
+- `ci-studio-deterministic` proves the assembled browser -> UI JavaScript -> HTTP -> middleware/runtime-contract workflow with deterministic fake inference and zero residue;
+- `ci-installed-wheel` proves the built/package surface independently of Apple Silicon runtime behavior;
+- representative/target Apple Silicon runs remain separate real-environment evidence for model/backend compatibility, unified-memory behavior, reclamation, latency/throughput and thermal/power claims.
+
+The accepted product-ui system keeps `design-system.css` as semantic token/component owner; `design/ux-contract.json` owns user/task/decision-order/state/accessibility/adaptive/motion/journey contracts; `design/brand-kit.json` routes brand and motion roles to existing shipped assets/tokens. Product telemetry remains off by default.
 
 The accepted L2 evidence bridge adds:
 
@@ -61,6 +68,7 @@ Two independent human tasks remain:
 ## Durable operational references
 
 - `docs/architecture.md`
+- `.engineering/e2e.json`
 - `docs/resource-regression-contract.md`
 - `docs/performance-regression.md`
 - `docs/repeatability-contract.md`
