@@ -62,37 +62,37 @@
     background: transparent;
 }
 
-.evaluation-metrics.ds-evidence-grid {
+.evaluation-metrics {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.evaluation-metric-card.ds-evidence-value {
+.evaluation-metric-card {
     gap: var(--ds-space-1);
 }
 
-.evaluation-comparison-deltas.ds-evidence-grid {
+.evaluation-comparison-deltas {
     grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.evaluation-comparison-delta.ds-evidence-value {
+.evaluation-comparison-delta {
     min-height: 104px;
 }
 
-.overview-evidence-details .ds-metric.ds-evidence-value {
+.overview-evidence-details [data-semantic-evidence="true"] {
     padding: var(--ds-space-3);
 }
 
-.control-plane-models__budget.ds-resource-budget .control-plane-models__budget-bar {
+.control-plane-models__budget .control-plane-models__budget-bar {
     margin: 0;
 }
 
-.control-plane-models__action-status.ds-action-feedback {
+.control-plane-models__action-status {
     margin-top: var(--ds-space-4);
 }
 
 @media (max-width: 900px) {
-    .evaluation-metrics.ds-evidence-grid,
-    .evaluation-comparison-deltas.ds-evidence-grid {
+    .evaluation-metrics,
+    .evaluation-comparison-deltas {
         grid-template-columns: 1fr 1fr;
     }
 }
@@ -111,8 +111,8 @@
 }
 
 @media (max-width: 420px) {
-    .evaluation-metrics.ds-evidence-grid,
-    .evaluation-comparison-deltas.ds-evidence-grid {
+    .evaluation-metrics,
+    .evaluation-comparison-deltas {
         grid-template-columns: 1fr;
     }
 }
