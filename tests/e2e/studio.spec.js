@@ -51,11 +51,12 @@ async function sendMessage(page, text = 'What is 17 + 25?') {
 
 test('control-plane tabs support keyboard roving focus', async ({ page }) => {
   await openStudio(page);
-  const tabs = page.getByRole('tab');
+  const shell = page.locator('.control-plane-tablist');
+  const tabs = shell.getByRole('tab');
   await expect(tabs).toHaveCount(7);
 
-  const overview = page.getByRole('tab', { name: 'Overview' });
-  const models = page.getByRole('tab', { name: 'Models & Runtimes' });
+  const overview = shell.getByRole('tab', { name: 'Overview' });
+  const models = shell.getByRole('tab', { name: 'Models & Runtimes' });
   await overview.click();
   await overview.focus();
   await page.keyboard.press('ArrowDown');
