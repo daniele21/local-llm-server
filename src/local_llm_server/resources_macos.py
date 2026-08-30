@@ -1,11 +1,12 @@
 """macOS resource observation adapter.
 
 Apple Silicon uses unified memory, so this adapter never invents a separate GPU
-VRAM pool. Total/available host memory is derived from public OS counters and
-all unsupported measurements remain explicitly unavailable.
+VRAM pool. Total/available host memory and current-process RSS are derived from
+public OS counters; unsupported measurements remain explicitly unavailable.
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import time
@@ -29,6 +30,7 @@ class MacOSResourceObserver:
     def snapshot(self) -> SystemResourceSnapshot:
         total = _read_total_memory(self._run_command)
         available = _read_available_memory(self._run_command)
+        rss = _read_current_process_rss(self._run_command)
         return SystemResourceSnapshot(
             captured_at_monotonic=self._clock(),
             platform="darwin",
@@ -37,7 +39,7 @@ class MacOSResourceObserver:
             # Apple Silicon shares system/unified memory. Reporting a separate
             # accelerator pool would double-count capacity and mislead B2.
             accelerator_memory_bytes=ResourceValue.unavailable("bytes"),
-            process_rss_bytes=ResourceValue.unavailable("bytes"),
+            process_rss_bytes=rss,
             thermal_pressure=ResourceValue.unavailable("level"),
         )
 
@@ -75,6 +77,18 @@ def _read_available_memory(run_command: CommandRunner) -> ResourceValue:
         return ResourceValue.unavailable("bytes")
     pages = sum(counters[key] for key in required)
     return ResourceValue(pages * page_size, ResourceValueSource.MEASURED, "bytes")
+
+
+def _read_current_process_rss(run_command: CommandRunner) -> ResourceValue:
+    """Read RSS for this Local LLM Server process without treating failure as zero."""
+    try:
+        raw = run_command(("ps", "-o", "rss=", "-p", str(os.getpid()))).strip()
+        value = int(raw) * 1024
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ResourceValue.unavailable("bytes")
+    if value < 0:
+        return ResourceValue.unavailable("bytes")
+    return ResourceValue(value, ResourceValueSource.MEASURED, "bytes")
 
 
 def _parse_page_size(raw: str) -> int | None:
