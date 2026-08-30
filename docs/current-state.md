@@ -14,7 +14,6 @@ Local LLM Server is a local-first multi-backend inference server with Local LLM 
 - `product-ui` guardrails: `89d360698234016ddfe1f3fff0bacbc4f9bb7852`; real-evidence bridge: `de899cc945e1d1c735a2ded91c5da717ce0fe2b0`.
 - Template 0.8 adds publication preflight, execution-capability classification, blast-radius validation and environment-aware E2E.
 - Full engineering L2 remains **real-hardware-evidence pending**; full `product-ui` L2 remains **real-human-evidence pending**.
-- Canonical branch protection remains owner-deferred.
 
 ## Accepted deterministic L2 surface
 
@@ -26,9 +25,9 @@ Managed `llama_server` uses the attributable llama.cpp `v0.3.0` feature floor (`
 
 Automated E2E is environment-aware:
 
-- `ci-studio-deterministic` proves browser journeys plus a direct external API-consumer journey over the real loopback HTTP boundary with the real FastAPI/middleware/task-policy/runtime/evaluation stack and deterministic inference;
-- API black-box coverage includes discovery/identity/status, routing/default mutation, cross-runtime concurrency, fail-closed task/media policy, vision, hidden-reasoning SSE, backend failure/recovery, transcription, residency policy and built-in/custom evaluation;
-- browser and API lanes share the run-owned process/listener/temp-root lifecycle; mutable custom evaluation state is reset before later visual evidence;
+- `ci-studio-deterministic` proves browser journeys plus a direct external API-consumer journey over loopback HTTP with the real FastAPI/middleware/task-policy/runtime/evaluation stack and deterministic inference;
+- API black-box coverage includes discovery/status, routing/default mutation, cross-runtime concurrency, fail-closed task/media policy, vision, hidden-reasoning SSE, backend failure/recovery, transcription, residency policy and built-in/custom evaluation;
+- browser and API lanes share the run-owned lifecycle; mutable custom evaluation state is reset before later visual evidence;
 - `ci-installed-wheel` proves the built/package surface independently of Apple Silicon behavior;
 - representative Apple Silicon evidence remains required for production backend compatibility, unified-memory reclamation, native cancellation, performance and thermal/power claims.
 
@@ -56,11 +55,11 @@ Two human tasks remain:
 - PX4-09 — manual accessibility review of primary journeys;
 - PX4-10 — representative-user usability with bounded non-sensitive evidence.
 
-`python -m local_llm_server.l2_evidence_bridge validate-product-ui` validates evidence but does not promote baseline status. Negative/inconclusive findings require remediation or judgment.
+`python -m local_llm_server.l2_evidence_bridge validate-product-ui` validates evidence but does not promote baseline status.
 
 ## Active workstreams
 
-- `docs/workstreams/api-blackbox-e2e-hardening.md` — direct external application-to-HTTP product acceptance coverage and final exact-head validation.
+- `docs/workstreams/api-blackbox-e2e-hardening.md` — external application-to-HTTP acceptance coverage and exact-head validation.
 - `docs/workstreams/runtime-resource-governor.md` — representative pressure/reclamation evidence after deterministic governor completion.
 - `docs/workstreams/l2-reference-grade.md` — cumulative L2 completion gate.
 - `docs/workstreams/runtime-correctness-evidence-hardening.md` — representative-device evidence.
