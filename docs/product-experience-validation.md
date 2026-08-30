@@ -5,13 +5,13 @@ Document type: validation-contract
 Owner: web-product-and-docs
 Canonical scope: design.product-experience-validation
 Read when: changing critical UI journeys, accessibility, adaptive behavior, design-system ownership or product research evidence
-Last reviewed: 2026-08-18
+Last reviewed: 2026-08-30
 
 ## Purpose
 
 Local LLM Studio treats product experience as a correctness surface. Automated evidence protects deterministic interaction contracts; manual evidence is retained only when a human judgment is necessary. Neither class of evidence is allowed to weaken the local-first privacy boundary.
 
-This document specializes the `repo-template-sw 0.4.0` `product-ui` contract for this repository. It does not introduce a second design system: canonical visual/component implementation remains in `src/local_llm_server/static/design-system.css` and the source-backed control-plane renderers, with durable brand intent in `docs/brand-guidelines.md`.
+This document specializes the `repo-template-sw 0.8.0` `product-ui` contract for this repository. It does not introduce a second design system: canonical visual/component implementation remains in `src/local_llm_server/static/design-system.css` and the source-backed control-plane renderers, with durable brand intent in `docs/brand-guidelines.md`.
 
 ## Automated evidence
 
@@ -19,13 +19,14 @@ This document specializes the `repo-template-sw 0.4.0` `product-ui` contract for
 
 `tests/test_accessibility_ui_assets.py` provides deterministic source-level coverage for:
 
-- keyboard-operable tab navigation and roving focus;
-- semantic tab/tablist/tabpanel relationships;
+- native primary-route navigation and current-page semantics;
+- local task-selector tab relationships and keyboard behavior;
 - skip navigation;
 - visible focus styles;
-- status meaning that is not color-only;
+- status/evidence meaning that is not color-only;
 - reduced-motion behavior;
-- adaptive layouts and horizontally accessible dense tables.
+- adaptive layouts and horizontally accessible dense tables;
+- canonical semantic-component ownership for evidence, resource and action feedback surfaces.
 
 Playwright covers complete browser journeys where source inspection cannot prove the user outcome. Automated checks are necessary but are not represented as a complete substitute for manual keyboard or assistive-technology review.
 
@@ -67,11 +68,24 @@ Legacy/local styles may reference canonical tokens or retain non-`ds` names whil
 
 ## Visual regression policy
 
-Pixel-level visual regression is currently not a blocking repository-wide mechanism. The UI is still converging and freezing incidental pixels would add maintenance cost without a corresponding correctness claim.
+Pixel-level visual regression is **not** a blocking repository-wide mechanism. Freezing every control-plane pixel would still create maintenance cost and false confidence while several secondary surfaces continue to converge.
 
-A visual snapshot should be introduced only for a stable, high-risk surface where geometry or visual state is itself part of the user contract. Until then, semantic component/state tests, accessibility assertions and complete Playwright journeys are the blocking regression surface.
+Targeted visual contracts are allowed when all of the following are true:
 
-This is an explicit scope decision, not evidence that visual regressions are impossible.
+- the surface is stable and high-risk enough that geometry/hierarchy is itself part of the user contract;
+- the fixture state, viewport, theme and motion preference are deterministic;
+- the visual evidence contains only synthetic fixture data and no prompt/output/private machine content;
+- a semantic/interaction test still proves the user outcome independently of the pixel contract;
+- a changed visual digest is reviewed as a product change rather than mechanically accepted.
+
+The current blocking targeted set is intentionally small:
+
+- the `Overview` decision surface at the deterministic 1440×1000 dark/reduced-motion fixture;
+- the `Benchmark & Evaluation` setup surface at the same deterministic fixture.
+
+`tests/e2e/product_experience_p2.spec.js` captures each bounded surface, computes a SHA-256 digest of the fixture screenshot in memory, and compares it with the reviewed expected digest. The PNG itself is not retained or uploaded by the normal gate. This gives strict pixel change detection without establishing a repository of potentially sensitive screenshots.
+
+These two digests do **not** claim coverage for light mode, responsive widths, every loading/error state, real runtime data or representative hardware. Those surfaces should gain visual contracts only after they become stable enough to justify them. Existing semantic component/state tests, accessibility assertions and complete Playwright journeys remain the primary regression evidence.
 
 ## Manual accessibility review
 
@@ -194,7 +208,7 @@ Human-evidence summaries must use the exact tested source revision. The reposito
 
 ## Completion semantics
 
-Repository-side `repo-template-sw 0.4.0` product-ui guardrails are already accepted when deterministic contracts and workflows are green on the same integrated revision.
+Repository-side `repo-template-sw 0.8.0` product-ui guardrails are accepted when deterministic contracts and workflows are green on the same integrated revision.
 
 **Full product-ui L2 is not complete while manual accessibility and representative-user usability statuses remain `pending`.** A status may become `not-justified` only through an explicit documented product-risk decision; it must not be used simply to bypass evidence collection.
 
