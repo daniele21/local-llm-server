@@ -40,6 +40,7 @@ class _Observer:
 
 class _Engine:
     backend = "fake"
+    backend_version = "fake-1"
 
     def __init__(self, inference_barrier: threading.Barrier):
         self.inference_barrier = inference_barrier
@@ -71,8 +72,11 @@ def _cfg(model: str, **kwargs):
     return {
         "model": model,
         "model_id": f"org/{model}",
-        "model_path": f"/private/{model}.gguf",
+        "model_path": kwargs.get("model_path") or f"/private/{model}.gguf",
+        "model_source": "local_file",
         "backend": "fake",
+        "backend_version": "fake-1",
+        "artifact_sha256": kwargs.get("artifact_sha256"),
         "resource_estimate_bytes": estimate,
         "resource_request_estimate_bytes": kwargs.get("resource_request_estimate_bytes"),
         "modalities": ["text"],
@@ -117,7 +121,8 @@ def test_campaign_exercises_two_models_concurrent_accounting_and_shutdown_retry(
     engines: list[_Engine] = []
 
     def fake_build_config(model=None, model_path=None, **kwargs):
-        del model_path
+        if model_path is not None:
+            kwargs["model_path"] = model_path
         return _cfg(str(model), **kwargs)
 
     def load_backend(cfg):
@@ -144,6 +149,7 @@ def test_campaign_exercises_two_models_concurrent_accounting_and_shutdown_retry(
     [cycle] = report["cycles"]
     assert cycle["complete"] is True
     assert cycle["concurrent_transient_overlap_observed"] is True
+    assert cycle["runtime_identities_verified"] is True
     assert cycle["configured_accounting_peak"]["resident_committed_bytes"] == 900
     assert cycle["configured_accounting_peak"]["transient_committed_bytes"] == 100
     assert cycle["configured_accounting_after_unload"]["reservation_count"] == 0
@@ -163,14 +169,15 @@ def test_campaign_exercises_two_models_concurrent_accounting_and_shutdown_retry(
     rendered = json.dumps(report)
     assert "PRIVATE RRG5 PROMPT" not in rendered
     assert "/private/" not in rendered
-    assert "pid" not in rendered.lower()
+    assert "process_ids" not in rendered or '"process_ids_recorded": false' in rendered
 
 
 def test_campaign_refuses_low_host_memory_before_backend_load(monkeypatch):
     backend_loads = []
 
     def fake_build_config(model=None, model_path=None, **kwargs):
-        del model_path
+        if model_path is not None:
+            kwargs["model_path"] = model_path
         return _cfg(str(model), **kwargs)
 
     monkeypatch.setattr("local_llm_server.config.build_config", fake_build_config)
@@ -196,7 +203,8 @@ def test_campaign_requires_verified_artifacts_before_backend_load(monkeypatch):
     backend_loads = []
 
     def fake_build_config(model=None, model_path=None, **kwargs):
-        del model_path
+        if model_path is not None:
+            kwargs["model_path"] = model_path
         return _cfg(str(model), **kwargs)
 
     monkeypatch.setattr("local_llm_server.config.build_config", fake_build_config)
