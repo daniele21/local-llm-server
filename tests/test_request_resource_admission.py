@@ -6,6 +6,7 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from local_llm_server.memory_envelope import MemoryEnvelope
 from local_llm_server.request_middleware import install_request_policy
 from local_llm_server.request_resource_admission import (
     _hold_reservation_for_stream,
@@ -14,6 +15,7 @@ from local_llm_server.request_resource_admission import (
 from local_llm_server.resource_manager import ReservationKind, ResourceManager
 from local_llm_server.resources import ResourceBudget
 from local_llm_server.runtime import ModelRuntimeManager
+from local_llm_server.transient_resource import reserve_transient_resource
 
 
 class _Engine:
@@ -53,6 +55,17 @@ def _app(*, limit: int = 100, request_bytes: int | None = 60):
     install_request_resource_admission(app)
     install_request_policy(app)
     return app, resources
+
+
+def _stream_reservation(resources: ResourceManager):
+    result, reservation = reserve_transient_resource(
+        resources,
+        reservation_id="request:stream",
+        envelope=MemoryEnvelope(scope="transient", components=(), override_total_bytes=60),
+    )
+    assert result is not None
+    assert reservation is not None
+    return reservation
 
 
 def test_concurrent_active_requests_cannot_overcommit_transient_budget():
@@ -144,8 +157,7 @@ def test_missing_transient_estimate_remains_unknown_without_fake_reservation():
 def test_stream_wrapper_holds_transient_reservation_until_iterator_finishes():
     async def scenario():
         resources = ResourceManager(ResourceBudget(limit_bytes=100))
-        resources.reserve("request:stream", 60, kind=ReservationKind.TRANSIENT)
-        resources.commit("request:stream")
+        reservation = _stream_reservation(resources)
         continue_stream = asyncio.Event()
 
         async def source():
@@ -155,8 +167,7 @@ def test_stream_wrapper_holds_transient_reservation_until_iterator_finishes():
 
         wrapped = _hold_reservation_for_stream(
             source(),
-            resource_manager=resources,
-            reservation_id="request:stream",
+            reservation=reservation,
         )
         assert await wrapped.__anext__() == b"first"
         assert len(resources.snapshot(kind=ReservationKind.TRANSIENT)) == 1
@@ -174,8 +185,7 @@ def test_stream_wrapper_holds_transient_reservation_until_iterator_finishes():
 def test_stream_wrapper_releases_transient_reservation_when_cancelled():
     async def scenario():
         resources = ResourceManager(ResourceBudget(limit_bytes=100))
-        resources.reserve("request:stream", 60, kind=ReservationKind.TRANSIENT)
-        resources.commit("request:stream")
+        reservation = _stream_reservation(resources)
 
         async def source():
             yield b"first"
@@ -183,8 +193,7 @@ def test_stream_wrapper_releases_transient_reservation_when_cancelled():
 
         wrapped = _hold_reservation_for_stream(
             source(),
-            resource_manager=resources,
-            reservation_id="request:stream",
+            reservation=reservation,
         )
         assert await wrapped.__anext__() == b"first"
         await wrapped.aclose()
