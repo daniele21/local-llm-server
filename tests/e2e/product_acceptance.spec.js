@@ -64,8 +64,9 @@ test('overview prioritizes readiness, residency, budget, workload and capacity',
   }
   await expect(page.getByRole('heading', { name: 'What can run next?' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'What is using the runtime?' })).toBeVisible();
-  await expect(page.getByText('Runtime evidence & provenance')).toBeVisible();
-  await expect(page.getByText('Runtime fingerprint')).toBeHidden();
+  const evidenceDetails = page.locator('.overview-evidence-details');
+  await expect(evidenceDetails.getByText('Runtime evidence & provenance', { exact: true })).toBeVisible();
+  await expect(evidenceDetails.getByText('Runtime fingerprint', { exact: true })).toBeHidden();
 });
 
 test('models and runtimes owns the lifecycle, resource recovery and deep-linked detail surface', async ({ page, request }) => {
