@@ -208,6 +208,20 @@ def build_app(run_state: OwnedRunState):
     install_product_http_stack(application, evaluation_root=run_state.evaluation_root)
     application.state.e2e_run_id = run_state.run_id
     application.state.e2e_root = str(run_state.root)
+
+    @application.post("/__e2e__/reset-custom-test-sets", include_in_schema=False)
+    def reset_custom_test_sets() -> dict[str, bool]:
+        if not run_state.owns_root():
+            raise RuntimeError("E2E run root ownership was lost")
+        root = application.state.evaluation_test_set_store.root.resolve()
+        if root.parent != run_state.evaluation_root.resolve():
+            raise RuntimeError("E2E test-set store escaped the owned evaluation root")
+        if root.exists():
+            for path in root.glob("*.json"):
+                if path.is_file() and path.parent.resolve() == root:
+                    path.unlink()
+        return {"ok": True}
+
     return application
 
 
