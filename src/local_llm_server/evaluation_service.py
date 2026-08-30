@@ -34,7 +34,11 @@ from .evaluation_reasoning import (
 )
 from .evaluation_runner import EvaluationRunner
 from .evaluation_testsets import CustomTestSetStore
+from .global_execution_governor import global_execution_governor_for
+from .memory_envelope import request_memory_envelope
+from .resource_manager import AdmissionDecision
 from .runtime_evidence import attached_runtime_identity
+from .transient_resource import reserve_transient_resource
 
 
 _BUILTIN_TEST_SETS: dict[tuple[str, str], TestSet] = {
@@ -93,35 +97,95 @@ class ResidentRuntimeExecutor:
         )
         kwargs = dict(prepared.kwargs)
 
-        started = time.perf_counter()
-        with self.manager.lease_runtime(runtime):
-            runtime.mark_started(int(prepared.max_tokens or 0))
+        governor = global_execution_governor_for(self.manager)
+        global_request_id = f"evaluation-global:{runtime.key}:{uuid.uuid4().hex}"
+        global_acquired = False
+        reservation = None
+        if governor is not None:
+            governor.acquire(
+                runtime.key,
+                global_request_id,
+                runtime_max_running=max(
+                    1,
+                    int(runtime.cfg.get("max_concurrent_requests") or 1),
+                ),
+            )
+            global_acquired = True
             try:
-                raw = runtime.engine.complete(kwargs)
-            except InferenceError:
-                raise
-            except Exception as exc:
+                if self.manager.resolve(runtime.key) is not runtime:
+                    raise LookupError(runtime.key)
+            except LookupError as exc:
+                governor.release(global_request_id)
+                global_acquired = False
                 raise InferenceError(
-                    ErrorCode.BACKEND_ERROR,
-                    "evaluation backend execution failed",
-                    retryable=False,
-                    details={"backend": getattr(runtime.engine, "backend", "unknown")},
+                    ErrorCode.MODEL_NOT_RESIDENT,
+                    "evaluation runtime changed while waiting for execution admission",
+                    retryable=True,
+                    details={"model": runtime.key},
                 ) from exc
-            finally:
-                runtime.mark_idle()
-        elapsed = time.perf_counter() - started
 
-        content = _extract_content(raw)
-        usage = _numeric_usage(raw.get("usage"))
-        usage["wall_time_seconds"] = elapsed
-        return InferenceResult(
-            task=request.task,
-            model=runtime.model_id,
-            content=content,
-            termination_reason=_termination_reason(raw),
-            usage=usage,
-            metadata={"backend": getattr(runtime.engine, "backend", runtime.cfg.get("backend", "unknown"))},
-        )
+        try:
+            envelope = request_memory_envelope(canonical, runtime.cfg)
+            admission, reservation = reserve_transient_resource(
+                getattr(self.manager, "resource_manager", None),
+                reservation_id=f"evaluation:{runtime.key}:{uuid.uuid4().hex}",
+                envelope=envelope,
+            )
+            if admission is not None and admission.decision is AdmissionDecision.REJECT:
+                raise InferenceError(
+                    ErrorCode.RESOURCE_EXHAUSTED,
+                    "evaluation request exceeds configured usable memory budget",
+                    retryable=True,
+                    details={
+                        "requested_bytes": admission.requested_bytes,
+                        "committed_bytes": admission.committed_bytes,
+                        "reserved_bytes": admission.reserved_bytes,
+                        "usable_budget_bytes": admission.usable_budget_bytes,
+                        "envelope_complete": envelope.complete,
+                        "unavailable_components": list(envelope.unavailable_components),
+                    },
+                )
+
+            started = time.perf_counter()
+            with self.manager.lease_runtime(runtime):
+                runtime.mark_started(int(prepared.max_tokens or 0))
+                try:
+                    raw = runtime.engine.complete(kwargs)
+                except InferenceError:
+                    raise
+                except Exception as exc:
+                    raise InferenceError(
+                        ErrorCode.BACKEND_ERROR,
+                        "evaluation backend execution failed",
+                        retryable=False,
+                        details={"backend": getattr(runtime.engine, "backend", "unknown")},
+                    ) from exc
+                finally:
+                    runtime.mark_idle()
+            elapsed = time.perf_counter() - started
+
+            content = _extract_content(raw)
+            usage = _numeric_usage(raw.get("usage"))
+            usage["wall_time_seconds"] = elapsed
+            return InferenceResult(
+                task=request.task,
+                model=runtime.model_id,
+                content=content,
+                termination_reason=_termination_reason(raw),
+                usage=usage,
+                metadata={
+                    "backend": getattr(
+                        runtime.engine,
+                        "backend",
+                        runtime.cfg.get("backend", "unknown"),
+                    )
+                },
+            )
+        finally:
+            if reservation is not None:
+                reservation.release()
+            if governor is not None and global_acquired:
+                governor.release(global_request_id)
 
     def _resolve_runtime(self, request: InferenceRequest) -> Any:
         if self.runtime is not None:
