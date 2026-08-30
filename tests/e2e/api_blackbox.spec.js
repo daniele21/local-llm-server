@@ -61,18 +61,14 @@ test('external client sees coherent health, discovery, identity and status witho
   expect(modelsResponse.ok()).toBeTruthy();
   const models = await modelsResponse.json();
   const modelKeys = models.data.map((item) => item.key || item.id);
-  expect(modelKeys).toEqual(
-    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
-  );
+  expect(modelKeys).toEqual(expect.arrayContaining(['e2e-switchable', 'e2e-alt']));
 
   const identityResponse = await request.get('/v1/runtime/identity');
   expect(identityResponse.ok()).toBeTruthy();
   const identity = await identityResponse.json();
   expect(identity.protocol_version).toBe('local-llm-identity-v1');
   expect(identity.default_model).toBe('e2e-switchable');
-  expect(Object.keys(identity.models)).toEqual(
-    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
-  );
+  expect(Object.keys(identity.models)).toEqual(expect.arrayContaining(['e2e-switchable', 'e2e-alt']));
   const publicIdentity = JSON.stringify(identity);
   expect(publicIdentity).not.toContain('/e2e/');
   expect(publicIdentity).not.toContain('LOCAL_LLM_E2E_ROOT');
@@ -81,15 +77,11 @@ test('external client sees coherent health, discovery, identity and status witho
   expect(statusResponse.ok()).toBeTruthy();
   const status = await statusResponse.json();
   expect(status.default_model).toBe('e2e-switchable');
-  expect(Object.keys(status.models)).toEqual(
-    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
-  );
+  expect(Object.keys(status.models)).toEqual(expect.arrayContaining(['e2e-switchable', 'e2e-alt']));
 });
 
 test('default and explicit model routing are observable through the public HTTP response', async ({ request }) => {
-  const defaultResponse = await request.post('/v1/chat/completions', {
-    data: chatPayload(),
-  });
+  const defaultResponse = await request.post('/v1/chat/completions', { data: chatPayload() });
   expect(defaultResponse.ok()).toBeTruthy();
   const defaultPayload = await defaultResponse.json();
   expect(defaultPayload.model).toBe('org/e2e-switchable');
@@ -105,31 +97,23 @@ test('default and explicit model routing are observable through the public HTTP 
 });
 
 test('admin default-route mutation is reflected by status and subsequent model-omitted inference', async ({ request }) => {
-  const activateAlt = await request.post('/api/v1/models/activate', {
-    data: { model: 'e2e-alt' },
-  });
+  const activateAlt = await request.post('/api/v1/models/activate', { data: { model: 'e2e-alt' } });
   expect(activateAlt.ok()).toBeTruthy();
   expect((await activateAlt.json()).default).toBe(true);
 
   const altStatus = await request.get('/status');
   expect((await altStatus.json()).default_model).toBe('e2e-alt');
-  const altDefaultResponse = await request.post('/v1/chat/completions', {
-    data: chatPayload(),
-  });
+  const altDefaultResponse = await request.post('/v1/chat/completions', { data: chatPayload() });
   expect(altDefaultResponse.ok()).toBeTruthy();
   expect((await altDefaultResponse.json()).choices[0].message.content).toBe('84');
 
-  const restore = await request.post('/api/v1/models/activate', {
-    data: { model: 'e2e-switchable' },
-  });
+  const restore = await request.post('/api/v1/models/activate', { data: { model: 'e2e-switchable' } });
   expect(restore.ok()).toBeTruthy();
   expect((await restore.json()).default).toBe(true);
 
   const restoredStatus = await request.get('/status');
   expect((await restoredStatus.json()).default_model).toBe('e2e-switchable');
-  const restoredInference = await request.post('/v1/chat/completions', {
-    data: chatPayload(),
-  });
+  const restoredInference = await request.post('/v1/chat/completions', { data: chatPayload() });
   expect((await restoredInference.json()).choices[0].message.content).toBe('42');
 });
 
@@ -163,9 +147,7 @@ test('unknown routing and malformed input fail explicitly without poisoning the 
   expect(malformed.status()).toBe(400);
   expect((await malformed.text()).toLowerCase()).toContain('messages');
 
-  const recovered = await request.post('/v1/chat/completions', {
-    data: chatPayload(),
-  });
+  const recovered = await request.post('/v1/chat/completions', { data: chatPayload() });
   expect(recovered.ok()).toBeTruthy();
   expect((await recovered.json()).choices[0].message.content).toBe('42');
 });
@@ -198,15 +180,13 @@ test('task and media policy fail closed while a compatible local vision request 
   const remote = await request.post('/v1/chat/completions', {
     data: chatPayload({
       model: 'e2e-alt',
-      messages: [
-        {
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: 'https://example.com/private.png' } },
-            { type: 'text', text: 'Do not fetch this remote image.' },
-          ],
-        },
-      ],
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: 'https://example.com/private.png' } },
+          { type: 'text', text: 'Do not fetch this remote image.' },
+        ],
+      }],
     }),
   });
   expect(remote.ok()).toBeFalsy();
@@ -237,9 +217,7 @@ test('streaming hidden reasoning is filtered at the real socket HTTP boundary', 
 
 test('backend failure is produced by the server stack and the next inference recovers', async ({ request }) => {
   const failed = await request.post('/v1/chat/completions', {
-    data: chatPayload({
-      messages: [{ role: 'user', content: 'Trigger the fixture. [backend-error]' }],
-    }),
+    data: chatPayload({ messages: [{ role: 'user', content: 'Trigger the fixture. [backend-error]' }] }),
   });
   expect(failed.status()).toBe(500);
   const failurePayload = await failed.json();
@@ -261,23 +239,14 @@ test('transcription enforces explicit task capability and succeeds on the compat
   };
 
   const unsupported = await request.post('/v1/audio/transcriptions', {
-    multipart: {
-      model: 'e2e-switchable',
-      language: 'it',
-      file,
-    },
+    multipart: { model: 'e2e-switchable', language: 'it', file },
   });
   expect(unsupported.status()).toBe(400);
   expect((await unsupported.json()).detail.code).toBe('unsupported_task');
 
   const response = await request.post('/v1/audio/transcriptions', {
-    multipart: {
-      model: 'e2e-alt',
-      language: 'it',
-      file,
-    },
+    multipart: { model: 'e2e-alt', language: 'it', file },
   });
-
   expect(response.ok()).toBeTruthy();
   const payload = await response.json();
   expect(payload.model).toBe('org/e2e-alt');
@@ -311,12 +280,7 @@ test('residency admin API preserves explicit pinning and keeps eviction non-auto
 });
 
 test('resource, scheduler, policy and evidence admin surfaces are reachable and privacy-safe', async ({ request }) => {
-  for (const path of [
-    '/api/v1/resources',
-    '/api/v1/scheduler',
-    '/api/v1/policies',
-    '/api/v1/evidence',
-  ]) {
+  for (const path of ['/api/v1/resources', '/api/v1/scheduler', '/api/v1/policies', '/api/v1/evidence']) {
     const response = await request.get(path);
     expect(response.ok(), `${path} should be available`).toBeTruthy();
     const text = await response.text();
@@ -365,38 +329,43 @@ test('custom evaluation import, duplicate rejection, discovery and execution cro
     },
   });
 
-  const imported = await upload();
-  expect(imported.ok()).toBeTruthy();
-  const importedPayload = (await imported.json()).test_set;
-  expect(importedPayload.id).toBe('api-blackbox-set');
-  expect(importedPayload.version).toBe('1.0.0');
-  expect(importedPayload.sample_count).toBe(10);
-  expect(importedPayload.source).toBe('custom');
-  expect(JSON.stringify(importedPayload).toLowerCase()).not.toContain('path');
+  try {
+    const imported = await upload();
+    expect(imported.ok()).toBeTruthy();
+    const importedPayload = (await imported.json()).test_set;
+    expect(importedPayload.id).toBe('api-blackbox-set');
+    expect(importedPayload.version).toBe('1.0.0');
+    expect(importedPayload.sample_count).toBe(10);
+    expect(importedPayload.source).toBe('custom');
+    expect(JSON.stringify(importedPayload).toLowerCase()).not.toContain('path');
 
-  const duplicate = await upload();
-  expect(duplicate.status()).toBe(409);
+    const duplicate = await upload();
+    expect(duplicate.status()).toBe(409);
 
-  const catalogResponse = await request.get('/api/v1/evaluation/test-sets');
-  const catalog = await catalogResponse.json();
-  const custom = catalog.test_sets.find((item) => item.id === 'api-blackbox-set');
-  expect(custom?.identity).toBe(importedPayload.identity);
-  expect(custom?.source).toBe('custom');
+    const catalogResponse = await request.get('/api/v1/evaluation/test-sets');
+    const catalog = await catalogResponse.json();
+    const custom = catalog.test_sets.find((item) => item.id === 'api-blackbox-set');
+    expect(custom?.identity).toBe(importedPayload.identity);
+    expect(custom?.source).toBe('custom');
 
-  const runResponse = await request.post('/api/v1/evaluation/runs', {
-    data: {
-      model: 'e2e-switchable',
-      test_set_id: 'api-blackbox-set',
-      test_set_version: '1.0.0',
-      sample_count: 10,
-      seed: 0,
-      reasoning_policy: 'off',
-      retain_content: false,
-    },
-  });
-  expect(runResponse.ok()).toBeTruthy();
-  const report = (await runResponse.json()).report;
-  expect(report.manifest.test_set_id).toBe('api-blackbox-set');
-  expect(report.manifest.test_set_identity).toBe(importedPayload.identity);
-  expect(report.results).toHaveLength(10);
+    const runResponse = await request.post('/api/v1/evaluation/runs', {
+      data: {
+        model: 'e2e-switchable',
+        test_set_id: 'api-blackbox-set',
+        test_set_version: '1.0.0',
+        sample_count: 10,
+        seed: 0,
+        reasoning_policy: 'off',
+        retain_content: false,
+      },
+    });
+    expect(runResponse.ok()).toBeTruthy();
+    const report = (await runResponse.json()).report;
+    expect(report.manifest.test_set_id).toBe('api-blackbox-set');
+    expect(report.manifest.test_set_identity).toBe(importedPayload.identity);
+    expect(report.results).toHaveLength(10);
+  } finally {
+    const reset = await request.post('/__e2e__/reset-custom-test-sets');
+    expect(reset.ok()).toBeTruthy();
+  }
 });
