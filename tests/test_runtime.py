@@ -262,10 +262,18 @@ def test_shutdown_timeout_keeps_busy_runtime_owned_and_retryable():
 
 def test_backend_config_capabilities_match_consumed_engine_settings():
     llama_cpp = config_capabilities_for_backend("llama_cpp")
+    llama_server = config_capabilities_for_backend("llama_server")
     mlx_vlm = config_capabilities_for_backend("mlx_vlm_server")
 
     assert "n_gpu_layers" in llama_cpp
     assert "n_batch" in llama_cpp
+    assert "n_gpu_layers" not in llama_server
+    assert "n_batch" in llama_server
+    assert "max_concurrent_requests" in llama_server
+    assert "llama_server_gpu_layers" in llama_server
+    assert "llama_server_kv_unified" in llama_server
+    assert "llama_server_fit" in llama_server
+    assert "llama_server_allow_unvalidated" not in llama_server
     assert "n_gpu_layers" not in mlx_vlm
     assert "n_batch" not in mlx_vlm
     assert mlx_vlm == ["timeout", "max_concurrent_requests", "max_kv_size"]
