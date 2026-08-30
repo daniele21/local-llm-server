@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "contract_version": "0.5.0",
+  "contract_version": "0.6.0",
   "applicable": true,
   "design_source_of_truth": {
     "type": "code-first",
@@ -12,20 +12,26 @@
       "engineers evaluating runtime capability resource behavior and model configurations"
     ],
     "primary_jobs": [
-      "understand whether the local AI runtime is ready and what is resident or available",
-      "configure and execute inference without needing to reason about unnecessary internal plumbing",
-      "inspect evaluation evidence and resource/runtime state truthfully",
-      "recover safely from unsupported configurations runtime failures and resource pressure"
+      "understand within seconds whether the local AI control plane is ready, what is resident and whether resource pressure affects the next action",
+      "choose a task first and execute it with a compatible local runtime without reasoning about unnecessary backend plumbing",
+      "manage multiple resident runtimes within a bounded AI resource budget and understand the feasibility and consequences of loading another model",
+      "inspect evaluation evidence, runtime identity and resource behavior truthfully without confusing observed estimated configured and unavailable values",
+      "recover safely from unsupported configurations runtime failures resource pressure and insufficient capacity"
     ],
     "primary_surfaces": [
       "Local LLM Studio browser control plane",
-      "model and runtime management surfaces",
-      "evaluation and evidence surfaces"
-    ]
+      "overview and operational readiness surfaces",
+      "model and runtime lifecycle management surfaces",
+      "task-first playground and endpoint integration surfaces",
+      "evaluation evidence and diagnostics surfaces"
+    ],
+    "product_role": "A calm local AI control plane for runtime lifecycle resource decisions task execution observability and evidence; not a chatbot frontend or generic monitoring dashboard."
   },
   "decision_model": {
     "user_outcome_first": true,
     "task_model_before_layout": true,
+    "task_selection_before_model_selection": true,
+    "decision_support_before_diagnostics": true,
     "hierarchy_before_visual_polish": true,
     "states_before_motion": true,
     "motion_requires_purpose": true,
@@ -38,7 +44,251 @@
     "clear_primary_action_hierarchy": true,
     "platform_appropriate": true,
     "bounded_information_density": true,
-    "actionable_error_recovery": true
+    "actionable_error_recovery": true,
+    "task_first_execution": true,
+    "orthogonal_runtime_state_semantics": true,
+    "multi_model_resource_decision_support": true,
+    "source_backed_readiness": true,
+    "routeable_information_architecture": true,
+    "visualizations_require_decision_value": true,
+    "diagnostics_are_secondary_until_needed": true
+  },
+  "information_architecture": {
+    "primary_navigation": [
+      "Overview",
+      "Models & Runtimes",
+      "Endpoints",
+      "Playground",
+      "Benchmark & Evaluation",
+      "System",
+      "Settings"
+    ],
+    "primary_navigation_uses_routes": true,
+    "route_state_survives_refresh": true,
+    "deep_links_use_stable_opaque_identifiers": true,
+    "tabs_reserved_for_local_subsections": true,
+    "selection_is_not_default_route": true,
+    "canonical_route_patterns": [
+      "/overview",
+      "/models",
+      "/models/{opaque-model-id}",
+      "/endpoints",
+      "/playground",
+      "/evaluations",
+      "/evaluations/{opaque-run-id}",
+      "/system",
+      "/settings"
+    ]
+  },
+  "state_model": {
+    "artifact": [
+      "missing",
+      "available",
+      "verified",
+      "invalid"
+    ],
+    "runtime": [
+      "cold",
+      "loading",
+      "resident",
+      "draining",
+      "stopped",
+      "failed"
+    ],
+    "route": [
+      "default",
+      "non-default"
+    ],
+    "policy": [
+      "pinned",
+      "evictable"
+    ],
+    "measurement_kind": [
+      "observed",
+      "estimated",
+      "configured",
+      "unavailable"
+    ],
+    "must_not_collapse_orthogonal_states_into_one_status": true,
+    "selected_is_transient_ui_state_not_runtime_or_route_truth": true,
+    "color_never_carries_state_meaning_alone": true
+  },
+  "surface_hierarchy": {
+    "overview": {
+      "primary_question": "Can I use local AI now and is anything constraining the next action?",
+      "primary_information": [
+        "global readiness",
+        "resident runtime count",
+        "AI resource budget used and headroom",
+        "active and queued work",
+        "resource pressure"
+      ],
+      "secondary_information": [
+        "resident runtime summary",
+        "recent actionable activity",
+        "compact workload trend when it adds decision value",
+        "latest runtime evidence"
+      ],
+      "advanced_information": [
+        "scheduler details",
+        "runtime fingerprints",
+        "provenance and diagnostic evidence"
+      ],
+      "density": "low-to-medium"
+    },
+    "models_and_runtimes": {
+      "primary_question": "What can run what is resident and what will happen to resources if I change residency?",
+      "primary_information": [
+        "AI budget resident footprint reserved capacity and headroom",
+        "model inventory",
+        "orthogonal artifact runtime route and policy state",
+        "observed or estimated memory footprint",
+        "load unload pin reload and default-route actions"
+      ],
+      "secondary_information": [
+        "capabilities and task I/O",
+        "activity and last-used evidence",
+        "load feasibility and capacity deficit"
+      ],
+      "advanced_information": [
+        "artifact identity",
+        "runtime fingerprint",
+        "backend revision",
+        "detailed resource evidence and logs"
+      ],
+      "detail_pattern": "Keep the inventory context visible and open model/runtime detail in a drawer or equivalent contextual surface.",
+      "density": "medium-to-high"
+    },
+    "endpoints": {
+      "primary_question": "How do I use the stable local application contract and which runtimes can satisfy it?",
+      "primary_information": [
+        "task and endpoint path",
+        "current availability",
+        "Try in Playground",
+        "copyable cURL Python JavaScript and other supported examples"
+      ],
+      "secondary_information": [
+        "configured and resident compatibility matrix",
+        "typed errors",
+        "input output streaming and structured-output contract details"
+      ],
+      "density": "medium"
+    },
+    "playground": {
+      "primary_question": "Can I execute this task locally with this model and configuration and what happened?",
+      "primary_information": [
+        "task selector",
+        "compatible resident models",
+        "compatible cold models with explicit Load & use",
+        "task-specific input",
+        "primary run action",
+        "execution progress and result"
+      ],
+      "secondary_information": [
+        "run configuration",
+        "runtime metadata",
+        "latency throughput token and memory evidence when available"
+      ],
+      "advanced_information": [
+        "full runtime fingerprint",
+        "diagnostic detail",
+        "advanced generation controls"
+      ],
+      "density": "medium"
+    },
+    "benchmark_and_evaluation": {
+      "primary_question": "Which model/runtime is the best fit for this scenario on this machine and is the comparison reproducible?",
+      "primary_information": [
+        "scenario or dataset",
+        "models",
+        "warm or cold mode",
+        "sample count",
+        "run status",
+        "comparable results"
+      ],
+      "secondary_information": [
+        "best quality fastest lowest-memory and other dimension-specific callouts",
+        "per-sample review",
+        "run identity"
+      ],
+      "advanced_information": [
+        "seed",
+        "generation preset",
+        "quality-performance weighting",
+        "full manifest and detailed evidence"
+      ],
+      "never_present_single_unqualified_winner": true,
+      "density": "medium-to-high"
+    },
+    "system": {
+      "primary_question": "What is the server and runtime environment doing and where is a problem occurring?",
+      "primary_information": [
+        "server health",
+        "runtime processes",
+        "scheduler and queue",
+        "resource pressure",
+        "current actionable finding"
+      ],
+      "secondary_information": [
+        "request timeline",
+        "artifact verification",
+        "logs",
+        "shareable bounded diagnostics"
+      ],
+      "density": "high"
+    },
+    "settings": {
+      "primary_question": "Which local policies and effective values govern this control plane?",
+      "primary_information": [
+        "server and network policy",
+        "resource policy",
+        "privacy policy",
+        "runtime policy",
+        "appearance and accessibility preferences"
+      ],
+      "read_only_values_use_effective_value_presentation": true,
+      "disabled_controls_must_not_impersonate_read_only_truth": true,
+      "density": "low-to-medium"
+    }
+  },
+  "resource_decision_support": {
+    "resource_budget_is_primary_product_information": true,
+    "show_global_budget_resident_footprint_reserved_capacity_and_headroom": true,
+    "resident_footprint_prefers_observed_evidence": true,
+    "cold_load_requirement_is_explicitly_estimated_until_observed": true,
+    "load_feasibility_explains_requirement_available_capacity_and_deficit": true,
+    "insufficient_capacity_offers_safe_explicit_user_actions": true,
+    "never_unload_or_evict_a_runtime_as_a_hidden_side_effect": true,
+    "automatic_pressure_eviction_remains_disabled_until_repository_evidence_gate_is_satisfied": true,
+    "recommendations_distinguish_observed_savings_from_estimated_savings": true,
+    "pressure_messages_explain_cause_impact_and_recovery": true
+  },
+  "task_execution": {
+    "task_first": true,
+    "task_surfaces": [
+      "chat",
+      "structured-output",
+      "vision-language",
+      "transcription"
+    ],
+    "capability_source": "server-provided task and capability descriptors; model-name heuristics are not an accepted source of truth",
+    "resident_compatible_models_presented_as_immediately_executable": true,
+    "cold_compatible_models_may_be_presented_separately_with_explicit_load_and_use": true,
+    "unsupported_task_model_combinations_fail_closed": true,
+    "remote_media_respects_local_privacy_policy": true,
+    "run_configuration_is_secondary_to_task_model_input_and_primary_action": true,
+    "run_metadata_is_separate_from_primary_result": true,
+    "prompt_and_output_remain_session-scoped_unless_explicit_persistence_is_defined_elsewhere": true
+  },
+  "interaction_and_recovery": {
+    "primary_actions_are_visually_distinct_from_secondary_actions": true,
+    "destructive_runtime_actions_are_unambiguous_and_intentional": true,
+    "long_running_actions_expose_truthful_progress_or_indeterminate_state": true,
+    "failure_does_not_poison_the_next_supported_action": true,
+    "errors_include_cause_impact_and_recovery_when_known": true,
+    "warnings_do_not_block_safe_actions_unnecessarily": true,
+    "context_is_preserved_across_detail_and_recovery_surfaces_when_safe": true,
+    "advanced_diagnostics_are_progressively_disclosed": true
   },
   "critical_states": [
     "loading",
@@ -47,7 +297,11 @@
     "disabled",
     "warning",
     "partial-result",
-    "selected"
+    "selected",
+    "cold-compatible",
+    "resource-pressure",
+    "insufficient-capacity",
+    "unavailable-evidence"
   ],
   "accessibility": {
     "target": "WCAG 2.2 AA for the browser control-plane surface",
@@ -56,7 +310,10 @@
     "assistive_semantics": true,
     "text_scaling_when_applicable": true,
     "no_color_only_critical_meaning": true,
-    "reduced_motion_when_applicable": true
+    "reduced_motion_when_applicable": true,
+    "two_hundred_percent_zoom_keeps_critical_journeys_operable": true,
+    "status_icons_have_text_equivalents": true,
+    "interactive_targets_follow_existing_minimum_control_size": true
   },
   "adaptive_layout": {
     "applicable": true,
@@ -65,12 +322,35 @@
       "compact desktop/tablet 721-1100px",
       "narrow 421-720px",
       "small viewport <= 420px"
-    ]
+    ],
+    "priority_order": [
+      "13-inch and larger laptop control-plane operation",
+      "200% zoom and compact desktop operation",
+      "tablet administrative operation",
+      "narrow and small viewport essential monitoring and intentional actions"
+    ],
+    "wide_preserves_operational_context": true,
+    "compact_may_collapse_secondary_columns_and_use_drawers": true,
+    "narrow_prioritizes_status_primary_action_and_recovery": true,
+    "small_viewport_does_not_need_to_expose_all_dense_diagnostics_simultaneously": true
   },
   "design_system": {
     "component_source": "src/local_llm_server/static/design-system.css with source-backed renderers under src/local_llm_server/static/control-plane-*.js and components.js",
     "brand_tokens": "design/brand-kit.json",
-    "reuse_existing_semantic_component_first": true
+    "reuse_existing_semantic_component_first": true,
+    "preferred_product_semantics": [
+      "RuntimeStatus",
+      "ArtifactStatus",
+      "ResourceBudget",
+      "ModelIdentity",
+      "LifecycleActions",
+      "EvidenceValue",
+      "CapabilitySet",
+      "PressureState",
+      "RuntimeActivity",
+      "ActionFeedback"
+    ],
+    "semantic_components_must_not_duplicate_backend_specific_visual_ownership": true
   },
   "motion": {
     "purpose_required": true,
@@ -101,27 +381,30 @@
       "meaningful_completion",
       "data_visualization",
       "brand"
-    ]
+    ],
+    "avoid_decorative_ai_magic_glow": true,
+    "avoid_crypto_or_trading_dashboard_visual_language": true,
+    "avoid_gauges_and_charts_without_operational_decision_value": true
   },
   "critical_journeys": [
     {
       "id": "control-plane-status-and-navigation",
-      "name": "Open the control plane, understand truthful server/runtime status and navigate between core surfaces",
+      "name": "Open the control plane, understand truthful readiness runtime and resource status and navigate through refresh-stable core routes",
       "e2e": "required"
     },
     {
       "id": "chat-inference-and-recovery",
-      "name": "Configure a model request, submit inference, observe progress or failure and recover for the next request",
+      "name": "Configure a supported text request, submit inference, observe progress or failure and recover for the next request without stale poisoned state",
       "e2e": "required"
     },
     {
       "id": "model-runtime-management",
-      "name": "Understand model availability and residency and perform an intentional runtime-management action",
+      "name": "Understand model artifact residency route policy and resource state, assess load feasibility and perform an intentional runtime-management action",
       "e2e": "recommended"
     },
     {
       "id": "evaluation-review-and-repeatability",
-      "name": "Start or review evaluation state and inspect comparable result/history evidence without confusing unavailable data with zero",
+      "name": "Start or review evaluation state and inspect dimension-specific comparable result and identity evidence without confusing unavailable data with zero",
       "e2e": "recommended"
     },
     {
@@ -132,18 +415,22 @@
   ],
   "reference_views": [
     "implemented control-plane shell and overview sources under src/local_llm_server/static/control-plane-*",
-    "implemented Local LLM Studio chat/configuration surface in src/local_llm_server/static/index.html",
-    "critical loading/empty/error/status source states covered by tests/e2e and tests/test_accessibility_ui_assets.py"
+    "implemented Local LLM Studio task execution and configuration sources in src/local_llm_server/static/index.html and control-plane capability renderers",
+    "Models & Runtimes is the canonical lifecycle and multi-model resource-decision surface; legacy lifecycle controls are transitional and must not remain a second coherent product flow",
+    "critical loading empty error disabled warning resource-pressure and status source states covered by tests/e2e and tests/test_accessibility_ui_assets.py"
   ],
   "validation": {
     "accessibility_automation": "pytest -q tests/test_accessibility_ui_assets.py plus Playwright critical-journey assertions",
     "visual_regression": "n/a for current unstable/incidental pixels; semantic visual contracts and design-system drift are blocking, pixel baselines are added only for stable high-risk surfaces",
     "manual_accessibility": "docs/product-experience-validation.md#manual-accessibility-review",
-    "usability_evidence": "docs/product-experience-validation.md#representative-user-usability"
+    "usability_evidence": "docs/product-experience-validation.md#representative-user-usability",
+    "structural_ux_acceptance_precedes_manual_polish_evidence": true
   },
   "evidence": {
     "bounded_ci_retention": true,
     "identity_with_source_build_environment": true,
-    "zero_residue_after_ui_e2e": true
+    "zero_residue_after_ui_e2e": true,
+    "hardware_memory_reclamation_and_performance_claims_require_representative_hardware": true,
+    "manual_accessibility_and_representative_usability_remain_real_environment_evidence": true
   }
 }
