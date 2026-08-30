@@ -8,9 +8,6 @@ verification receipt consumed by hardware evidence.
 """
 from __future__ import annotations
 
-import re
-import subprocess
-from pathlib import Path
 from typing import Any, Mapping
 
 from .artifact_identity import (
@@ -19,6 +16,7 @@ from .artifact_identity import (
     VerificationState,
 )
 from .artifact_verification import ArtifactVerificationStore, verified_receipt_for_config
+from .llama_server_compat import probe_llama_server_version
 from .runtime_evidence import RuntimeIdentitySnapshot, build_and_attach_runtime_identity
 from .runtime_identity import BackendIdentity, backend_identity, local_hardware_profile
 
@@ -28,9 +26,6 @@ _BACKEND_PACKAGES: dict[str, str] = {
     "mlx": "mlx-lm",
     "mlx_vlm_server": "mlx-vlm",
 }
-_LLAMA_SERVER_VERSION = re.compile(
-    r"version:\s*(?P<build>\d+)\s*\(`?(?P<commit>[0-9a-fA-F]{7,40})`?\)"
-)
 
 
 def capture_verified_runtime_identity(
@@ -105,11 +100,11 @@ def resolve_backend_identity(runtime: Any) -> BackendIdentity | None:
         )
 
     if backend_name == "llama_server":
-        version = _probe_llama_server_version(getattr(runtime.engine, "binary", None))
-        if version is not None:
+        identity = probe_llama_server_version(getattr(runtime.engine, "binary", None))
+        if identity is not None:
             return BackendIdentity(
                 name=backend_name,
-                version=version,
+                version=identity.backend_version,
                 implementation=implementation,
             )
     return None
@@ -128,27 +123,6 @@ def _verified_artifact_evidence(
     if receipt is None:
         return None, None
     return receipt.sha256, receipt.size_bytes
-
-
-def _probe_llama_server_version(binary: Any) -> str | None:
-    if binary is None:
-        return None
-    path = Path(str(binary)).expanduser()
-    try:
-        completed = subprocess.run(
-            [str(path), "--version"],
-            capture_output=True,
-            text=True,
-            timeout=2.0,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    text = "\n".join(part for part in (completed.stdout, completed.stderr) if part)
-    match = _LLAMA_SERVER_VERSION.search(text)
-    if match is None:
-        return None
-    return f"build-{match.group('build')}@{match.group('commit').lower()}"
 
 
 def _source_kind(value: Any) -> ArtifactSourceKind:

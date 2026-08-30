@@ -27,7 +27,7 @@ The control plane remains the canonical owner of residency, admission, lifecycle
 | ID | Work | Depends on | State | Exit evidence |
 | --- | --- | --- | --- | --- |
 | RRG-1 | deterministic runtime ownership and bounded lifecycle | — | DONE | strong remote preflight green on PR #154; teardown/failed-cleanup/reload/shutdown contracts accepted |
-| RRG-2 | llama.cpp server modernization and backend identity contract | RRG-1 | READY | version-attributable server adapter + compatibility tests |
+| RRG-2 | llama.cpp server modernization and backend identity contract | RRG-1 | DONE | strong remote preflight green on PR #156; attributable v0.3 server adapter/config/identity contracts accepted |
 | RRG-3 | resident + transient memory envelope | RRG-1, RRG-2 | READY | deterministic budget arithmetic + request reservation tests |
 | RRG-4 | global multi-model execution governor | RRG-3 | READY | fairness/admission/cancellation tests across runtimes |
 | RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | BLOCKED | target-hardware evidence; no automatic eviction before acceptance |
@@ -50,6 +50,10 @@ This slice does not claim host-memory reclamation.
 ## RRG-2 — llama.cpp modernization
 
 Target the latest validated stable llama.cpp server line through an attributable binary identity rather than opportunistically relying on an unknown LM Studio/PATH revision. Add modern server configuration only where Local LLM Server remains the policy owner: context/batch/threads, backend-native parallel slots, KV/cache controls, fit/headroom controls and observability. Do not introduce the upstream multi-model router as a second residency/LRU owner without a separate ADR and comparative evidence.
+
+The current target is the upstream `v0.3.0` stable release, whose published binary build is `b10621` at commit `c1d0e7a004015f23bc0233470b747b596f29b264`. Local LLM Server does not silently download or replace the external specialist runtime. It validates the selected executable, retains exact build/commit identity, uses the modern server profile only at/above that feature floor, and requires an explicit escape hatch for older/unparseable legacy binaries.
+
+Within one managed server runtime, Local LLM Server owns the admitted request count and maps it to llama.cpp `--parallel` slots. llama.cpp owns continuous batching and the runtime-local unified KV/cache implementation. The control plane does not adopt llama.cpp multi-model autoload/router ownership.
 
 ## RRG-3 — memory envelope
 

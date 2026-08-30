@@ -1,7 +1,7 @@
 # Current State
 
 Status: active
-Last reviewed: 2026-08-29
+Last reviewed: 2026-08-30
 
 Local LLM Server is a local-first, privacy-preserving multi-backend inference server. Local LLM Studio is its bundled browser control plane. Hosted CI proves deterministic software contracts; hardware- and human-dependent claims require identified real evidence.
 
@@ -13,37 +13,41 @@ Local LLM Server is a local-first, privacy-preserving multi-backend inference se
 - Engineering repository-side L2 acceptance: `d528b6c5b676e705e7ccf24800929da6d5534203`.
 - `product-ui` repository guardrails acceptance: `89d360698234016ddfe1f3fff0bacbc4f9bb7852`.
 - Real-evidence bridge acceptance: `de899cc945e1d1c735a2ded91c5da717ce0fe2b0`.
-- Template 0.8 adds publication preflight, execution-capability classification, blast-radius validation profiles and environment-aware E2E fidelity without weakening the existing specialist L1/L2 gates.
+- Template 0.8 adds publication preflight, execution-capability classification, blast-radius validation profiles and environment-aware E2E fidelity without weakening specialist L1/L2 gates.
 - Full engineering L2 remains **real-hardware-evidence pending**; full `product-ui` L2 remains **real-human-evidence pending**.
 - Canonical branch protection remains owner-deferred.
 
 ## Accepted deterministic L2 surface
 
-Repository Health permanently blocks on L1/L2 architecture, resource, lifecycle, security, repeatability, built-surface, product-experience, design-system and real-evidence-bridge fitness functions. It also validates the repo-template 0.8 operating/preflight contract and `.engineering/e2e.json`. Separate blocking surfaces include L2 Performance Regression, Artifact Lifecycle, Security Audit, Package Install Smoke, Python 3.10/3.11/3.12, lint, Playwright and zero residue.
+Repository Health blocks on L1/L2 architecture, resource, lifecycle, security, repeatability, built-surface, product-experience, design-system and real-evidence-bridge fitness plus the repo-template 0.8 operating/E2E contracts. Separate blocking surfaces include L2 Performance Regression, Artifact Lifecycle, Security Audit, Package Install Smoke, Python 3.10/3.11/3.12, lint, Playwright and zero residue.
 
-The automated E2E boundary is explicitly environment-aware:
+Runtime hardening is fail-conservative: routing/accounting remains owned until teardown succeeds, failed teardown stays retryable, and explicit in-process close is not a host-memory reclamation claim.
 
-- `ci-studio-deterministic` proves the assembled browser -> UI JavaScript -> HTTP -> middleware/runtime-contract workflow with deterministic fake inference and zero residue;
+Managed `llama_server` uses the attributable llama.cpp `v0.3.0` feature floor (`b10621`, `c1d0e7a...`) by default. Explicit executable selection is authoritative; legacy/unparseable binaries require an escape hatch and receive no v0.3-only flags. Local LLM Server maps admitted concurrency to `--parallel`; llama.cpp owns runtime-local batching/KV. No upstream multi-model router or silent executable download/replacement is adopted. Build/version attribution is identity, not cryptographic provenance.
+
+The automated E2E boundary is environment-aware:
+
+- `ci-studio-deterministic` proves browser -> UI JavaScript -> HTTP -> middleware/runtime-contract behavior with deterministic fake inference and zero residue;
 - `ci-installed-wheel` proves the built/package surface independently of Apple Silicon runtime behavior;
-- representative/target Apple Silicon runs remain separate real-environment evidence for model/backend compatibility, unified-memory behavior, reclamation, latency/throughput and thermal/power claims.
+- representative Apple Silicon runs remain separate evidence for model/backend compatibility, unified-memory behavior, reclamation, latency/throughput and thermal/power claims.
 
-The accepted product-ui system keeps `design-system.css` as semantic token/component owner; `design/ux-contract.json` owns user/task/decision-order/state/accessibility/adaptive/motion/journey contracts; `design/brand-kit.json` routes brand and motion roles to existing shipped assets/tokens. Product telemetry remains off by default.
+The accepted product-ui system keeps `design-system.css` as semantic token/component owner; `design/ux-contract.json` owns user/task/decision-order/state/accessibility/adaptive/motion/journey contracts; `design/brand-kit.json` routes brand/motion roles to shipped assets/tokens. Product telemetry remains off by default.
 
 The accepted L2 evidence bridge adds:
 
-- privacy-safe explicit thinking ON/OFF-hidden capture without retaining prompt/output;
-- deterministic validation of the complete representative-device TH-E1/EV-3/HE-2/RES-2 bundle;
+- privacy-safe thinking ON/OFF-hidden capture without retaining prompt/output;
+- deterministic validation of the representative-device TH-E1/EV-3/HE-2/RES-2 bundle;
 - conservative reclamation-review recomputation rather than trusting a stored verdict;
-- bounded manual accessibility/usability templates and validators that reject example/private/incomplete evidence;
-- explicit evidence-readiness output that never mutates maturity claims automatically.
+- bounded manual accessibility/usability templates that reject example/private/incomplete evidence;
+- evidence-readiness output that never mutates maturity claims automatically.
 
 ## Remaining L2 evidence
 
 ### Representative Mac
 
-`docs/device-evidence-runbook.md` owns the executable procedure. Still required:
+`docs/device-evidence-runbook.md` owns the procedure. Still required:
 
-- TH-E1 — explicit thinking OFF + ON-hidden on the target runtime;
+- TH-E1 — thinking OFF + ON-hidden on the target runtime;
 - EV-3 — two attribution-safe `general-purpose v1.0.0`, 10-sample, seed-0 OFF runs;
 - HE-2 — two compatible verified 3-cycle Apple Silicon reclamation reports plus conservative review;
 - RES-2 — bounded safe admit/account/infer/unload/reject resource-policy smoke.
@@ -57,10 +61,11 @@ Two independent human tasks remain:
 - PX4-09 — manual accessibility review of the built primary journeys;
 - PX4-10 — representative-user usability with bounded non-sensitive task/outcome evidence.
 
-`python -m local_llm_server.l2_evidence_bridge validate-product-ui` validates the bounded evidence but does not promote baseline status. Negative/inconclusive findings remain evidence and require remediation/judgment rather than being hidden or rerun merely to obtain a pass.
+`python -m local_llm_server.l2_evidence_bridge validate-product-ui` validates bounded evidence but does not promote baseline status. Negative/inconclusive findings require remediation/judgment rather than being hidden or rerun merely to obtain a pass.
 
 ## Active workstreams
 
+- `docs/workstreams/runtime-resource-governor.md` — memory envelope, global governor and representative pressure/reclamation evidence.
 - `docs/workstreams/l2-reference-grade.md` — cumulative L2 completion gate.
 - `docs/workstreams/runtime-correctness-evidence-hardening.md` — representative-device evidence.
 - `docs/workstreams/v040-product-ui-l2.md` — manual accessibility/usability evidence.
