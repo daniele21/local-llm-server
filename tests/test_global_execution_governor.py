@@ -133,9 +133,40 @@ def test_abandoning_running_permit_releases_slot_without_leak():
     assert governor.abandon("running") is True
     assert governor.snapshot().inflight == 0
 
-    next_permit = governor.acquire("b", "next", runtime_max_running=1)
+    next_permit = governor.acquire("b", "running", runtime_max_running=1)
     assert next_permit.runtime_key == "b"
-    governor.release("next")
+    governor.release("running")
+
+
+def test_abandoned_waiter_cannot_delete_later_same_id_submission():
+    governor = GlobalExecutionGovernor(max_running=1, queue_capacity=2)
+    governor.acquire("a", "running", runtime_max_running=1)
+    cancelled: list[ErrorCode] = []
+
+    governor.submit("b", "reuse", runtime_max_running=1)
+
+    def wait_for_cancelled_submission() -> None:
+        try:
+            governor.wait("reuse")
+        except InferenceError as exc:
+            cancelled.append(exc.code)
+
+    old_waiter = threading.Thread(target=wait_for_cancelled_submission)
+    old_waiter.start()
+    _wait_until(lambda: governor.snapshot().queued == 1)
+    assert governor.abandon("reuse") is True
+
+    governor.submit("c", "reuse", runtime_max_running=1)
+    governor.release("running")
+    permit = governor.wait("reuse")
+    assert permit.runtime_key == "c"
+    governor.release("reuse")
+
+    old_waiter.join(timeout=1)
+    assert not old_waiter.is_alive()
+    assert cancelled == [ErrorCode.CANCELLED]
+    assert governor.snapshot().inflight == 0
+    assert governor.snapshot().queued == 0
 
 
 def test_public_snapshot_contains_no_request_identity_or_content():
