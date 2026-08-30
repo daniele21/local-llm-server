@@ -13,6 +13,7 @@
         ['data-local-llm-control-plane-system', '/static/control-plane-system.css'],
         ['data-local-llm-control-plane-evaluation', '/static/control-plane-evaluation.css'],
         ['data-local-llm-control-plane-evaluation-history', '/static/control-plane-evaluation-history.css'],
+        ['data-local-llm-control-plane-product-semantics', '/static/control-plane-product-semantics.css'],
     ];
     stylesheets.forEach(([marker, href]) => {
         if (document.querySelector(`link[${marker}]`)) return;
@@ -33,6 +34,7 @@
         ['localLlmControlPlaneEvaluation', '/static/control-plane-evaluation.js'],
         ['localLlmControlPlaneEvaluationHistory', '/static/control-plane-evaluation-history.js'],
         ['localLlmEvaluationReasoning', '/static/control-plane-evaluation-reasoning.js'],
+        ['localLlmControlPlaneProductSemantics', '/static/control-plane-product-semantics.js'],
     ];
     scripts.forEach(([marker, src]) => {
         if (document.querySelector(`script[data-${marker.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`)}]`)) return;
