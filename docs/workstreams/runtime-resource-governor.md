@@ -29,7 +29,7 @@ The control plane remains the canonical owner of residency, admission, lifecycle
 | RRG-1 | deterministic runtime ownership and bounded lifecycle | — | DONE | strong remote preflight green on PR #154; teardown/failed-cleanup/reload/shutdown contracts accepted |
 | RRG-2 | llama.cpp server modernization and backend identity contract | RRG-1 | DONE | strong remote preflight green on PR #156; attributable v0.3 server adapter/config/identity contracts accepted |
 | RRG-3 | resident + transient memory envelope | RRG-1, RRG-2 | DONE | strong remote preflight green on PR #157; shared resident/transient budget, stream/cancel and ASR request accounting accepted |
-| RRG-4 | global multi-model execution governor | RRG-3 | READY | fairness/admission/cancellation tests across runtimes |
+| RRG-4 | global multi-model execution governor | RRG-3 | ACTIVE | fairness/admission/cancellation tests across runtimes |
 | RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | BLOCKED | target-hardware evidence; no automatic eviction before acceptance |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
@@ -65,7 +65,11 @@ Transient request estimates are independently configurable as a total override o
 
 ## RRG-4 — global governor
 
-Keep backend-native continuous batching inside each runtime while Local LLM Server owns cross-runtime admission. The governor must bound aggregate compute/memory use, preserve per-runtime scheduler semantics, propagate cancellation/deadlines and avoid starvation.
+Keep backend-native continuous batching inside each runtime while Local LLM Server owns cross-runtime admission. The governor must bound aggregate compute use, preserve per-runtime scheduler semantics, propagate pre-execution cancellation/deadlines and avoid starvation. Memory remains owned by the shared RRG-3 `ResourceManager`; the governor does not create a second memory pool.
+
+Global execution admission is explicit rather than silently changing server capacity. `LOCAL_LLM_GLOBAL_MAX_RUNNING` and `LOCAL_LLM_GLOBAL_QUEUE_CAPACITY` must be configured together. The existing per-runtime FIFO queue remains independently optional. When both layers are enabled, one pre-execution deadline spans per-runtime and global waits; a request that is only waiting for global capacity does not reserve transient memory.
+
+Fairness is runtime round-robin with FIFO order inside each runtime's global waiters. `max_concurrent_requests` is mirrored only as an eligibility bound so a runtime cannot consume global slots that would immediately block on its final semaphore; the runtime semaphore remains the canonical per-runtime safeguard. Chat/vision and first-class resident ASR share the same attached governor. Streaming chat/vision retains its global permit through the final body byte. Public scheduler evidence is aggregate and path/content-free. This slice does not claim that an already-running in-process backend can always be interrupted.
 
 ## RRG-5 — real environment evidence
 
