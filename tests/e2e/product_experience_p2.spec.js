@@ -1,6 +1,9 @@
 const crypto = require('node:crypto');
 const { test, expect } = require('@playwright/test');
 
+const OVERVIEW_VISUAL_DIGEST = 'a2eac8e9abf5ba7a1f5a566cedf7fa6ef119ba3ae06a6ccda9bc0f2da023927b';
+const EVALUATION_VISUAL_DIGEST = '4c09f6df18744fddab4281a0ddd3ab54e9d01caba12288440fe3800717ba4c83';
+
 test.use({
   viewport: { width: 1440, height: 1000 },
   colorScheme: 'dark',
@@ -8,8 +11,8 @@ test.use({
 });
 
 async function openStudio(page, route = '/overview') {
-  await page.route('https://fonts.googleapis.com/**', (request) => request.abort());
-  await page.route('https://fonts.gstatic.com/**', (request) => request.abort());
+  await page.route('https://fonts.googleapis.com/**', (route) => route.abort());
+  await page.route('https://fonts.gstatic.com/**', (route) => route.abort());
   await page.goto(route, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('link', { name: 'Playground' })).toBeVisible();
 }
@@ -24,13 +27,13 @@ test('evaluation keeps scenario setup primary and advanced evidence controls dis
 
   const form = page.locator('[data-evaluation-form][data-product-semantics="true"]');
   await expect(form).toBeVisible();
-  await expect(form.getByLabel('Model')).toBeVisible();
-  await expect(form.getByLabel('Test set')).toBeVisible();
-  await expect(form.getByLabel('Samples')).toBeVisible();
+  await expect(form.locator('[data-evaluation-model]')).toBeVisible();
+  await expect(form.locator('[data-evaluation-testset]')).toBeVisible();
+  await expect(form.locator('[data-evaluation-samples]')).toBeVisible();
 
   const advanced = form.locator('[data-evaluation-advanced]');
   await expect(advanced.getByText('Advanced run settings', { exact: true })).toBeVisible();
-  await expect(form.getByLabel('Seed')).toBeHidden();
+  await expect(form.locator('[data-evaluation-seed]')).toBeHidden();
   await expect(form.locator('[data-evaluation-retain-content]')).toBeHidden();
 
   const library = page.locator('[data-evaluation-library]');
@@ -46,7 +49,7 @@ test('evaluation keeps scenario setup primary and advanced evidence controls dis
   await expect(runButton).toBeEnabled();
 
   await advanced.locator('summary').click();
-  await expect(form.getByLabel('Seed')).toBeVisible();
+  await expect(form.locator('[data-evaluation-seed]')).toBeVisible();
   await expect(form.locator('[data-evaluation-retain-content]')).toBeVisible();
 });
 
@@ -92,7 +95,7 @@ test('stable overview decision surface matches its targeted visual digest', asyn
   await expect(page.locator('.overview-readiness-strip')).toBeVisible();
   const surface = page.locator('#overview-tab');
   const digest = await imageDigest(surface);
-  expect(digest).toBe('__OVERVIEW_BOOTSTRAP_DIGEST__');
+  expect(digest).toBe(OVERVIEW_VISUAL_DIGEST);
 });
 
 test('stable evaluation setup matches its targeted visual digest', async ({ page }) => {
@@ -101,5 +104,5 @@ test('stable evaluation setup matches its targeted visual digest', async ({ page
   await expect(form).toBeVisible();
   const surface = page.locator('#benchmark-tab');
   const digest = await imageDigest(surface);
-  expect(digest).toBe('__EVALUATION_BOOTSTRAP_DIGEST__');
+  expect(digest).toBe(EVALUATION_VISUAL_DIGEST);
 });
