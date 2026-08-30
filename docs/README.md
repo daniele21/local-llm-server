@@ -5,9 +5,18 @@ Document type: documentation-governance
 Owner: repository
 Canonical scope: documentation.routing
 Read when: locating the canonical owner of operational, architecture, feature, roadmap, UX/UI or delivery information
-Last reviewed: 2026-08-18
+Last reviewed: 2026-08-30
 
 Local LLM Server documentation follows progressive disclosure. A fact should have one canonical owner; summaries link to it instead of copying detailed state/checklists.
+
+## README ownership
+
+Treat the root README as two semantic owners rather than one document that must be rewritten as a unit.
+
+- **README identity** — title/summary, why the project exists, primary audience/outcome and stable positioning. Update only when those claims materially change; do not rewrite them merely because implementation, commands, configuration or a feature workflow changed.
+- **README usage** — prerequisites, setup/run, public configuration, public CLI/API/UI workflow and copy-paste examples. Update in the same change whenever current instructions would otherwise become incomplete, incorrect, removed, newly mandatory or misleading.
+
+A normal feature/operational change may therefore report `README_IDENTITY: N/A` and `README_USAGE: UPDATED`.
 
 ## Use the server
 
@@ -26,6 +35,8 @@ Swagger at `/docs` is the executable schema for the checked-out revision; the re
 
 | Question | Canonical source |
 | --- | --- |
+| What is this project/why/for whom? | README identity sections; detailed product intent in [`implementation-plan.md`](implementation-plan.md) |
+| What must a person do to install/configure/run/use it now? | README usage summary plus the operational references in **Use the server** |
 | What is the current architecture/trust/resource flow? | [`architecture.md`](architecture.md) |
 | What architectural direction/migration remains? | [`architecture-evolution-plan.md`](architecture-evolution-plan.md) |
 | What is integrated, blocked or executable next? | [`current-state.md`](current-state.md) |
@@ -39,6 +50,28 @@ Swagger at `/docs` is the executable schema for the checked-out revision; the re
 | What brand/visual language applies? | [`brand-guidelines.md`](brand-guidelines.md) plus `../design/brand-kit.json` for machine-readable token routing |
 | What product-experience evidence/privacy/manual validation applies? | [`product-experience-validation.md`](product-experience-validation.md) plus `../design/ux-contract.json` |
 | What must be true before completion/release? | [`definition-of-done.md`](definition-of-done.md) |
+
+## Documentation impact contract
+
+Code and durable documentation ship together. A meaningful change is not complete until every affected canonical owner describes the exact behavior being published.
+
+During `preflight-change`, assess impact from observable behavior rather than filenames and classify at least:
+
+- `README_IDENTITY`;
+- `README_USAGE`;
+- `FEATURE_DOCS`;
+- `ARCHITECTURE`;
+- `ADR`;
+- `SECURITY_DATA`;
+- `OPERATIONS`;
+- `PRODUCT_EXPERIENCE`;
+- `CURRENT_STATE`.
+
+Use `UPDATED` or `N/A` and give a short reason when impact was plausible but is `N/A`. Readiness requires `DOCS_CURRENT_WITH_IMPLEMENTATION: PASS`.
+
+This repository has stronger specialized operational owners than the generic template. Preserve them: a public API change belongs in the API reference; configuration/default changes belong in the configuration reference; runtime telemetry/identity changes belong in their focused references; README usage should expose the shortest human path and link rather than duplicate exhaustive detail.
+
+Existing feature documentation changes in the same PR when the durable behavior it describes changes. Create a new feature doc only when a non-obvious concern is independently useful and has no better API/configuration/security/architecture/test owner.
 
 ## Architecture vs progress
 
@@ -82,10 +115,11 @@ Use a workstream only when multiple slices/dependencies/owners need explicit coo
 When a workstream completes:
 
 1. verify its executable/evidence acceptance;
-2. transfer durable behavior/decisions to the appropriate owner (`architecture`, API/operations, `features`, security or ADR);
-3. update `current-state.md` only if repository-level operational truth changes;
-4. remove the entry from `workstreams/README.md`;
-5. delete the completed workstream by default—Git history owns implementation chronology.
+2. assess documentation impact from the resulting behavior;
+3. transfer durable behavior/decisions to the appropriate owner (README identity/usage, architecture, API/operations, `features`, security or ADR);
+4. update `current-state.md` only if repository-level operational truth changes;
+5. remove the entry from `workstreams/README.md`;
+6. delete the completed workstream by default—Git history owns implementation chronology.
 
 Do not keep a completed plan merely as documentation. Archive only for a separate audit/regulatory/release-history requirement.
 
@@ -104,14 +138,15 @@ representative-device hardware evidence
 
 A stronger claim requires the applicable evidence class. Hosted CI is not proof of real model quality, memory reclamation, Apple Silicon resource behavior, throughput, thermal stability or representative-user usability.
 
-## Before creating another document
+## Before creating or updating documentation
 
-1. Find the canonical owner above.
-2. Update that owner when the concern fits.
-3. Create a new durable document only for an independently readable concern.
-4. Give it Status, Document type, Owner, Canonical scope, Read when and Last reviewed metadata.
-5. Link it from this map in the same change.
-6. Do not copy detailed status/checklists from another owner.
+1. Assess documentation impact from observable behavior.
+2. Find the canonical owner above.
+3. Update that owner when the concern fits; for README changes touch only the affected identity/usage sections.
+4. Create a new durable document only for an independently readable concern.
+5. Give it Status, Document type, Owner, Canonical scope, Read when and Last reviewed metadata.
+6. Link it from this map in the same change.
+7. Do not copy detailed status/checklists from another owner or create a document merely to record PR/task completion.
 
 ## Precedence
 

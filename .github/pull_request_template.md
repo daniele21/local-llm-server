@@ -61,6 +61,21 @@
 
 <!-- Canonical command intents affected; build identity; manifest/checksum/build delta/retention; localhost/process/port/temp cleanup. Otherwise N/A. -->
 
+## Documentation impact
+
+<!-- Classify each as UPDATED or N/A; give a short reason when impact was plausible but N/A. README identity = purpose/audience/outcome/positioning. README usage = prerequisites/setup/run/configuration/public API/UI/examples. -->
+
+- README_IDENTITY: `UPDATED|N/A`
+- README_USAGE: `UPDATED|N/A`
+- FEATURE_DOCS: `UPDATED|N/A`
+- ARCHITECTURE: `UPDATED|N/A`
+- ADR: `UPDATED|N/A`
+- SECURITY_DATA: `UPDATED|N/A`
+- OPERATIONS: `UPDATED|N/A`
+- PRODUCT_EXPERIENCE: `UPDATED|N/A`
+- CURRENT_STATE: `UPDATED|N/A`
+- DOCS_CURRENT_WITH_IMPLEMENTATION: `PASS|FAIL`
+
 ## Publication preflight
 
 <!-- Record exact head/base and the auto-selected blast-radius profile. Automatable gates unavailable locally are REMOTE_AUTOMATED, not user tasks. -->
@@ -103,4 +118,4 @@
 
 ## Documentation lifecycle
 
-<!-- Durable docs/design contracts updated, or why none are required. Finalize/delete completed active workstreams when applicable. -->
+<!-- Note completed active workstream finalization/deletion when applicable. Do not use generated evidence as durable docs. -->
