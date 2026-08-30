@@ -26,11 +26,11 @@ Managed `llama_server` uses the attributable llama.cpp `v0.3.0` feature floor (`
 
 Automated E2E is environment-aware:
 
-- `ci-studio-deterministic` proves both browser user journeys and a direct external API-consumer journey over the real loopback HTTP boundary, using the real FastAPI/middleware/task-policy/runtime/evaluation stack with deterministic inference;
-- the API black-box lane covers discovery/identity/status, default and explicit routing, default-route mutation, cross-runtime concurrency, fail-closed task/media policy, local vision, hidden-reasoning SSE, backend-originated failure/recovery, multipart transcription, residency policy surfaces and built-in/custom evaluation without calling product internals;
-- browser and API lanes share the same run-owned process/listener/temp-root lifecycle, and mutable custom evaluation fixture state is reset before later visual/browser evidence;
+- `ci-studio-deterministic` proves browser journeys plus a direct external API-consumer journey over the real loopback HTTP boundary with the real FastAPI/middleware/task-policy/runtime/evaluation stack and deterministic inference;
+- API black-box coverage includes discovery/identity/status, routing/default mutation, cross-runtime concurrency, fail-closed task/media policy, vision, hidden-reasoning SSE, backend failure/recovery, transcription, residency policy and built-in/custom evaluation;
+- browser and API lanes share the run-owned process/listener/temp-root lifecycle; mutable custom evaluation state is reset before later visual evidence;
 - `ci-installed-wheel` proves the built/package surface independently of Apple Silicon behavior;
-- representative Apple Silicon evidence remains required for production backend compatibility, unified-memory reclamation, native cancellation behavior, performance and thermal/power claims.
+- representative Apple Silicon evidence remains required for production backend compatibility, unified-memory reclamation, native cancellation, performance and thermal/power claims.
 
 The accepted product-ui system keeps `design-system.css` as semantic token/component owner; `design/ux-contract.json` owns task/state/accessibility/adaptive/motion/journey contracts; `design/brand-kit.json` routes brand/motion roles. Product telemetry remains off by default.
 
