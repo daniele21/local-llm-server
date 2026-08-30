@@ -253,32 +253,17 @@ class ModelRuntimeManager:
         try:
             reservation_id = self._reserve_runtime_load(model, cfg)
             engine = load_llm(cfg)
-            try:
-                self._commit_runtime_load(reservation_id, cfg)
-                runtime = self.add(cfg, engine, key=model)
-            except Exception as exc:
+            self._commit_runtime_load(reservation_id, cfg)
+            runtime = self.add(cfg, engine, key=model)
+            runtime.resource_reservation_id = reservation_id
+            return runtime, True
+        except Exception as exc:
+            if engine is not None:
                 cleanup_error = self._cleanup_unpublished_engine(
                     engine,
                     reservation_id,
                     reason=f"failed load for {model}",
                 )
-                engine = None
-                if cleanup_error is not None:
-                    raise RuntimeError(
-                        f"Model '{model}' failed to publish and backend cleanup also failed; "
-                        "resource accounting was retained."
-                    ) from cleanup_error
-                raise exc
-            runtime.resource_reservation_id = reservation_id
-            return runtime, True
-        except Exception:
-            if engine is not None:
-                cleanup_error = self._cleanup_unpublished_engine(
-                    engine,
-                    reservation_id,
-                    reason=f"failed backend construction for {model}",
-                )
-                engine = None
                 if cleanup_error is not None:
                     raise RuntimeError(
                         f"Model '{model}' load failed and backend cleanup also failed; "
@@ -286,7 +271,7 @@ class ModelRuntimeManager:
                     ) from cleanup_error
             elif reservation_id is not None:
                 self._rollback_runtime_load(reservation_id)
-            raise
+            raise exc
         finally:
             with self._manager_lock:
                 self._loading.discard(model)
@@ -379,7 +364,6 @@ class ModelRuntimeManager:
                     reservation_id,
                     reason=f"failed replacement for {current.key}",
                 )
-                new_engine = None
                 if cleanup_error is not None:
                     with self._manager_lock:
                         if self._runtimes.get(current.key) is current:
@@ -415,7 +399,7 @@ class ModelRuntimeManager:
         self._release_runtime_load(current.resource_reservation_id)
         with self._manager_lock:
             if self._runtimes.get(current.key) is not current:
-                current.state = RuntimeState.FAILED
+                current.state = RuntimeState.STOPPED
                 cleanup_error = self._cleanup_unpublished_engine(
                     replacement.engine,
                     replacement.resource_reservation_id,
