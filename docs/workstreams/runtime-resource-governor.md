@@ -42,7 +42,7 @@ Strengthen the existing manager/engine boundary before adding more policy:
 - `DRAINING -> STOPPING -> STOPPED` lifecycle with `FAILED` on teardown failure;
 - unload/reload must not remove or replace canonical runtime ownership before teardown succeeds;
 - post-load admission failure must close the newly allocated engine before releasing its reservation;
-- shutdown drain is bounded and backend stop is attempted even when requests fail to drain;
+- shutdown drain is bounded; a runtime that still has active leases remains owned/accounted as `FAILED` instead of being torn down concurrently;
 - failed teardown remains visible and accounted for retry/diagnostics.
 
 This slice does not claim host-memory reclamation.
