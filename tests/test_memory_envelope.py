@@ -109,6 +109,15 @@ def test_transient_envelope_does_not_turn_missing_max_tokens_into_zero():
     assert envelope.unavailable_components == ("request_output_tokens",)
 
 
+def test_unconfigured_transient_envelope_is_unknown_not_complete_zero():
+    request = InferenceRequest(task=TaskType.CHAT, model="demo", input_text="hello")
+
+    envelope = request_memory_envelope(request, {})
+
+    assert envelope.accounted_bytes is None
+    assert envelope.complete is False
+
+
 def test_transient_total_override_is_authoritative():
     request = InferenceRequest(task=TaskType.CHAT, model="demo", input_text="hello")
 
