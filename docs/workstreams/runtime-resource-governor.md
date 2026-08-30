@@ -29,8 +29,8 @@ The control plane remains the canonical owner of residency, admission, lifecycle
 | RRG-1 | deterministic runtime ownership and bounded lifecycle | — | DONE | strong remote preflight green on PR #154; teardown/failed-cleanup/reload/shutdown contracts accepted |
 | RRG-2 | llama.cpp server modernization and backend identity contract | RRG-1 | DONE | strong remote preflight green on PR #156; attributable v0.3 server adapter/config/identity contracts accepted |
 | RRG-3 | resident + transient memory envelope | RRG-1, RRG-2 | DONE | strong remote preflight green on PR #157; shared resident/transient budget, stream/cancel and ASR request accounting accepted |
-| RRG-4 | global multi-model execution governor | RRG-3 | ACTIVE | fairness/admission/cancellation tests across runtimes |
-| RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | BLOCKED | target-hardware evidence; no automatic eviction before acceptance |
+| RRG-4 | global multi-model execution governor | RRG-3 | DONE | strong remote preflight green on PR #158; global bound, runtime fairness, cancellation/deadline, streaming, ASR and evaluation contracts accepted |
+| RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | READY | target-hardware evidence; no automatic eviction before acceptance |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
 
