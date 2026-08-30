@@ -12,7 +12,6 @@ Local LLM Server is a local-first multi-backend inference server with Local LLM 
 - L1 acceptance: `d068a76d07bf204ca58ee2dfc29890bf3f1177cb`.
 - Repository-side L2 acceptance: `d528b6c5b676e705e7ccf24800929da6d5534203`.
 - `product-ui` guardrails: `89d360698234016ddfe1f3fff0bacbc4f9bb7852`; real-evidence bridge: `de899cc945e1d1c735a2ded91c5da717ce0fe2b0`.
-- Template 0.8 adds publication preflight, execution-capability classification, blast-radius validation and environment-aware E2E.
 - Full engineering L2 remains **real-hardware-evidence pending**; full `product-ui` L2 remains **real-human-evidence pending**.
 
 ## Accepted deterministic L2 surface
@@ -31,9 +30,9 @@ Automated E2E is environment-aware:
 - `ci-installed-wheel` proves the built/package surface independently of Apple Silicon behavior;
 - representative Apple Silicon evidence remains required for production backend compatibility, unified-memory reclamation, native cancellation, performance and thermal/power claims.
 
-The accepted product-ui system keeps `design-system.css` as semantic token/component owner; `design/ux-contract.json` owns task/state/accessibility/adaptive/motion/journey contracts; `design/brand-kit.json` routes brand/motion roles. Product telemetry remains off by default.
+The accepted product-ui system keeps `design-system.css` as semantic token/component owner; `design/ux-contract.json` owns task/state/accessibility/adaptive/motion/journey contracts. Product telemetry remains off by default.
 
-The L2 evidence bridge supports privacy-safe thinking evidence, deterministic TH-E1/EV-3/HE-2/RES-2 bundle validation, conservative reclamation review, bounded manual accessibility/usability evidence and explicit readiness without automatic maturity promotion.
+The L2 evidence bridge supports privacy-safe thinking evidence, TH-E1/EV-3/HE-2/RES-2 bundle validation, conservative reclamation review and bounded manual accessibility/usability evidence.
 
 ## Remaining L2 evidence
 
@@ -46,16 +45,12 @@ The L2 evidence bridge supports privacy-safe thinking evidence, deterministic TH
 - HE-2 — two compatible verified 3-cycle Apple Silicon reclamation reports plus conservative review;
 - RES-2 — bounded safe admit/account/infer/unload/reject resource-policy smoke.
 
-The bundle is ready only when `python -m local_llm_server.l2_evidence_bridge validate-hardware-bundle` reports complete. Hosted CI does not prove Apple memory reclamation, backend/model performance, thermals or real-model thinking behavior.
+Hosted CI does not prove Apple memory reclamation, backend/model performance, thermals or real-model thinking behavior.
 
 ### Product experience
 
-Two human tasks remain:
-
 - PX4-09 — manual accessibility review of primary journeys;
 - PX4-10 — representative-user usability with bounded non-sensitive evidence.
-
-`python -m local_llm_server.l2_evidence_bridge validate-product-ui` validates evidence but does not promote baseline status.
 
 ## Active workstreams
 
