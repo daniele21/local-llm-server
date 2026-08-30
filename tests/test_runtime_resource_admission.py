@@ -9,6 +9,7 @@ from local_llm_server.resources import ResourceBudget
 from local_llm_server.runtime import (
     ModelRuntimeManager,
     ResourceAdmissionError,
+    RuntimeState,
 )
 from local_llm_server.runtime_admission import estimated_runtime_load_bytes
 
@@ -21,6 +22,17 @@ class _Engine:
 
     def shutdown(self):
         self.stopped = True
+
+
+class _FailingEngine(_Engine):
+    def __init__(self):
+        super().__init__()
+        self.fail_close = True
+
+    def shutdown(self):
+        if self.fail_close:
+            raise RuntimeError("close failed")
+        super().shutdown()
 
 
 def _cfg(key: str, estimate: int, *, model_id: str | None = None) -> dict:
@@ -138,6 +150,71 @@ def test_unload_releases_committed_accounting(monkeypatch):
     manager.unload("managed")
     assert resources.snapshot() == ()
     assert runtime.engine.stopped is True
+
+
+def test_failed_unload_retains_committed_accounting_until_retry(monkeypatch):
+    resources = ResourceManager(ResourceBudget(limit_bytes=2_000))
+    manager = ModelRuntimeManager(resource_manager=resources)
+    manager.add(
+        {"model": "anchor", "model_id": "anchor", "backend": "fake"},
+        _Engine(),
+    )
+    failing = _FailingEngine()
+
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda **_kwargs: _cfg("managed", 500),
+    )
+    monkeypatch.setattr("local_llm_server.engine.load_llm", lambda _cfg: failing)
+
+    runtime, _ = manager.load("managed")
+    [reservation] = resources.snapshot()
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        manager.unload("managed")
+
+    [retained] = resources.snapshot()
+    assert retained.reservation_id == reservation.reservation_id
+    assert retained.state is ReservationState.COMMITTED
+    assert runtime.state is RuntimeState.FAILED
+    assert manager.resolve("managed") is runtime
+
+    failing.fail_close = False
+    manager.unload("managed")
+
+    assert resources.snapshot() == ()
+    assert runtime.state is RuntimeState.STOPPED
+
+
+def test_failed_unpublished_cleanup_retains_owner_and_accounting_for_shutdown(monkeypatch):
+    resources = ResourceManager(ResourceBudget(limit_bytes=2_000))
+    manager = ModelRuntimeManager(resource_manager=resources)
+    manager.add(
+        {"model": "anchor", "model_id": "org/shared", "backend": "fake"},
+        _Engine(),
+    )
+    failing = _FailingEngine()
+
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda **_kwargs: _cfg("new", 500, model_id="org/shared"),
+    )
+    monkeypatch.setattr("local_llm_server.engine.load_llm", lambda _cfg: failing)
+
+    with pytest.raises(RuntimeError, match="cleanup also failed"):
+        manager.load("new")
+
+    [retained] = resources.snapshot()
+    assert retained.accounted_bytes == 500
+    assert manager.pending_cleanup_count == 1
+    assert manager.list()[0].key == "anchor"
+
+    failing.fail_close = False
+    manager.shutdown(timeout_seconds=0)
+
+    assert failing.stopped is True
+    assert resources.snapshot() == ()
+    assert manager.pending_cleanup_count == 0
 
 
 def test_reload_rejects_peak_overlap_and_preserves_existing_runtime(monkeypatch):
