@@ -12,9 +12,12 @@ import time
 from collections import Counter, deque
 from dataclasses import dataclass
 from enum import Enum
-from typing import Callable
+from typing import Any, Callable
 
 from .core.contracts import ErrorCode, InferenceError
+
+
+_OWNER_ATTRIBUTE = "_local_llm_global_execution_governor"
 
 
 class GlobalExecutionState(str, Enum):
@@ -304,3 +307,17 @@ class GlobalExecutionGovernor:
                 changed = True
         if changed:
             self._condition.notify_all()
+
+
+def attach_global_execution_governor(
+    owner: Any,
+    governor: GlobalExecutionGovernor | None,
+) -> None:
+    """Attach the configured governor to the runtime owner without moving lifecycle state."""
+    setattr(owner, _OWNER_ATTRIBUTE, governor)
+
+
+def global_execution_governor_for(owner: Any) -> GlobalExecutionGovernor | None:
+    """Return the governor attached to a runtime owner, if configured."""
+    governor = getattr(owner, _OWNER_ATTRIBUTE, None)
+    return governor if isinstance(governor, GlobalExecutionGovernor) else None
