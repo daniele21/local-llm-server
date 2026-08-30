@@ -1,9 +1,10 @@
 """Bounded fair cross-runtime execution admission.
 
-The governor owns only aggregate control-plane execution slots. Per-runtime FIFO
-queues/semaphores and backend-native batching remain separate owners. Waiting is
-bounded, runtime-fair, deadline-aware and privacy-safe; no request content is
-retained or exposed.
+The governor owns aggregate control-plane execution slots and fair selection
+across runtimes. It mirrors each runtime's configured concurrency only as an
+eligibility bound so global slots are never wasted on work that would immediately
+block on the runtime semaphore. The runtime semaphore remains the final canonical
+per-runtime safeguard; backend-native batching remains backend-owned.
 """
 from __future__ import annotations
 
@@ -32,6 +33,7 @@ class GlobalExecutionState(str, Enum):
 class _Waiter:
     request_id: str
     runtime_key: str
+    runtime_max_running: int
     submitted_at: float
     deadline_at: float | None
     state: GlobalExecutionState = GlobalExecutionState.QUEUED
@@ -97,6 +99,7 @@ class GlobalExecutionGovernor:
         self._runtime_queues: dict[str, deque[str]] = {}
         self._runtime_order: deque[str] = deque()
         self._runtime_in_order: set[str] = set()
+        self._runtime_inflight: Counter[str] = Counter()
         self._inflight = 0
 
     def acquire(
@@ -104,12 +107,15 @@ class GlobalExecutionGovernor:
         runtime_key: str,
         request_id: str,
         *,
+        runtime_max_running: int,
         timeout_seconds: float | None = None,
     ) -> GlobalExecutionPermit:
         if not runtime_key.strip():
             raise ValueError("runtime_key must be non-empty")
         if not request_id.strip():
             raise ValueError("request_id must be non-empty")
+        if runtime_max_running < 1:
+            raise ValueError("runtime_max_running must be >= 1")
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise InferenceError(
                 ErrorCode.TIMEOUT,
@@ -124,12 +130,12 @@ class GlobalExecutionGovernor:
                 raise ValueError(f"request_id already exists: {request_id}")
             self._expire_queued_locked(now)
             self._admit_available_locked(now)
-            queued = sum(
-                1
-                for item in self._waiters.values()
-                if item.state is GlobalExecutionState.QUEUED
+            queued = self._queued_count_locked()
+            can_run_now = (
+                self._inflight < self.max_running
+                and self._runtime_inflight[runtime_key] < runtime_max_running
             )
-            if self._inflight >= self.max_running and queued >= self.queue_capacity:
+            if queued >= self.queue_capacity and not can_run_now:
                 raise InferenceError(
                     ErrorCode.RESOURCE_EXHAUSTED,
                     "global execution queue is full",
@@ -140,6 +146,7 @@ class GlobalExecutionGovernor:
             waiter = _Waiter(
                 request_id=request_id,
                 runtime_key=runtime_key,
+                runtime_max_running=runtime_max_running,
                 submitted_at=now,
                 deadline_at=(now + timeout_seconds) if timeout_seconds is not None else None,
             )
@@ -191,7 +198,7 @@ class GlobalExecutionGovernor:
                 self._condition.wait(timeout=remaining)
 
     def abandon(self, request_id: str) -> bool:
-        """Cancel a permit acquisition that will not be handed to execution."""
+        """Cancel an acquisition that will not be handed to execution."""
         now = self.clock()
         with self._condition:
             waiter = self._waiters.get(request_id)
@@ -203,7 +210,7 @@ class GlobalExecutionGovernor:
             elif waiter.state is GlobalExecutionState.RUNNING:
                 waiter.state = GlobalExecutionState.CANCELLED
                 waiter.finished_at = now
-                self._inflight = max(0, self._inflight - 1)
+                self._release_running_locked(waiter.runtime_key)
             else:
                 return False
             self._waiters.pop(request_id, None)
@@ -223,7 +230,7 @@ class GlobalExecutionGovernor:
                 )
             waiter.state = GlobalExecutionState.COMPLETED
             waiter.finished_at = now
-            self._inflight = max(0, self._inflight - 1)
+            self._release_running_locked(waiter.runtime_key)
             self._waiters.pop(request_id, None)
             self._admit_available_locked(now)
             self._condition.notify_all()
@@ -234,20 +241,18 @@ class GlobalExecutionGovernor:
             self._expire_queued_locked(now)
             self._admit_available_locked(now)
             queued_by_runtime: Counter[str] = Counter()
-            running_by_runtime: Counter[str] = Counter()
             for waiter in self._waiters.values():
                 if waiter.state is GlobalExecutionState.QUEUED:
                     queued_by_runtime[waiter.runtime_key] += 1
-                elif waiter.state is GlobalExecutionState.RUNNING:
-                    running_by_runtime[waiter.runtime_key] += 1
-            runtime_keys = sorted(set(queued_by_runtime) | set(running_by_runtime))
+            runtime_keys = sorted(set(queued_by_runtime) | set(self._runtime_inflight))
             runtimes = tuple(
                 {
                     "runtime_key": runtime_key,
                     "queued": queued_by_runtime[runtime_key],
-                    "running": running_by_runtime[runtime_key],
+                    "running": self._runtime_inflight[runtime_key],
                 }
                 for runtime_key in runtime_keys
+                if queued_by_runtime[runtime_key] or self._runtime_inflight[runtime_key]
             )
             return GlobalExecutionSnapshot(
                 max_running=self.max_running,
@@ -256,6 +261,13 @@ class GlobalExecutionGovernor:
                 queued=sum(queued_by_runtime.values()),
                 runtimes=runtimes,
             )
+
+    def _queued_count_locked(self) -> int:
+        return sum(
+            1
+            for waiter in self._waiters.values()
+            if waiter.state is GlobalExecutionState.QUEUED
+        )
 
     def _schedule_runtime_locked(self, runtime_key: str) -> None:
         if runtime_key in self._runtime_in_order:
@@ -268,35 +280,60 @@ class GlobalExecutionGovernor:
 
     def _admit_available_locked(self, now: float) -> None:
         while self._inflight < self.max_running and self._runtime_order:
-            runtime_key = self._runtime_order.popleft()
-            self._runtime_in_order.discard(runtime_key)
-            queue = self._runtime_queues.get(runtime_key)
-            if queue is None:
-                continue
+            candidates = len(self._runtime_order)
+            admitted = False
+            for _ in range(candidates):
+                runtime_key = self._runtime_order.popleft()
+                self._runtime_in_order.discard(runtime_key)
+                queue = self._runtime_queues.get(runtime_key)
+                if queue is None:
+                    continue
 
-            selected: _Waiter | None = None
-            while queue:
-                request_id = queue.popleft()
-                waiter = self._waiters.get(request_id)
-                if waiter is None or waiter.state is not GlobalExecutionState.QUEUED:
+                selected = self._next_queued_locked(queue, now)
+                if selected is None:
+                    self._runtime_queues.pop(runtime_key, None)
                     continue
-                if waiter.expired(now):
-                    waiter.state = GlobalExecutionState.EXPIRED
-                    waiter.finished_at = now
+
+                if self._runtime_inflight[runtime_key] >= selected.runtime_max_running:
+                    self._schedule_runtime_locked(runtime_key)
                     continue
-                selected = waiter
+
+                queue.popleft()
+                if queue:
+                    self._schedule_runtime_locked(runtime_key)
+                else:
+                    self._runtime_queues.pop(runtime_key, None)
+                selected.state = GlobalExecutionState.RUNNING
+                selected.started_at = now
+                self._inflight += 1
+                self._runtime_inflight[runtime_key] += 1
+                admitted = True
+                break
+            if not admitted:
                 break
 
-            if queue:
-                self._schedule_runtime_locked(runtime_key)
-            else:
-                self._runtime_queues.pop(runtime_key, None)
-
-            if selected is None:
+    def _next_queued_locked(self, queue: deque[str], now: float) -> _Waiter | None:
+        while queue:
+            request_id = queue[0]
+            waiter = self._waiters.get(request_id)
+            if waiter is None or waiter.state is not GlobalExecutionState.QUEUED:
+                queue.popleft()
                 continue
-            selected.state = GlobalExecutionState.RUNNING
-            selected.started_at = now
-            self._inflight += 1
+            if waiter.expired(now):
+                waiter.state = GlobalExecutionState.EXPIRED
+                waiter.finished_at = now
+                queue.popleft()
+                continue
+            return waiter
+        return None
+
+    def _release_running_locked(self, runtime_key: str) -> None:
+        self._inflight = max(0, self._inflight - 1)
+        current = self._runtime_inflight[runtime_key]
+        if current <= 1:
+            self._runtime_inflight.pop(runtime_key, None)
+        else:
+            self._runtime_inflight[runtime_key] = current - 1
 
     def _expire_queued_locked(self, now: float) -> None:
         changed = False
@@ -313,7 +350,7 @@ def attach_global_execution_governor(
     owner: Any,
     governor: GlobalExecutionGovernor | None,
 ) -> None:
-    """Attach the configured governor to the runtime owner without moving lifecycle state."""
+    """Attach the governor to the runtime owner without moving lifecycle state."""
     setattr(owner, _OWNER_ATTRIBUTE, governor)
 
 
