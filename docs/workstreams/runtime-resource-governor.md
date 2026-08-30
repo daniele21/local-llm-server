@@ -28,7 +28,7 @@ The control plane remains the canonical owner of residency, admission, lifecycle
 | --- | --- | --- | --- | --- |
 | RRG-1 | deterministic runtime ownership and bounded lifecycle | — | DONE | strong remote preflight green on PR #154; teardown/failed-cleanup/reload/shutdown contracts accepted |
 | RRG-2 | llama.cpp server modernization and backend identity contract | RRG-1 | DONE | strong remote preflight green on PR #156; attributable v0.3 server adapter/config/identity contracts accepted |
-| RRG-3 | resident + transient memory envelope | RRG-1, RRG-2 | READY | deterministic budget arithmetic + request reservation tests |
+| RRG-3 | resident + transient memory envelope | RRG-1, RRG-2 | ACTIVE | deterministic budget arithmetic + request reservation tests |
 | RRG-4 | global multi-model execution governor | RRG-3 | READY | fairness/admission/cancellation tests across runtimes |
 | RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | BLOCKED | target-hardware evidence; no automatic eviction before acceptance |
 
@@ -58,6 +58,10 @@ Within one managed server runtime, Local LLM Server owns the admitted request co
 ## RRG-3 — memory envelope
 
 Replace artifact-size-only admission with an explicit runtime envelope containing model weights, fixed backend overhead, KV/context budget, prompt/cache budget, multimodal projector cost and safety margin. Add separate transient request reservations so two individually safe resident models cannot overcommit memory during simultaneous inference.
+
+Resident runtimes and active requests share the same `ResourceManager` budget; reservation kind identifies ownership but does not create a second pool. A resident total override remains supported for deployments that already have a calibrated estimate. Otherwise the control plane adds only attributable components: configured byte budgets, registry/local artifact size, configured llama-server prompt-cache RAM and local projector size. Missing backend/context/safety evidence remains explicitly unavailable while known components form a lower-bound estimate; `ctx_size` alone is never converted into guessed KV bytes.
+
+Transient request estimates are independently configurable as a total override or as base/input/output/safety components. Queue wait does not reserve transient memory. Once admitted to execution, a request holds its reservation through route failure, cancellation or the final streaming body byte. Supported product policy evidence exposes path-free resident/transient accounting and whether each resident envelope is complete. None of these configured estimates is a claim about observed RSS, Apple unified memory or accelerator reclamation.
 
 ## RRG-4 — global governor
 
