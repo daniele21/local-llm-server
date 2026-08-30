@@ -21,6 +21,18 @@
       "test": "tests/test_runtime_resource_admission.py::test_unload_releases_committed_accounting"
     },
     {
+      "id": "unload-teardown-failure-retains-accounting",
+      "phase": "dependency_failure",
+      "claim": "failed backend teardown leaves the runtime owned and its committed resource accounting retained until a successful retry",
+      "test": "tests/test_runtime_resource_admission.py::test_failed_unload_retains_committed_accounting_until_retry"
+    },
+    {
+      "id": "shutdown-drain-timeout-retains-owner",
+      "phase": "shutdown",
+      "claim": "bounded shutdown does not fabricate STOPPED for a runtime whose active lease failed to drain and preserves it for retry",
+      "test": "tests/test_runtime.py::test_shutdown_timeout_keeps_busy_runtime_owned_and_retryable"
+    },
+    {
       "id": "queue-timeout-does-not-enter-backend-route",
       "phase": "timeout",
       "claim": "request queue timeout is typed and does not invoke the backend route",
@@ -71,6 +83,7 @@
   ],
   "explicit_non_claims": [
     "worker-backed streaming/cancellation is not promoted to a supported product capability by this matrix",
+    "explicit in-process backend close is not proof that host or Apple unified memory returned to baseline",
     "hardware reclamation success is not inferred from deterministic lifecycle tests",
     "automatic pressure eviction remains disabled until representative evidence justifies it"
   ]
