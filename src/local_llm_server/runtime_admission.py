@@ -1,42 +1,33 @@
 """Helpers used when applying ResourceManager admission to real runtime loads."""
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, Mapping
 
+from .memory_envelope import MemoryEnvelope, resident_memory_envelope
 from .resource_manager import AdmissionResult
-
-_GIB = 1024 ** 3
 
 
 def estimated_runtime_load_bytes(config: Mapping[str, Any]) -> int | None:
-    """Return a pre-load estimate without pretending it is measured residency.
+    """Return the attributable configured resident estimate used for admission.
 
-    Registry ``size_gb`` is explicitly treated as an estimate. For direct local
-    files the artifact file size is a fallback estimate. Directory traversal is
-    deliberately avoided here; MLX snapshot sizing should be supplied by
-    registry/resource metadata rather than adding an unbounded pre-load scan.
+    The value may be a partial lower-bound estimate when some envelope
+    components are unavailable. ``resident_memory_envelope`` retains that
+    completeness information; this compatibility helper keeps the existing
+    runtime admission API stable while adding configured component costs.
     """
-    explicit = config.get("resource_estimate_bytes")
-    if isinstance(explicit, int) and not isinstance(explicit, bool) and explicit >= 0:
-        return explicit
-
-    size_gb = config.get("size_gb")
-    if isinstance(size_gb, (int, float)) and not isinstance(size_gb, bool) and size_gb >= 0:
-        return int(float(size_gb) * _GIB)
-
-    model_path = config.get("model_path")
-    if isinstance(model_path, str) and model_path:
-        path = Path(model_path).expanduser()
-        try:
-            if path.is_file():
-                return path.stat().st_size
-        except OSError:
-            return None
-    return None
+    return resident_memory_envelope(config).accounted_bytes
 
 
-def admission_metadata(result: AdmissionResult | None, *, estimate_bytes: int | None) -> dict[str, object]:
+def runtime_envelope_metadata(config: Mapping[str, Any]) -> dict[str, object]:
+    """Return path-free resident envelope evidence for control-plane surfaces."""
+    return _envelope_metadata(resident_memory_envelope(config))
+
+
+def admission_metadata(
+    result: AdmissionResult | None,
+    *,
+    estimate_bytes: int | None,
+) -> dict[str, object]:
     if result is None:
         return {
             "decision": "unknown",
@@ -49,3 +40,7 @@ def admission_metadata(result: AdmissionResult | None, *, estimate_bytes: int | 
         "usable_budget_bytes": result.usable_budget_bytes,
         "reason": result.reason,
     }
+
+
+def _envelope_metadata(envelope: MemoryEnvelope) -> dict[str, object]:
+    return envelope.as_dict()

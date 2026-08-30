@@ -7,12 +7,16 @@ never qualifies it as an ASR runtime.
 from __future__ import annotations
 
 import time
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
 
 from .core.capabilities import descriptor_from_registry_entry
 from .core.contracts import ErrorCode, InferenceError, TaskType
+from .memory_envelope import transcription_memory_envelope
+from .resource_manager import AdmissionDecision
 from .transcription_metrics import build_transcription_metrics, record_transcription_metrics
+from .transient_resource import reserve_transient_resource
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +96,27 @@ class ResidentTranscriptionService:
                 details={"model": runtime.key},
             )
 
+        envelope = transcription_memory_envelope(len(request.audio), runtime.cfg)
+        admission, reservation = reserve_transient_resource(
+            getattr(self.manager, "resource_manager", None),
+            reservation_id=f"transcription:{runtime.key}:{uuid.uuid4().hex}",
+            envelope=envelope,
+        )
+        if admission is not None and admission.decision is AdmissionDecision.REJECT:
+            raise InferenceError(
+                ErrorCode.RESOURCE_EXHAUSTED,
+                "transcription request exceeds configured usable memory budget",
+                retryable=True,
+                details={
+                    "requested_bytes": admission.requested_bytes,
+                    "committed_bytes": admission.committed_bytes,
+                    "reserved_bytes": admission.reserved_bytes,
+                    "usable_budget_bytes": admission.usable_budget_bytes,
+                    "envelope_complete": envelope.complete,
+                    "unavailable_components": list(envelope.unavailable_components),
+                },
+            )
+
         payload: dict[str, Any] = {"audio": request.audio}
         if request.filename is not None:
             payload["filename"] = request.filename
@@ -100,31 +125,35 @@ class ResidentTranscriptionService:
         if request.prompt is not None:
             payload["prompt"] = request.prompt
 
-        with self.manager.lease_runtime(runtime):
-            started_at = self.clock()
-            try:
-                raw = transcribe(payload)
-            except InferenceError:
-                raise
-            except Exception as exc:
-                raise InferenceError(
-                    ErrorCode.BACKEND_ERROR,
-                    "transcription backend execution failed",
-                    retryable=False,
-                    details={"backend": getattr(runtime.engine, "backend", "unknown")},
-                ) from exc
-            finished_at = self.clock()
+        try:
+            with self.manager.lease_runtime(runtime):
+                started_at = self.clock()
+                try:
+                    raw = transcribe(payload)
+                except InferenceError:
+                    raise
+                except Exception as exc:
+                    raise InferenceError(
+                        ErrorCode.BACKEND_ERROR,
+                        "transcription backend execution failed",
+                        retryable=False,
+                        details={"backend": getattr(runtime.engine, "backend", "unknown")},
+                    ) from exc
+                finished_at = self.clock()
 
-        result = _normalize_result(raw, runtime.model_id)
-        record_transcription_metrics(
-            runtime,
-            build_transcription_metrics(
-                backend_wall_clock_ms=max(0.0, (finished_at - started_at) * 1000.0),
-                audio_duration_seconds=result.duration_seconds,
-                segment_count=len(result.segments),
-            ),
-        )
-        return result
+            result = _normalize_result(raw, runtime.model_id)
+            record_transcription_metrics(
+                runtime,
+                build_transcription_metrics(
+                    backend_wall_clock_ms=max(0.0, (finished_at - started_at) * 1000.0),
+                    audio_duration_seconds=result.duration_seconds,
+                    segment_count=len(result.segments),
+                ),
+            )
+            return result
+        finally:
+            if reservation is not None:
+                reservation.release()
 
 
 def _normalize_result(raw: Any, model_id: str) -> TranscriptionResult:

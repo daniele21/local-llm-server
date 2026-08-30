@@ -123,6 +123,20 @@ _FLOAT_ENV = {
     "default_temperature", "default_top_p", "default_min_p",
     "default_repeat_penalty",
 }
+_RESOURCE_MEMORY_INT_ENV: dict[str, str] = {
+    "resource_estimate_bytes": "LOCAL_LLM_RESOURCE_ESTIMATE_BYTES",
+    "resource_model_weights_bytes": "LOCAL_LLM_RESOURCE_MODEL_WEIGHTS_BYTES",
+    "resource_backend_overhead_bytes": "LOCAL_LLM_RESOURCE_BACKEND_OVERHEAD_BYTES",
+    "resource_context_cache_bytes": "LOCAL_LLM_RESOURCE_CONTEXT_CACHE_BYTES",
+    "resource_prompt_cache_bytes": "LOCAL_LLM_RESOURCE_PROMPT_CACHE_BYTES",
+    "resource_projector_bytes": "LOCAL_LLM_RESOURCE_PROJECTOR_BYTES",
+    "resource_safety_margin_bytes": "LOCAL_LLM_RESOURCE_SAFETY_MARGIN_BYTES",
+    "resource_request_estimate_bytes": "LOCAL_LLM_RESOURCE_REQUEST_ESTIMATE_BYTES",
+    "resource_request_base_bytes": "LOCAL_LLM_RESOURCE_REQUEST_BASE_BYTES",
+    "resource_request_output_token_bytes": "LOCAL_LLM_RESOURCE_REQUEST_OUTPUT_TOKEN_BYTES",
+    "resource_request_input_byte_multiplier": "LOCAL_LLM_RESOURCE_REQUEST_INPUT_BYTE_MULTIPLIER",
+    "resource_request_safety_margin_bytes": "LOCAL_LLM_RESOURCE_REQUEST_SAFETY_MARGIN_BYTES",
+}
 
 
 def build_config(
@@ -182,6 +196,14 @@ def build_config(
         else:
             cfg[key] = fallback
 
+    for key, env_name in _RESOURCE_MEMORY_INT_ENV.items():
+        cfg[key] = _resolve_non_negative_int_setting(
+            key,
+            explicit=explicit,
+            environment_name=env_name,
+            registry_params=reg_params,
+        )
+
     cfg["model"] = model
     cfg["model_id"] = model_id
     cfg["download_url"] = download_url
@@ -192,7 +214,6 @@ def build_config(
     cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")
     cfg["size_gb"] = entry.get("size_gb")
-    cfg["resource_estimate_bytes"] = explicit.get("resource_estimate_bytes")
     # Immutable identity metadata is optional. Absence means the runtime can
     # still execute, but automatic evidence-grade identity is intentionally not
     # claimed. Explicit kwargs allow controlled direct-path deployments to pin
@@ -252,3 +273,31 @@ def build_config(
             cfg[capability_key] = list(entry.get(capability_key) or [])
 
     return cfg
+
+
+def _resolve_non_negative_int_setting(
+    key: str,
+    *,
+    explicit: dict[str, Any],
+    environment_name: str,
+    registry_params: dict[str, Any],
+) -> int | None:
+    if key in explicit and explicit[key] is not None:
+        value = explicit[key]
+    else:
+        environment_value = os.getenv(environment_name, "")
+        if environment_value:
+            value = environment_value
+        else:
+            value = registry_params.get(key)
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{key} must be a non-negative integer")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be a non-negative integer") from exc
+    if parsed < 0:
+        raise ValueError(f"{key} must be a non-negative integer")
+    return parsed

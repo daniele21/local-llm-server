@@ -45,6 +45,7 @@ def test_product_http_stack_installs_scheduler_policy_completion_stream_metrics_
         scheduler_settings=settings,
     )
 
+    assert app.state.request_resource_admission_installed is True
     assert app.state.request_scheduler_installed is True
     assert app.state.request_scheduler_settings == settings
     assert app.state.runtime_gate_registry is not None
@@ -60,13 +61,14 @@ def test_product_http_stack_installs_scheduler_policy_completion_stream_metrics_
     assert route_paths.count("/v1/audio/transcriptions") == 1
 
 
-def test_product_http_stack_keeps_scheduler_disabled_when_queue_is_unconfigured(tmp_path):
+def test_product_http_stack_keeps_resource_admission_when_queue_is_unconfigured(tmp_path):
     app = _app()
     install_product_http_stack(
         app,
         evaluation_root=tmp_path / "evaluations",
         scheduler_settings=RequestSchedulerSettings(),
     )
+    assert app.state.request_resource_admission_installed is True
     assert app.state.request_scheduler_installed is True
     assert app.state.request_scheduler_settings.enabled is False
     assert app.state.runtime_gate_registry is None

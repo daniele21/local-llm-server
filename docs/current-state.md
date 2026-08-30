@@ -21,7 +21,7 @@ Local LLM Server is a local-first, privacy-preserving multi-backend inference se
 
 Repository Health blocks on L1/L2 architecture, resource, lifecycle, security, repeatability, built-surface, product-experience, design-system and real-evidence-bridge fitness plus the repo-template 0.8 operating/E2E contracts. Separate blocking surfaces include L2 Performance Regression, Artifact Lifecycle, Security Audit, Package Install Smoke, Python 3.10/3.11/3.12, lint, Playwright and zero residue.
 
-Runtime hardening is fail-conservative: routing/accounting remains owned until teardown succeeds, failed teardown stays retryable, and explicit in-process close is not a host-memory reclamation claim.
+Runtime hardening is fail-conservative: routing/accounting remains owned until teardown succeeds, failed teardown stays retryable, and explicit in-process close is not a reclamation claim. Resident and active-request estimates now share one configured budget with distinct ownership; chat/vision streams and first-class ASR retain transient accounting through execution. Missing memory evidence stays unavailable rather than becoming zero or guessed KV bytes.
 
 Managed `llama_server` uses the attributable llama.cpp `v0.3.0` feature floor (`b10621`, `c1d0e7a...`) by default. Explicit executable selection is authoritative; legacy/unparseable binaries require an escape hatch and receive no v0.3-only flags. Local LLM Server maps admitted concurrency to `--parallel`; llama.cpp owns runtime-local batching/KV. No upstream multi-model router or silent executable download/replacement is adopted. Build/version attribution is identity, not cryptographic provenance.
 
@@ -65,7 +65,7 @@ Two independent human tasks remain:
 
 ## Active workstreams
 
-- `docs/workstreams/runtime-resource-governor.md` — memory envelope, global governor and representative pressure/reclamation evidence.
+- `docs/workstreams/runtime-resource-governor.md` — global governor and representative pressure/reclamation evidence.
 - `docs/workstreams/l2-reference-grade.md` — cumulative L2 completion gate.
 - `docs/workstreams/runtime-correctness-evidence-hardening.md` — representative-device evidence.
 - `docs/workstreams/v040-product-ui-l2.md` — manual accessibility/usability evidence.
