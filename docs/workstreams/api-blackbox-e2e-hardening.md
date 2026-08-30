@@ -33,20 +33,21 @@ Prove representative public Local LLM Server contracts from the perspective of a
 | APIE2E-1 | Reuse deterministic runner and extend fixture tasks/fault probes | `tests/e2e/fixture_server.py` | — | yes | DONE |
 | APIE2E-2 | Add external HTTP black-box contract matrix | `tests/e2e/api_blackbox.spec.js` | APIE2E-1 | no | DONE |
 | APIE2E-3 | Preserve browser/visual isolation and run-owned cleanup | `tests/e2e/*` fixture/test state | APIE2E-2 | no | DONE |
-| APIE2E-4 | Declare E2E fidelity/critical-journey contract and durable docs | `.engineering/e2e.json`, `tests/e2e/README.md`, `docs/current-state.md` | APIE2E-2 | yes | ACTIVE |
-| APIE2E-5 | STRONG exact-head remote preflight and merge | PR/CI evidence | APIE2E-3, APIE2E-4 | no | BLOCKED |
+| APIE2E-4 | Declare E2E fidelity/critical-journey contract and durable docs | `.engineering/e2e.json`, `tests/e2e/README.md`, `docs/current-state.md` | APIE2E-2 | yes | DONE |
+| APIE2E-5 | STRONG exact-head remote preflight and merge | PR/CI evidence | APIE2E-3, APIE2E-4 | no | ACTIVE |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
 
 ## Current executable slice
 
-`APIE2E-4`
+`APIE2E-5`
 
 Acceptance:
 
 - Repository contracts describe a direct external API-consumer E2E journey separately from browser UX journeys.
 - The documented matrix matches executable black-box coverage and explicitly preserves host/fake limitations.
 - Mutable custom evaluation state is cleaned before later browser/visual assertions.
+- Final exact-head STRONG validation passes before merge.
 
 Validation:
 
