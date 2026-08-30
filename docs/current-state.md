@@ -9,9 +9,7 @@ Local LLM Server is a local-first multi-backend inference server with Local LLM 
 
 - Standard: `daniele21/repo-template-sw` **0.8.0**, revision `4167fe353c53cff0849fc23c9a698c0655aac4ea`.
 - Target maturity: **L2** with Python, local-AI, TypeScript, macOS and `product-ui` profiles.
-- L1 acceptance: `d068a76d07bf204ca58ee2dfc29890bf3f1177cb`.
 - Repository-side L2 acceptance: `d528b6c5b676e705e7ccf24800929da6d5534203`.
-- `product-ui` guardrails: `89d360698234016ddfe1f3fff0bacbc4f9bb7852`; real-evidence bridge: `de899cc945e1d1c735a2ded91c5da717ce0fe2b0`.
 - Full engineering L2 remains **real-hardware-evidence pending**; full `product-ui` L2 remains **real-human-evidence pending**.
 
 ## Accepted deterministic L2 surface
