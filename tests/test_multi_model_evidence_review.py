@@ -155,7 +155,7 @@ def test_different_unified_memory_tier_is_incompatible():
     assert "model_runtime_hardware_or_procedure_identity_differs" in review.reasons
 
 
-def test_identity_flag_without_fingerprint_never_becomes_sufficient():
+def test_identity_flag_without_fingerprint_is_incompatible_with_verified_report():
     first = _report()
     second = _report()
     for cycle in second["cycles"]:
@@ -164,8 +164,9 @@ def test_identity_flag_without_fingerprint_never_becomes_sufficient():
 
     review = review_multi_model_evidence([first, second])
 
-    assert review.state is MultiModelReviewState.INSUFFICIENT
-    assert review.complete_cycles < 4
+    assert review.state is MultiModelReviewState.INCOMPATIBLE
+    assert "model_runtime_hardware_or_procedure_identity_differs" in review.reasons
+    assert review.complete_cycles == 2
 
 
 def test_overlap_flag_without_configured_peak_never_becomes_sufficient():
