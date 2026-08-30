@@ -30,7 +30,7 @@ The control plane remains the canonical owner of residency, admission, lifecycle
 | RRG-2 | llama.cpp server modernization and backend identity contract | RRG-1 | DONE | strong remote preflight green on PR #156; attributable v0.3 server adapter/config/identity contracts accepted |
 | RRG-3 | resident + transient memory envelope | RRG-1, RRG-2 | DONE | strong remote preflight green on PR #157; shared resident/transient budget, stream/cancel and ASR request accounting accepted |
 | RRG-4 | global multi-model execution governor | RRG-3 | DONE | strong remote preflight green on PR #158; global bound, runtime fairness, cancellation/deadline, streaming, ASR and evaluation contracts accepted |
-| RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | READY | target-hardware evidence; no automatic eviction before acceptance |
+| RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | ACTIVE | deterministic runner/reviewer tooling plus two compatible real-Mac reports; automatic eviction stays disabled |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
 
@@ -73,7 +73,18 @@ Fairness is runtime round-robin with FIFO order inside each runtime's global wai
 
 ## RRG-5 — real environment evidence
 
-Extend the existing target-Mac campaigns to cover repeated multi-model load/infer/unload, concurrent request pressure, shutdown under load and post-stop memory observations. Negative or inconclusive reclamation evidence remains evidence and cannot be converted into an automatic-eviction pass by loosening thresholds.
+The deterministic tooling is being extended to make the real-device campaign reproducible before asking hardware to confirm it. The target procedure is owned by `docs/device-evidence-runbook.md` and must cover:
+
+- two distinct verified model artifacts resident at the same time;
+- two cross-runtime HTTP requests admitted concurrently under the RRG-4 global governor;
+- exact configured resident/transient accounting peaks from the shared `ResourceManager`, kept semantically separate from OS memory observations;
+- macOS available-memory and current-process RSS sampling, plus aggregate RSS for owned backend subprocesses when the engine exposes owned PIDs;
+- dry-run pressure-policy evaluation only; no pressure-triggered unload;
+- repeated load/infer/unload cycles with zero configured accounting after unload;
+- a bounded shutdown while one runtime lease remains active, proving fail-conservative retained ownership/accounting followed by successful shutdown retry;
+- two compatible attributable reports and a conservative repetition reviewer that preserves raw post-stop deltas without an automatic-eviction or reclamation-safety recommendation.
+
+The tooling may be merged after deterministic STRONG preflight, but RRG-5 remains `ACTIVE` until the required representative Apple Silicon reports exist. Negative or inconclusive memory behavior remains evidence and cannot be converted into a pass by lowering margins or redefining a zero baseline.
 
 ## Closure
 
