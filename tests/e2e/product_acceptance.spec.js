@@ -11,7 +11,8 @@ async function openPlayground(page) {
   await openStudio(page);
   await page.getByRole('tab', { name: 'Playground' }).click();
   await expect(page.locator('#chat-tab')).toBeVisible();
-  await expect(page.locator('#model-select')).toBeEnabled();
+  await expect(page.locator('[data-playground-task="chat"]')).toBeVisible();
+  await expect(page.locator('[data-select-task-model="e2e-switchable"]')).toBeVisible();
 }
 
 async function submitMessage(page, text) {
@@ -51,12 +52,40 @@ test('public runtime contract exposes coherent inference identity and status sur
   );
 });
 
-test('playground routes an explicit request to the selected resident model', async ({ page }) => {
+test('models and runtimes owns the lifecycle and resource decision surface', async ({ page }) => {
+  await openStudio(page);
+  await page.getByRole('tab', { name: 'Models & Runtimes' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Memory & Residency' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Model inventory' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Artifact' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Runtime' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Route' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Memory evidence' })).toBeVisible();
+  await expect(page.getByText('Open lifecycle controls')).toHaveCount(0);
+});
+
+test('playground is task-first and structured mode owns JSON output', async ({ page }) => {
+  await openPlayground(page);
+
+  await expect(page.locator('[data-playground-task="chat"]')).toHaveAttribute('aria-selected', 'true');
+  await page.locator('[data-playground-task="structured-output"]').click();
+  await expect(page.locator('[data-playground-task="structured-output"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#param-force-json')).toBeChecked();
+
+  const request = await submitMessage(page, 'Return the answer as structured JSON.');
+  const payload = request.postDataJSON();
+  expect(payload.response_format?.type).toBe('json_object');
+
+  await expect(page.locator('#chat-messages-container')).toContainText('"answer":42');
+});
+
+test('playground routes an explicit request to the task-selected resident model', async ({ page }) => {
   await openPlayground(page);
 
   const modelSelect = page.locator('#model-select');
-  await expect(modelSelect.locator('option')).toHaveCount(3);
-  await modelSelect.selectOption('e2e-alt');
+  await page.locator('[data-select-task-model="e2e-alt"]').click();
+  await expect(modelSelect).toHaveValue('e2e-alt');
 
   const request = await submitMessage(page, 'Route this request to the alternate runtime.');
   const payload = request.postDataJSON();
