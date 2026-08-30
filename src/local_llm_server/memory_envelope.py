@@ -64,7 +64,9 @@ class MemoryEnvelope:
 
     @property
     def complete(self) -> bool:
-        return not self.unavailable_components
+        if self.override_total_bytes is not None:
+            return True
+        return self.accounted_bytes is not None and not self.unavailable_components
 
     def as_dict(self) -> dict[str, Any]:
         return {
