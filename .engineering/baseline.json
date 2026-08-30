@@ -3,7 +3,7 @@
   "standard": {
     "source": "daniele21/repo-template-sw",
     "version": "0.8.0",
-    "revision": "4167fe353c53cff0849fc23c9a698c0655aac4ea"
+    "revision": "6677c5349d64ea6d935f1b460d03a47c236821bc"
   },
   "target_level": "L2",
   "profiles": [
@@ -76,7 +76,9 @@
       "blast_radius_validation_profiles": "adopted",
       "remote_automated_fallback": "github-pr-workflows",
       "environment_aware_e2e_contract": "adopted",
-      "final_environment_confirms_residual_risk": true
+      "final_environment_confirms_residual_risk": true,
+      "documentation_impact_contract": "adopted",
+      "template_revision": "6677c5349d64ea6d935f1b460d03a47c236821bc"
     },
     "product_ui_l2": {
       "contract_and_design_source": "implemented-and-validated",
