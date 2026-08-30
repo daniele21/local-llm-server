@@ -249,6 +249,141 @@ select:focus-visible,
 .ds-status[data-status="error"] { --status-color: var(--ds-status-error); }
 .ds-status[data-status="unavailable"] { --status-color: var(--ds-status-unavailable); }
 
+/* Product-semantic evidence component. The visible kind label is required when kind matters. */
+.ds-evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--ds-space-3);
+}
+
+.ds-evidence-value {
+    min-width: 0;
+    display: grid;
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-3) var(--ds-space-4);
+    border: 1px solid var(--ds-border-subtle);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-1);
+}
+
+.ds-evidence-value__label {
+    color: var(--ds-text-muted);
+    font: 600 0.72rem/1.3 var(--ds-font-ui);
+}
+
+.ds-evidence-value__value {
+    min-width: 0;
+    color: var(--ds-text);
+    font: 650 1.1rem/1.2 var(--ds-font-data);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.ds-evidence-value__meta,
+.ds-evidence-value__kind {
+    color: var(--ds-text-subtle);
+    font: 500 0.6875rem/1.35 var(--ds-font-data);
+}
+
+.ds-evidence-value__kind {
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.ds-evidence-value[data-kind="estimated"] { border-style: dashed; }
+.ds-evidence-value[data-kind="configured"] { background: var(--ds-surface-2); }
+.ds-evidence-value[data-kind="unavailable"] { opacity: 0.78; }
+
+/* Product-semantic resource accounting component. It must not imply physical-memory observation. */
+.ds-resource-budget {
+    display: grid;
+    gap: var(--ds-space-4);
+}
+
+.ds-resource-budget__track {
+    min-height: 34px;
+    display: flex;
+    overflow: hidden;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+}
+
+.ds-resource-budget__segment {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 var(--ds-space-2);
+    border-inline-end: 1px solid color-mix(in srgb, var(--ds-border) 60%, transparent);
+    color: var(--ds-text);
+    font: 600 0.6875rem/1 var(--ds-font-ui);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ds-resource-budget__segment:last-child { border-inline-end: 0; }
+.ds-resource-budget__segment[data-kind="committed"] { background: color-mix(in srgb, var(--ds-electric-blue) 30%, var(--ds-surface-2)); }
+.ds-resource-budget__segment[data-kind="reserved"] { background: color-mix(in srgb, var(--ds-violet) 28%, var(--ds-surface-2)); }
+.ds-resource-budget__segment[data-kind="remaining"] { background: color-mix(in srgb, var(--ds-teal) 22%, var(--ds-surface-2)); }
+
+.ds-resource-budget__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2) var(--ds-space-4);
+    color: var(--ds-text-muted);
+    font: 500 0.75rem/1.4 var(--ds-font-data);
+}
+
+/* Product-semantic feedback component for lifecycle/run actions. */
+.ds-action-feedback {
+    --feedback-color: var(--ds-status-unavailable);
+    min-height: auto;
+    display: block;
+    padding: var(--ds-space-3) var(--ds-space-4);
+    border: 1px solid color-mix(in srgb, var(--feedback-color) 38%, var(--ds-border));
+    border-radius: var(--ds-radius-md);
+    background: color-mix(in srgb, var(--feedback-color) 8%, var(--ds-surface-1));
+    color: var(--ds-text-muted);
+    text-align: left;
+}
+
+.ds-action-feedback[data-status="ready"] { --feedback-color: var(--ds-status-ready); }
+.ds-action-feedback[data-status="loading"] { --feedback-color: var(--ds-status-loading); }
+.ds-action-feedback[data-status="warning"] { --feedback-color: var(--ds-status-warning); }
+.ds-action-feedback[data-status="error"] { --feedback-color: var(--ds-status-error); }
+.ds-action-feedback[data-status="unavailable"] { --feedback-color: var(--ds-status-unavailable); }
+
+.ds-disclosure {
+    border: 1px solid var(--ds-border-subtle);
+    border-radius: var(--ds-radius-lg);
+    background: var(--ds-surface-1);
+    color: var(--ds-text);
+}
+
+.ds-disclosure > summary {
+    min-height: var(--ds-control-min-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-3);
+    padding: 0 var(--ds-space-4);
+    cursor: pointer;
+    color: var(--ds-text);
+    font: 650 0.82rem/1.3 var(--ds-font-ui);
+}
+
+.ds-disclosure > summary::after {
+    content: "+";
+    color: var(--ds-text-muted);
+    font: 500 1rem/1 var(--ds-font-mono);
+}
+
+.ds-disclosure[open] > summary::after { content: "−"; }
+.ds-disclosure > :not(summary) { margin-inline: var(--ds-space-4); }
+.ds-disclosure > :last-child { margin-bottom: var(--ds-space-4); }
+
 .ds-empty {
     min-height: 160px;
     padding: var(--ds-space-6);
@@ -299,6 +434,22 @@ select:focus-visible,
     font-family: var(--ds-font-mono);
     font-variant-ligatures: none;
     overflow-wrap: anywhere;
+}
+
+@media (max-width: 720px) {
+    .ds-evidence-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 420px) {
+    .ds-evidence-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ds-resource-budget__track {
+        min-height: 28px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

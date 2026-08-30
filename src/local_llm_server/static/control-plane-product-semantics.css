@@ -1,0 +1,118 @@
+.evaluation-layout--refined {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.evaluation-layout--refined .evaluation-setup {
+    max-width: 920px;
+}
+
+.evaluation-primary-fields {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.evaluation-refinement__advanced,
+.evaluation-refinement__library,
+.evaluation-refinement__contract,
+.evaluation-refinement__identity {
+    overflow: hidden;
+}
+
+.evaluation-refinement__advanced > summary small {
+    margin-left: auto;
+    color: var(--ds-text-subtle);
+    font: 500 0.6875rem/1.3 var(--ds-font-data);
+}
+
+.evaluation-refinement__advanced-body,
+.evaluation-refinement__disclosure-body {
+    display: grid;
+    gap: var(--ds-space-4);
+    padding-top: var(--ds-space-2);
+}
+
+.evaluation-refinement__advanced-body .evaluation-retention-option,
+.evaluation-refinement__advanced-body .evaluation-note,
+.evaluation-refinement__disclosure-body .evaluation-import-status {
+    margin: 0;
+}
+
+.evaluation-refinement__library {
+    max-width: 920px;
+}
+
+.evaluation-refinement__library .evaluation-eyebrow,
+.evaluation-refinement__library h3,
+.evaluation-refinement__contract .evaluation-eyebrow {
+    display: none;
+}
+
+.evaluation-refinement__contract {
+    margin-bottom: var(--ds-space-6);
+}
+
+.evaluation-refinement__identity {
+    margin-bottom: var(--ds-space-4);
+}
+
+.evaluation-refinement__identity .evaluation-manifest {
+    margin-top: var(--ds-space-2);
+    margin-bottom: var(--ds-space-4);
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.evaluation-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.evaluation-metric-card {
+    gap: var(--ds-space-1);
+}
+
+.evaluation-comparison-deltas {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.evaluation-comparison-delta {
+    min-height: 104px;
+}
+
+.overview-evidence-details [data-semantic-evidence="true"] {
+    padding: var(--ds-space-3);
+}
+
+.control-plane-models__budget .control-plane-models__budget-bar {
+    margin: 0;
+}
+
+.control-plane-models__action-status {
+    margin-top: var(--ds-space-4);
+}
+
+@media (max-width: 900px) {
+    .evaluation-metrics,
+    .evaluation-comparison-deltas {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .evaluation-refinement__advanced > summary {
+        align-items: flex-start;
+        flex-direction: column;
+        justify-content: center;
+        padding-block: var(--ds-space-3);
+    }
+
+    .evaluation-refinement__advanced > summary small {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 420px) {
+    .evaluation-metrics,
+    .evaluation-comparison-deltas {
+        grid-template-columns: 1fr;
+    }
+}

@@ -19,11 +19,11 @@ Canonical experience contract: [`../design/ux-contract.json`](../design/ux-contr
 | Workstream | Status | Integrated boundary | Remaining gate |
 | --- | --- | --- | --- |
 | Existing Studio workflows | PARTIAL | real Chat and Logs preserved while Models lifecycle is owned directly by the control-plane surface | legacy internal markup cleanup without regression |
-| Design system | EVIDENCE | tokens/primitives + expanded native/control focus + reduced-motion/light-dark semantics | manual light/dark contrast evidence |
+| Design system | EVIDENCE | tokens/primitives + canonical EvidenceValue, ResourceBudget, ActionFeedback and disclosure semantics + native/control focus + reduced-motion/light-dark semantics | manual light/dark contrast and semantic-component acceptance |
 | Shell/navigation | EVIDENCE | seven canonical URL destinations, refresh/back/forward behavior, opaque model/evaluation detail links, skip link and `aria-current` navigation | real keyboard/zoom/screen-reader traversal |
-| Overview | EVIDENCE | readiness/residency/budget/workload/capacity first scan with advanced evidence/provenance disclosure | representative runtime/hardware + manual usability evidence |
-| Models & Runtimes | PARTIAL | integrated load/unload/default-route/pin actions + resource accounting + per-runtime estimate + refresh-stable contextual detail + load-feasibility recovery | route-preserving reload contract, manual accessibility and hardware evidence |
-| Resource budget/pressure | PARTIAL | configured accounting envelope + deterministic pressure-policy contracts + explicit load-capacity decision support and recovery handoff | representative pressure/hardware evidence before automation |
+| Overview | EVIDENCE | readiness/residency/budget/workload/capacity first scan with advanced evidence/provenance disclosure + targeted deterministic visual contract | representative runtime/hardware + manual usability evidence |
+| Models & Runtimes | PARTIAL | integrated load/unload/default-route/pin actions + semantic ResourceBudget/ActionFeedback + resource accounting + per-runtime estimate + refresh-stable contextual detail + load-feasibility recovery | route-preserving reload contract, destructive-action acceptance, manual accessibility and hardware evidence |
+| Resource budget/pressure | PARTIAL | configured accounting envelope + deterministic pressure-policy contracts + explicit load-capacity decision support and semantic ResourceBudget presentation | representative pressure/hardware evidence before automation |
 | Capability UX | PARTIAL | server descriptors drive Endpoints and a task-first Playground model | broader backend/task evidence + manual acceptance |
 | Pin/auto-evict | PARTIAL | pin/unpin + evictable + LRU/TTL + hysteretic dry policy | hardware review before any automatic unload |
 | Runtime fingerprint | PARTIAL | verified auto-capture + broader backend-version evidence + contextual/progressive-disclosure UI presentation | specialist artifact/backend coverage |
@@ -32,12 +32,12 @@ Canonical experience contract: [`../design/ux-contract.json`](../design/ux-contr
 | Playground structured | PARTIAL | first-class task choice owns JSON mode and compatible runtime filtering | schema-oriented UX + broader backend evidence |
 | Playground vision | PARTIAL | first-class task choice + real multimodal path + capability-driven image control + fail-closed remote media | regression/hardware evidence |
 | Playground transcription | PARTIAL | first-class task choice + multipart local transcription workflow | compatible backend/hardware evidence |
-| Benchmark & Evaluation | PARTIAL | run/results/history/comparison + custom JSON import/version selection + refresh-stable opaque run detail links | hierarchy simplification + richer experiments + visual/manual evidence |
+| Benchmark & Evaluation | EVIDENCE | primary Model/Test set/Samples/Run hierarchy + progressive seed/retention/dataset/evidence/identity disclosure + results/history/comparison + deep links + targeted deterministic visual contract | richer experiment dimensions + manual usability/accessibility evidence |
 | System/Diagnostics | PARTIAL | canonical runtime/resource/scheduler/identity summary above real logs | visual/hardware evidence |
 | Settings/privacy | PARTIAL | read-only effective policy/resource/residency/scheduler state | manual acceptance + mutation semantics only if product requires them |
 | Responsive | EVIDENCE | min-width guards, single-column breakpoints, action stacking and horizontal table access | real phone/tablet/desktop + 200% zoom verification |
-| Accessibility | EVIDENCE | route navigation semantics, local task-tab semantics, focus expansion, non-color state text and reduced motion | contrast + full workflow/manual audit |
-| Visual regression | PENDING | no stable screenshot suite yet | deterministic source-state fixtures + screenshot gate |
+| Accessibility | EVIDENCE | route navigation semantics, local task-tab semantics, native details disclosures, visible evidence-kind text, focus expansion, non-color state text and reduced motion | contrast + full workflow/manual audit |
+| Visual regression | PARTIAL | blocking perceptual geometry/hierarchy fingerprints for deterministic Overview and Evaluation setup fixtures at 1440×1000 dark/reduced-motion | stable responsive/state coverage only as additional high-risk surfaces justify it |
 | Hardware UX evidence | PARTIAL | repeatable worker reclamation CLI/report schema exists | representative device reports + real runtime screenshots |
 
 ## Current UX v2 structural state
@@ -70,9 +70,11 @@ The first scan is intentionally bounded to five questions:
 - how much work is active/queued;
 - whether the accounting envelope currently has headroom for another load decision.
 
-Fine-grained timing, fingerprint, admission and provenance remain available under **Runtime evidence & provenance** rather than competing above the fold. Resource language is deliberately framed as configured/accounted capacity: low or exhausted headroom is **not** presented as observed physical-memory pressure.
+Fine-grained timing, fingerprint, admission and provenance remain available under **Runtime evidence & provenance** rather than competing above the fold. Advanced metrics now reuse the canonical `EvidenceValue` presentation and expose evidence kind as visible text. Resource language remains deliberately framed as configured/accounted capacity: low or exhausted headroom is **not** presented as observed physical-memory pressure.
 
 When accounting headroom is constrained, Overview sends the user to the existing Models & Runtimes feasibility/recovery flow instead of introducing a second eviction mechanism.
+
+The deterministic 1440×1000 dark/reduced-motion Overview fixture now has a blocking in-memory perceptual geometry/hierarchy fingerprint. The screenshot is normalized to a small luminance edge grid so insignificant rasterization noise is ignored; the source PNG is not retained. This is not representative-hardware evidence and does not replace responsive/manual review.
 
 ### Models & Runtimes
 
@@ -85,7 +87,7 @@ Models & Runtimes remains the canonical lifecycle surface. It directly uses the 
 
 Artifact, runtime, route and policy remain separate columns/states. The view does not invent `Verified` artifact evidence when the catalog only proves local availability.
 
-Resource UX separates configured usable budget, accounted committed bytes, accounted reservations, derived remaining capacity and per-runtime load `estimate_bytes` when exposed. A per-runtime estimate is labeled **Estimate**, not observed physical memory; unavailable observed runtime memory remains **Unavailable**.
+Resource UX separates configured usable budget, accounted committed bytes, accounted reservations, derived remaining capacity and per-runtime load `estimate_bytes` when exposed. A per-runtime estimate is labeled **Estimate**, not observed physical memory; unavailable observed runtime memory remains **Unavailable**. The existing budget/accounting owner now uses the canonical `ResourceBudget` visual semantics and lifecycle messages use `ActionFeedback` without changing server admission authority.
 
 Cold-model Load opens a feasibility surface showing estimated requirement, available capacity and deficit. When an idle non-default runtime is policy-evictable and has sufficient estimated capacity, the UI can offer explicit `Unload <runtime> & continue`. This is an intentional user action; hidden unload/automatic eviction remains forbidden.
 
@@ -99,9 +101,18 @@ Chat, Structured output and Vision-language reuse the proven composer execution 
 
 ### Benchmark & Evaluation
 
-Evaluation supports resident-model selection, versioned built-in/custom test sets, deterministic seed/sample counts, validated JSON import, explicit test-set version propagation, persisted history and compatibility-aware comparison. Open run detail is now addressable through `/evaluations/{opaque-run-id}` and can be restored after refresh without exposing prompt/output content in the URL.
+Evaluation keeps the existing server-owned run, test-set, scorer, history and comparison contracts. The first scan is now explicitly bounded to **Model → Test set → Samples → Run evaluation**.
 
-The next structural pass should move seed/preset/weighting and full identity evidence behind progressive disclosure while preserving reproducibility.
+Reproducibility and management controls remain available without dominating that path:
+
+- seed, retained-content policy and scorer note live under **Advanced run settings**;
+- custom dataset import/library is a separate closed disclosure;
+- evidence-grade/exploratory definitions are a separate closed disclosure;
+- full fingerprint/config/test-set identity appears under **Run identity & reproducibility** after a result or history selection.
+
+Result quality/success/time/token metrics reuse canonical `EvidenceValue` semantics with visible evidence-kind text. Persisted history, comparison, per-sample detail and `/evaluations/{opaque-run-id}` deep links remain unchanged in ownership and behavior.
+
+The deterministic 1440×1000 dark/reduced-motion Evaluation setup form now has the same blocking in-memory perceptual geometry/hierarchy contract. It deliberately excludes run/history state that is not stable setup geometry. Richer experiment controls such as explicit warm/cold mode or user-configurable quality/performance weighting remain out of scope until a real server-owned contract exists.
 
 ### System / Diagnostics
 
@@ -121,7 +132,8 @@ The product surface provides:
 - inactive legacy-backed panels hidden from the accessibility tree;
 - decorative navigation icons hidden from assistive technology;
 - visible focus outlines for design-system and retained native/legacy controls;
-- status text in addition to color;
+- status and evidence-kind text in addition to color/style;
+- native keyboard-operable details/summary for advanced Evaluation disclosure;
 - reduced-motion handling;
 - `min-width: 0`, content wrapping and one-column responsive breakpoints;
 - preserved horizontal table access instead of clipped columns;
@@ -136,16 +148,18 @@ These deterministic contracts are not the final manual accessibility certificati
 
 Verify on the real integrated UI:
 
-- keyboard-only traversal across route navigation, task selector, model inventory/detail, forms, upload controls and lifecycle actions;
-- sensible focus order after page navigation, async source refreshes and action completion;
+- keyboard-only traversal across route navigation, task selector, model inventory/detail, Evaluation disclosures, forms, upload controls and lifecycle actions;
+- sensible focus order after page navigation, disclosure changes, async source refreshes and action completion;
 - semantic names for remaining icon-only controls;
-- light/dark contrast for text, focus, status badges and disabled states;
+- light/dark contrast for text, focus, status badges, evidence kinds and disabled states;
 - no critical action/data loss at 200% browser zoom;
 - screen-reader spot checks for current-route state, task selection and dynamic status feedback.
 
 ### H2b — Responsive and visual regression
 
-Create deterministic source-state fixtures for loading, empty/cold, unavailable source, warning/accounting constraint, error/action failure, success/resident/evidence-grade and insufficient-capacity/load-feasibility. Capture stable phone/tablet/desktop reference widths and separate fixture screenshots from real runtime screenshots.
+The first targeted perceptual visual contracts are integrated for stable Overview and Evaluation setup fixture surfaces. Extend visual coverage only when a state is stable and high-risk enough to justify a blocking geometry/hierarchy contract. Candidate future states remain loading, empty/cold, unavailable source, warning/accounting constraint, error/action failure, success/resident/evidence-grade and insufficient-capacity/load-feasibility across representative widths.
+
+Real runtime screenshots remain separate from deterministic fixture visual evidence and must not be promoted from hosted CI.
 
 ### H3 — Representative runtime evidence
 
@@ -153,11 +167,11 @@ Use the canonical representative-device evidence workflow plus compatible text/v
 
 ### H4 — Remaining structural cleanup
 
-After the P1 surface acceptance stabilizes:
+After the P2 surface acceptance stabilizes:
 
 - remove legacy model lifecycle markup that is no longer a product entrypoint;
 - keep the proven Chat execution implementation until the task-first wrapper has complete parity evidence;
-- simplify Evaluation hierarchy/progressive disclosure;
+- fold the product-semantic presentation adapter into owning renderers when legacy/static convergence makes that lower-complexity than the adapter;
 - align README/API examples with current product entrypoints;
 - update public screenshots only from implemented real states.
 
@@ -173,7 +187,8 @@ After the P1 surface acceptance stabilizes:
 - capability truth is server-owned; JavaScript presents/filters it but does not invent support.
 - custom test-set files are data, not executable scorer/plugin definitions.
 - explicit eviction/unload success is not presented as a host-memory reclamation guarantee.
-- deterministic accessibility/fixture tests are not a substitute for manual contrast/zoom or real hardware evidence.
+- deterministic accessibility/fixture-visual tests are not a substitute for manual contrast/zoom or real hardware evidence.
+- a changed perceptual visual fingerprint requires intentional review of the rendered fixture; it must not be mechanically updated just to make CI green.
 
 ## Acceptance still pending
 
@@ -182,9 +197,9 @@ Before primary UX surfaces can be marked DONE:
 - complete keyboard/focus/semantic-label workflow audit;
 - contrast verification in supported light/dark modes;
 - real 200% zoom and representative width usability;
-- stable source-state visual regression suite;
+- extend visual contracts to additional stable high-risk states/widths where justified;
 - action confirmation/feedback review for destructive lifecycle operations;
-- screen-reader spot checks for route/task/dynamic-state semantics;
+- screen-reader spot checks for route/task/disclosure/dynamic-state semantics;
 - real runtime screenshots for public documentation;
 - representative hardware evidence for resource/performance claims.
 
