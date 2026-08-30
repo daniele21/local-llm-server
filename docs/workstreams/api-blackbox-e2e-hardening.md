@@ -1,6 +1,7 @@
 # API Black-box E2E Hardening
 
 Status: active
+Last reviewed: 2026-08-30
 Owner: runtime-and-platform
 Read when: implementing or coordinating external application-to-HTTP product acceptance coverage
 
