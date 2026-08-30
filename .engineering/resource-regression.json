@@ -27,6 +27,14 @@
     {
       "id": "transient-stream-reservation-release",
       "test": "tests/test_request_resource_admission.py::test_stream_wrapper_holds_transient_reservation_until_iterator_finishes"
+    },
+    {
+      "id": "multimodel-device-campaign-ownership",
+      "test": "tests/test_multi_model_device_evidence.py::test_campaign_exercises_two_models_concurrent_accounting_and_shutdown_retry"
+    },
+    {
+      "id": "multimodel-review-does-not-authorize-eviction",
+      "test": "tests/test_multi_model_evidence_review.py::test_two_compatible_complete_reports_form_sufficient_observation_set"
     }
   ],
   "non_claims": [
