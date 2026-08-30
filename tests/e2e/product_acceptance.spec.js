@@ -4,12 +4,14 @@ async function openStudio(page) {
   await page.route('https://fonts.googleapis.com/**', (route) => route.abort());
   await page.route('https://fonts.gstatic.com/**', (route) => route.abort());
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('tab', { name: 'Playground' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Playground' })).toBeVisible();
+  await expect(page).toHaveURL(/\/overview$/);
 }
 
 async function openPlayground(page) {
   await openStudio(page);
-  await page.getByRole('tab', { name: 'Playground' }).click();
+  await page.getByRole('link', { name: 'Playground' }).click();
+  await expect(page).toHaveURL(/\/playground$/);
   await expect(page.locator('#chat-tab')).toBeVisible();
   await expect(page.locator('[data-playground-task="chat"]')).toBeVisible();
   await expect(page.locator('[data-select-task-model="e2e-switchable"]')).toBeVisible();
@@ -52,9 +54,25 @@ test('public runtime contract exposes coherent inference identity and status sur
   );
 });
 
-test('models and runtimes owns the lifecycle and resource decision surface', async ({ page, request }) => {
+test('overview prioritizes readiness, residency, budget, workload and capacity', async ({ page }) => {
   await openStudio(page);
-  await page.getByRole('tab', { name: 'Models & Runtimes' }).click();
+
+  const strip = page.locator('.overview-readiness-strip');
+  await expect(strip).toBeVisible();
+  for (const label of ['Readiness', 'Resident', 'AI budget', 'Workload', 'Capacity']) {
+    await expect(strip.getByText(label, { exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole('heading', { name: 'What can run next?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What is using the runtime?' })).toBeVisible();
+  const evidenceDetails = page.locator('.overview-evidence-details');
+  await expect(evidenceDetails.getByText('Runtime evidence & provenance', { exact: true })).toBeVisible();
+  await expect(evidenceDetails.getByText('Runtime fingerprint', { exact: true })).toBeHidden();
+});
+
+test('models and runtimes owns the lifecycle, resource recovery and deep-linked detail surface', async ({ page, request }) => {
+  await openStudio(page);
+  await page.getByRole('link', { name: 'Models & Runtimes' }).click();
+  await expect(page).toHaveURL(/\/models$/);
 
   await expect(page.getByRole('heading', { name: 'Memory & Residency' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Model inventory' })).toBeVisible();
@@ -78,6 +96,15 @@ test('models and runtimes owns the lifecycle and resource decision surface', asy
     const payload = await response.json();
     return payload.default_model;
   }).toBe('e2e-switchable');
+
+  await page.locator('[data-open-model="e2e-alt"]').first().click();
+  await expect(page).toHaveURL(/\/models\/[^/]+$/);
+  await expect(page.locator('[data-model-detail]')).toContainText('e2e-alt');
+
+  const detailUrl = page.url();
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(detailUrl);
+  await expect(page.locator('[data-model-detail]')).toContainText('e2e-alt');
 });
 
 test('playground is task-first and structured mode owns JSON output', async ({ page }) => {

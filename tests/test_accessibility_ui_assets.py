@@ -10,18 +10,36 @@ import pytest
 STATIC = Path(__file__).resolve().parents[1] / "src" / "local_llm_server" / "static"
 
 
-def test_shell_implements_roving_tab_keyboard_semantics():
+def test_shell_uses_route_navigation_and_reserves_tab_semantics_for_local_controls():
     script = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
 
-    assert "setAttribute('role', 'tablist')" in script
-    assert "setAttribute('role', 'tab')" in script
-    assert "setAttribute('role', 'tabpanel')" in script
-    assert "aria-controls" in script
-    assert "aria-selected" in script
-    assert "aria-labelledby" in script
-    assert "button.tabIndex = active ? 0 : -1" in script
-    for key in ("ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"):
-        assert key in script
+    assert "document.createElement('a')" in script
+    assert "aria-current" in script
+    assert "control-plane-navigation" in script
+    assert "setAttribute('role', 'tablist')" not in script
+    assert "setAttribute('role', 'tab')" not in script
+    assert "setAttribute('role', 'tabpanel')" not in script
+    for route in (
+        "/overview",
+        "/models",
+        "/endpoints",
+        "/playground",
+        "/evaluations",
+        "/system",
+        "/settings",
+    ):
+        assert route in script
+
+
+def test_shell_supports_refresh_stable_opaque_model_and_evaluation_detail_routes():
+    script = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
+
+    assert "/models/${encodeOpaque(modelControl.dataset.openModel)}" in script
+    assert "/evaluations/${encodeOpaque(evaluationControl.dataset.evaluationInspect)}" in script
+    assert "TextEncoder" in script
+    assert "TextDecoder" in script
+    assert "data-route-recovery" in script
+    assert "event.persisted" in script
 
 
 def test_shell_has_keyboard_skip_navigation_and_hidden_panel_state():
@@ -56,10 +74,9 @@ def test_status_component_has_visible_text_plus_non_textual_indicator_contract()
     css = (STATIC / "design-system.css").read_text(encoding="utf-8")
 
     assert ".ds-status::before" in css
-    assert ".ds-status[data-status=\"ready\"]" in css
+    assert '.ds-status[data-status="ready"]' in css
+    assert '.ds-status[data-status="warning"]' in css
     assert "color: var(--ds-text)" in css
-    # The pseudo-element is supplementary; status labels stay in DOM text in
-    # source-backed renderers rather than relying on a color-only class.
     shell = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
     assert 'data-status="loading">Loading sources</span>' in shell
 

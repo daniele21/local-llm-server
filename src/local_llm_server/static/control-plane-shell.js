@@ -1,19 +1,23 @@
 (() => {
     const NAV = [
-        { id: 'overview-tab', label: 'Overview', kind: 'new' },
-        { id: 'registry-tab', label: 'Models & Runtimes', kind: 'legacy' },
-        { id: 'endpoints-tab', label: 'Endpoints', kind: 'new' },
-        { id: 'chat-tab', label: 'Playground', kind: 'legacy' },
-        { id: 'benchmark-tab', label: 'Benchmark & Evaluation', kind: 'new' },
-        { id: 'logs-tab', label: 'System / Diagnostics', kind: 'legacy' },
-        { id: 'settings-tab', label: 'Settings', kind: 'new' },
+        { id: 'overview-tab', label: 'Overview', route: '/overview', kind: 'new' },
+        { id: 'registry-tab', label: 'Models & Runtimes', route: '/models', kind: 'legacy' },
+        { id: 'endpoints-tab', label: 'Endpoints', route: '/endpoints', kind: 'new' },
+        { id: 'chat-tab', label: 'Playground', route: '/playground', kind: 'legacy' },
+        { id: 'benchmark-tab', label: 'Benchmark & Evaluation', route: '/evaluations', kind: 'new' },
+        { id: 'logs-tab', label: 'System / Diagnostics', route: '/system', kind: 'legacy' },
+        { id: 'settings-tab', label: 'Settings', route: '/settings', kind: 'new' },
     ];
+    const DETAIL_WAIT_ATTEMPTS = 100;
+    const DETAIL_WAIT_MS = 50;
+    let restoringDetail = false;
 
     function boot() {
         const nav = document.querySelector('.sidebar-nav');
         const main = document.querySelector('.app-main');
         if (!nav || !main || nav.dataset.controlPlaneReady === 'true') return;
         nav.dataset.controlPlaneReady = 'true';
+        nav.setAttribute('aria-label', 'Control plane');
 
         ensureSkipLink(main);
 
@@ -28,27 +32,16 @@
         sectionLabel.setAttribute('aria-hidden', 'true');
         nav.insertBefore(sectionLabel, nav.firstChild);
 
-        const tablist = document.createElement('div');
-        tablist.className = 'control-plane-tablist';
-        tablist.setAttribute('role', 'tablist');
-        tablist.setAttribute('aria-label', 'Control plane views');
-        tablist.setAttribute('aria-orientation', 'vertical');
-        nav.insertBefore(tablist, tourButton || null);
+        const navigation = document.createElement('div');
+        navigation.className = 'control-plane-navigation';
+        navigation.dataset.controlPlaneNavigation = 'true';
+        nav.insertBefore(navigation, tourButton || null);
 
         NAV.forEach((item) => {
-            let button = legacyButtons.get(item.id);
-            if (!button) {
-                button = document.createElement('button');
-                button.type = 'button';
-                button.className = 'nav-item';
-                button.dataset.tab = item.id;
-                button.dataset.controlPlane = 'true';
-                button.textContent = item.label;
-            } else {
-                replaceButtonLabel(button, item.label);
-            }
-            configureTabButton(button, item);
-            tablist.appendChild(button);
+            const legacy = legacyButtons.get(item.id);
+            const link = createNavigationLink(item, legacy);
+            navigation.appendChild(link);
+            legacy?.remove();
         });
 
         ensureView(main, 'overview-tab', overviewMarkup());
@@ -56,12 +49,32 @@
         ensureView(main, 'benchmark-tab', benchmarkMarkup());
         ensureView(main, 'settings-tab', settingsMarkup());
         configurePanels(main);
+        bindDetailRoutes();
 
-        const activePanel = document.querySelector('.app-main .tab-panel--active');
-        const activeId = activePanel?.id && NAV.some((item) => item.id === activePanel.id)
-            ? activePanel.id
-            : 'overview-tab';
-        activate(activeId, { focus: false });
+        const route = resolveLocation(window.location.pathname);
+        if (window.location.pathname === '/') {
+            window.history.replaceState(null, '', route.path);
+        }
+        activate(route.panelId);
+        restoreRoutedDetail(route);
+
+        window.addEventListener('pageshow', (event) => {
+            if (!event.persisted) return;
+            const current = resolveLocation(window.location.pathname);
+            activate(current.panelId);
+            restoreRoutedDetail(current);
+        });
+
+        window.localLlmControlPlane = {
+            navigate(panelId) {
+                const item = NAV.find((entry) => entry.id === panelId);
+                if (item) window.location.assign(item.route);
+            },
+            routeForPanel(panelId) {
+                return NAV.find((entry) => entry.id === panelId)?.route || null;
+            },
+            opaqueIdFor: encodeOpaque,
+        };
     }
 
     function ensureSkipLink(main) {
@@ -79,77 +92,40 @@
         document.body.prepend(link);
     }
 
-    function configureTabButton(button, item) {
-        button.type = 'button';
-        button.id = `control-plane-tab-${item.id}`;
-        button.setAttribute('role', 'tab');
-        button.setAttribute('aria-controls', item.id);
-        button.setAttribute('aria-selected', 'false');
-        button.tabIndex = -1;
-        button.dataset.controlPlane = 'true';
+    function createNavigationLink(item, legacy) {
+        const link = document.createElement('a');
+        link.href = item.route;
+        link.className = legacy?.className || 'nav-item';
+        link.classList.remove('nav-item--active');
+        link.dataset.tab = item.id;
+        link.dataset.controlPlane = 'true';
+        link.removeAttribute('role');
+        link.removeAttribute('aria-selected');
+        link.removeAttribute('aria-controls');
+        link.removeAttribute('tabindex');
 
-        button.querySelectorAll('svg').forEach((icon) => {
+        const icon = legacy?.querySelector('svg')?.cloneNode(true);
+        if (icon) {
             icon.setAttribute('aria-hidden', 'true');
             icon.setAttribute('focusable', 'false');
-        });
-
-        if (button.dataset.controlPlaneA11yBound !== 'true') {
-            button.dataset.controlPlaneA11yBound = 'true';
-            button.addEventListener('click', () => activate(item.id, { focus: false }));
-            button.addEventListener('keydown', handleTabKeydown);
+            link.appendChild(icon);
         }
+        link.appendChild(document.createTextNode(item.label));
+        return link;
     }
 
-    function handleTabKeydown(event) {
-        const buttons = orderedTabButtons();
-        const current = buttons.indexOf(event.currentTarget);
-        if (current < 0 || buttons.length === 0) return;
-
-        let next = null;
-        if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
-            next = (current + 1) % buttons.length;
-        } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
-            next = (current - 1 + buttons.length) % buttons.length;
-        } else if (event.key === 'Home') {
-            next = 0;
-        } else if (event.key === 'End') {
-            next = buttons.length - 1;
-        }
-
-        if (next === null) return;
-        event.preventDefault();
-        const button = buttons[next];
-        activate(button.dataset.tab, { focus: true });
-    }
-
-    function orderedTabButtons() {
-        const tablist = document.querySelector('.control-plane-tablist');
-        if (!tablist) return [];
-        return NAV
-            .map((item) => tablist.querySelector(`.nav-item[data-tab="${item.id}"]`))
-            .filter(Boolean);
-    }
-
-    function replaceButtonLabel(button, label) {
-        const icon = button.querySelector('svg');
-        button.textContent = '';
-        if (icon) button.appendChild(icon);
-        button.appendChild(document.createTextNode(label));
-        button.dataset.controlPlane = 'true';
-    }
-
-    function activate(panelId, { focus = false } = {}) {
+    function activate(panelId) {
         const nav = document.querySelector('.sidebar-nav');
         const main = document.querySelector('.app-main');
         if (!nav || !main) return;
         const selected = nav.querySelector(`.nav-item[data-tab="${panelId}"]`);
         if (!selected) return;
 
-        orderedTabButtons().forEach((button) => {
-            const active = button === selected;
-            button.classList.toggle('nav-item--active', active);
-            button.setAttribute('aria-selected', active ? 'true' : 'false');
-            button.tabIndex = active ? 0 : -1;
+        navigationLinks().forEach((link) => {
+            const active = link === selected;
+            link.classList.toggle('nav-item--active', active);
+            if (active) link.setAttribute('aria-current', 'page');
+            else link.removeAttribute('aria-current');
         });
 
         main.querySelectorAll('.tab-panel').forEach((panel) => {
@@ -159,15 +135,23 @@
             panel.setAttribute('aria-hidden', active ? 'false' : 'true');
         });
 
-        if (focus) selected.focus();
+        const item = NAV.find((entry) => entry.id === panelId);
+        if (item) document.title = `Local LLM Studio · ${item.label}`;
+    }
+
+    function navigationLinks() {
+        const navigation = document.querySelector('.control-plane-navigation');
+        if (!navigation) return [];
+        return NAV
+            .map((item) => navigation.querySelector(`.nav-item[data-tab="${item.id}"]`))
+            .filter(Boolean);
     }
 
     function configurePanels(main) {
         main.querySelectorAll('.tab-panel').forEach((panel) => {
-            panel.setAttribute('role', 'tabpanel');
-            panel.tabIndex = 0;
-            const button = document.querySelector(`.control-plane-tablist .nav-item[data-tab="${panel.id}"]`);
-            if (button?.id) panel.setAttribute('aria-labelledby', button.id);
+            panel.removeAttribute('role');
+            panel.removeAttribute('aria-labelledby');
+            panel.removeAttribute('tabindex');
         });
     }
 
@@ -181,12 +165,137 @@
         main.insertBefore(section, footer || null);
     }
 
+    function resolveLocation(pathname) {
+        const normalized = pathname === '/' ? '/overview' : pathname.replace(/\/+$/, '') || '/overview';
+        const exact = NAV.find((item) => item.route === normalized);
+        if (exact) return { panelId: exact.id, path: exact.route, detail: null };
+
+        const modelMatch = normalized.match(/^\/models\/([^/]+)$/);
+        if (modelMatch) {
+            return {
+                panelId: 'registry-tab',
+                path: normalized,
+                detail: { type: 'model', opaqueId: modelMatch[1] },
+            };
+        }
+
+        const evaluationMatch = normalized.match(/^\/evaluations\/([^/]+)$/);
+        if (evaluationMatch) {
+            return {
+                panelId: 'benchmark-tab',
+                path: normalized,
+                detail: { type: 'evaluation', opaqueId: evaluationMatch[1] },
+            };
+        }
+
+        return { panelId: 'overview-tab', path: '/overview', detail: null };
+    }
+
+    function bindDetailRoutes() {
+        if (document.documentElement.dataset.controlPlaneDetailRoutesBound === 'true') return;
+        document.documentElement.dataset.controlPlaneDetailRoutesBound = 'true';
+        document.addEventListener('click', (event) => {
+            if (restoringDetail) return;
+            const target = event.target instanceof Element ? event.target : null;
+            if (!target) return;
+
+            const modelControl = target.closest('[data-open-model]');
+            if (modelControl?.dataset?.openModel) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                window.location.assign(`/models/${encodeOpaque(modelControl.dataset.openModel)}`);
+                return;
+            }
+
+            const evaluationControl = target.closest('[data-evaluation-inspect]');
+            if (evaluationControl?.dataset?.evaluationInspect) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                window.location.assign(`/evaluations/${encodeOpaque(evaluationControl.dataset.evaluationInspect)}`);
+                return;
+            }
+
+            if (target.closest('[data-evaluation-history-close]')) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                window.location.assign('/evaluations');
+            }
+        }, true);
+    }
+
+    function restoreRoutedDetail(route) {
+        if (!route.detail) return;
+        const decoded = decodeOpaque(route.detail.opaqueId);
+        if (!decoded) {
+            showRouteRecovery(route.panelId, 'This detail link is invalid. Use the section navigation to choose an available item.');
+            return;
+        }
+        const attribute = route.detail.type === 'model' ? 'data-open-model' : 'data-evaluation-inspect';
+        waitForControl(attribute, decoded, 0, (control) => {
+            if (!control) {
+                const kind = route.detail.type === 'model' ? 'model/runtime' : 'evaluation run';
+                showRouteRecovery(route.panelId, `The linked ${kind} is unavailable in the current source state.`);
+                return;
+            }
+            restoringDetail = true;
+            try {
+                control.click();
+            } finally {
+                restoringDetail = false;
+            }
+        });
+    }
+
+    function waitForControl(attribute, value, attempt, done) {
+        const control = [...document.querySelectorAll(`[${attribute}]`)]
+            .find((element) => element.getAttribute(attribute) === value);
+        if (control) {
+            done(control);
+            return;
+        }
+        if (attempt >= DETAIL_WAIT_ATTEMPTS) {
+            done(null);
+            return;
+        }
+        window.setTimeout(() => waitForControl(attribute, value, attempt + 1, done), DETAIL_WAIT_MS);
+    }
+
+    function showRouteRecovery(panelId, message) {
+        const panel = document.getElementById(panelId);
+        if (!panel || panel.querySelector('[data-route-recovery]')) return;
+        const notice = document.createElement('div');
+        notice.className = 'ds-empty control-plane-unavailable';
+        notice.dataset.routeRecovery = 'true';
+        notice.setAttribute('role', 'status');
+        notice.textContent = message;
+        panel.prepend(notice);
+    }
+
+    function encodeOpaque(value) {
+        const bytes = new TextEncoder().encode(String(value));
+        let binary = '';
+        bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+        return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');
+    }
+
+    function decodeOpaque(value) {
+        try {
+            const normalized = String(value).replaceAll('-', '+').replaceAll('_', '/');
+            const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+            const binary = atob(padded);
+            const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+            return new TextDecoder().decode(bytes) || null;
+        } catch (_) {
+            return null;
+        }
+    }
+
     function overviewMarkup() {
         return `
             <div class="control-plane-header">
                 <div>
                     <h2>Overview</h2>
-                    <p>Operational entry point for local AI health, residency, scheduling and runtime evidence.</p>
+                    <p>See whether local AI is ready, what is resident, and what constrains the next action.</p>
                 </div>
                 <span class="ds-status" data-status="loading">Loading sources</span>
             </div>

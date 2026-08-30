@@ -54,6 +54,7 @@ def test_product_http_stack_installs_scheduler_policy_completion_stream_metrics_
     assert app.state.canonical_request_policy_installed is True
     assert app.state.completion_metrics_installed is True
     assert app.state.streaming_metrics_installed is True
+    assert app.state.studio_ui_routes_installed is True
     assert app.state.product_api_installed is True
     route_paths = [
         path
@@ -61,6 +62,18 @@ def test_product_http_stack_installs_scheduler_policy_completion_stream_metrics_
         if (path := getattr(route, "path", None)) is not None
     ]
     assert route_paths.count("/v1/audio/transcriptions") == 1
+    for path in (
+        "/overview",
+        "/models",
+        "/models/{opaque_model_id}",
+        "/endpoints",
+        "/playground",
+        "/evaluations",
+        "/evaluations/{opaque_run_id}",
+        "/system",
+        "/settings",
+    ):
+        assert route_paths.count(path) == 1
 
 
 def test_product_http_stack_can_install_global_governor_without_runtime_queue(tmp_path):
