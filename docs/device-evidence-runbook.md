@@ -2,10 +2,10 @@
 
 Status: active procedure
 Owner: local-llm-server
-Read when: executing TH-E1, EV-3, HE-2 or RES-2 on the representative Mac
-Last reviewed: 2026-08-18
+Read when: executing TH-E1, EV-3, HE-2, RES-2 or RRG-5 on the representative Mac
+Last reviewed: 2026-08-30
 
-This runbook turns the remaining L2 evidence wave into repeatable commands. Private model paths stay local. The final bundle validator emits a bounded public-safe summary and never promotes repository maturity automatically.
+This runbook turns hardware-dependent evidence into repeatable commands. Private model paths stay local. Validators emit bounded public-safe summaries and never promote repository maturity or automatic-eviction policy automatically.
 
 ## Scope and safety
 
@@ -22,10 +22,11 @@ Rules:
 
 - use the same exact GGUF for all comparable runs;
 - do not commit private model paths or raw inference content;
-- serialize heavy model executions on one Mac;
+- serialize heavy evidence campaigns on one Mac unless the procedure explicitly requires multi-model concurrency;
 - do not induce OOM, critical OS pressure or automatic eviction;
 - retain negative, mixed and inconclusive observations;
-- do not generalize one-device or ten-sample observations into production-safety/model-quality claims.
+- do not lower safety/repetition thresholds merely to force a successful result;
+- do not generalize one-device or small-sample observations into production-safety/model-quality claims.
 
 ## 0. Verify the exact artifact
 
@@ -193,9 +194,97 @@ The runner refuses execution when measured macOS available memory is below the m
 
 A complete report must show safe admission, positive committed accounting while resident, one HTTP inference, zero committed/reserved accounting after unload, green/cold health, insufficient-budget rejection before backend construction and `automatic_eviction_exercised=false`.
 
-## 5. Validate the complete hardware bundle
+## RRG-5 — repeated multi-model lifecycle, concurrency and pressure evidence
 
-After the four campaigns exist, run one deterministic review over the local directory:
+RRG-5 is an **additional runtime-governor campaign**, not a retroactive extension of the minimum L2 bundle above. Run it after RRG-1..RRG-4 are integrated and with no other heavy local-AI workload competing for the Mac.
+
+Choose two distinct configured model keys that can legitimately be resident at the same time. For GGUF validation of the modernized RRG-2 path, prefer the validated `llama_server` v0.3 feature floor; do not silently switch the backend if the deployment under test uses another supported runtime.
+
+```bash
+MODEL_A="<first-model-key>"
+MODEL_A_PATH="<absolute-path-to-first-model>"
+MODEL_B="<second-model-key>"
+MODEL_B_PATH="<absolute-path-to-second-model>"
+REQUEST_ESTIMATE_MIB="<configured-or-calibrated-transient-total-per-request>"
+RRG5_DIR="$HOME/.local-llm-server/evidence/$(date +%F)-rrg5"
+mkdir -p "$RRG5_DIR"
+
+local-llm verify-artifact "$MODEL_A" --model-path "$MODEL_A_PATH"
+local-llm verify-artifact "$MODEL_B" --model-path "$MODEL_B_PATH"
+```
+
+`REQUEST_ESTIMATE_MIB` is intentionally required and has no runner default. Use the explicit transient total owned by the deployment (`resource_request_estimate_bytes`) or a conservative value chosen for an exploratory calibration run. Do not tune it downward merely to make the campaign fit in memory. The report keeps this configured accounting separate from measured RSS/available-memory observations.
+
+Run two otherwise identical reports:
+
+```bash
+python -m local_llm_server.multi_model_device_evidence \
+  --model-a "$MODEL_A" \
+  --model-b "$MODEL_B" \
+  --model-a-path "$MODEL_A_PATH" \
+  --model-b-path "$MODEL_B_PATH" \
+  --backend llama_server \
+  --request-estimate-mib "$REQUEST_ESTIMATE_MIB" \
+  --cycles 2 \
+  --max-tokens 8 \
+  --headroom-gib 0.5 \
+  --success-margin-gib 0.5 \
+  --host-safety-gib 2.0 \
+  --settle-seconds 2 \
+  --output "$RRG5_DIR/multimodel-a.json"
+```
+
+```bash
+python -m local_llm_server.multi_model_device_evidence \
+  --model-a "$MODEL_A" \
+  --model-b "$MODEL_B" \
+  --model-a-path "$MODEL_A_PATH" \
+  --model-b-path "$MODEL_B_PATH" \
+  --backend llama_server \
+  --request-estimate-mib "$REQUEST_ESTIMATE_MIB" \
+  --cycles 2 \
+  --max-tokens 8 \
+  --headroom-gib 0.5 \
+  --success-margin-gib 0.5 \
+  --host-safety-gib 2.0 \
+  --settle-seconds 2 \
+  --output "$RRG5_DIR/multimodel-b.json"
+```
+
+The runner is safety-gated before backend construction. Its usable configured budget includes both resident estimates, `global_max_running × request_estimate`, and the success margin; measured available host memory must additionally satisfy the host-safety margin. A safety refusal is written as evidence and exits non-zero.
+
+Each complete cycle must demonstrate:
+
+- both verified artifacts become simultaneously resident with attributable runtime fingerprints;
+- two different runtimes receive HTTP inference concurrently;
+- two transient reservations overlap in the shared `ResourceManager` ledger;
+- the optional global governor bounds cross-runtime execution while backend batching remains backend-owned;
+- the most pressured sampled macOS point is retained without inducing artificial critical pressure;
+- the pressure policy is evaluated **dry-run only** and `automatic_eviction_exercised=false`;
+- both runtimes unload and configured resident/transient accounting returns to zero;
+- post-stop `available_memory` and parent-process RSS remain observational values, not a pass/fail reclamation threshold;
+- for managed subprocess backends, aggregate RSS of owned backend processes is measured while they exist and only owner count/source are retained after teardown; raw PIDs are never serialized.
+
+The campaign also runs a lease-safe shutdown-under-load phase. One runtime lease is deliberately held past a bounded shutdown timeout: that runtime must remain `FAILED`, owned and accounted while the idle peer may stop. After the lease is released, a second shutdown must clear the remaining runtime and configured accounting. This tests lifecycle ownership without killing an engine that is still leased.
+
+After two reports, run the conservative compatibility/repetition reviewer:
+
+```bash
+python -m local_llm_server.multi_model_evidence_review \
+  "$RRG5_DIR/multimodel-a.json" \
+  "$RRG5_DIR/multimodel-b.json" \
+  --min-reports 2 \
+  --min-complete-cycles 4 \
+  --output "$RRG5_DIR/multimodel-review.json"
+```
+
+A `sufficient_observation_set` means only that the same attributable models/runtime procedure repeatedly exercised identity, transient overlap, cleanup and bounded shutdown successfully. RSS and available-memory deltas remain in the review as raw observations. The reviewer deliberately emits `automatic_eviction_recommendation=not_provided` and `reclamation_safety_claim=false`.
+
+Do not enable automatic pressure eviction solely because the reviewer is sufficient. A future policy decision must inspect the retained memory/pressure observations and define a separate acceptance contract; negative or mixed RRG-5 memory behavior is a valid outcome, not a reason to weaken the procedure.
+
+## 5. Validate the complete minimum L2 hardware bundle
+
+After TH-E1, EV-3, HE-2 and RES-2 exist, run one deterministic review over the local directory:
 
 ```bash
 python -m local_llm_server.l2_evidence_bridge validate-hardware-bundle \
@@ -212,11 +301,13 @@ The command exits successfully only when the minimum L2 evidence contracts are c
 - emits no input paths, prompts or model outputs in the summary;
 - never changes `.engineering/baseline.json` or authorizes automatic eviction.
 
+RRG-5 reports are reviewed separately with `multi_model_evidence_review` and are not silently folded into this minimum L2 validator.
+
 A non-zero exit is evidence of an incomplete/incompatible bundle, not a reason to edit thresholds until green.
 
 ## Evidence completion checklist
 
-The local evidence directory must contain at minimum:
+The minimum L2 evidence directory contains:
 
 ```text
 thinking-campaign.json
@@ -229,4 +320,12 @@ resource-policy-smoke.json
 l2-device-bundle-summary.json
 ```
 
-The source evidence directory may contain private evaluation/model content and must not be committed wholesale. Durable repository truth should use only bounded public-safe conclusions, compatible identities/fingerprints and the validated summary needed for reproducibility.
+The separate RRG-5 directory contains:
+
+```text
+multimodel-a.json
+multimodel-b.json
+multimodel-review.json
+```
+
+Source evidence directories may contain private evaluation/model content and must not be committed wholesale. Durable repository truth should use only bounded public-safe conclusions, compatible identities/fingerprints and validated summaries needed for reproducibility.
