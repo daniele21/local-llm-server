@@ -26,7 +26,7 @@ The control plane remains the canonical owner of residency, admission, lifecycle
 
 | ID | Work | Depends on | State | Exit evidence |
 | --- | --- | --- | --- | --- |
-| RRG-1 | deterministic runtime ownership and bounded lifecycle | — | ACTIVE | teardown/failed-cleanup/reload/shutdown contracts green |
+| RRG-1 | deterministic runtime ownership and bounded lifecycle | — | DONE | strong remote preflight green on PR #154; teardown/failed-cleanup/reload/shutdown contracts accepted |
 | RRG-2 | llama.cpp server modernization and backend identity contract | RRG-1 | READY | version-attributable server adapter + compatibility tests |
 | RRG-3 | resident + transient memory envelope | RRG-1, RRG-2 | READY | deterministic budget arithmetic + request reservation tests |
 | RRG-4 | global multi-model execution governor | RRG-3 | READY | fairness/admission/cancellation tests across runtimes |
