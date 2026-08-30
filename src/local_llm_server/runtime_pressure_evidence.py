@@ -20,7 +20,7 @@ from fastapi.testclient import TestClient
 
 from .product_composition import install_product_http_stack
 from .product_runtime_manager import ProductRuntimeManager
-from .resource_manager import ResourceManager
+from .resource_manager import ReservationState, ResourceManager
 from .resource_policy import ResourcePolicySettings
 from .resources import ResourceObserver, SystemResourceSnapshot
 from .resources_macos import MacOSResourceObserver
@@ -182,7 +182,6 @@ def _run_cycle(
         default_model=options.model_a,
         resource_manager=resources,
     )
-    app = None
     lease_release = threading.Event()
     lease_entered = threading.Event()
     lease_thread: threading.Thread | None = None
@@ -200,19 +199,19 @@ def _run_cycle(
             raise RuntimeError("RRG-5 expected two fresh runtime loads")
 
         after_load = observer.snapshot()
-        app = create_app(manager, settings=ServerSettings(enable_admin_api=True))
-        app.state.resource_policy_settings = resource_settings
-        install_product_http_stack(app, scheduler_settings=scheduler_settings)
+        application = create_app(manager, settings=ServerSettings(enable_admin_api=True))
+        application.state.resource_policy_settings = resource_settings
+        install_product_http_stack(application, scheduler_settings=scheduler_settings)
 
         pressure = _run_concurrent_pressure(
-            app,
+            application,
             models=(runtime_a.key, runtime_b.key),
             max_tokens=options.max_tokens,
         )
-        accounting_after_pressure = resources.summary()
+        accounting_after_pressure = _resource_summary(resources)
 
         manager.unload(runtime_b.key)
-        accounting_after_unload = resources.summary()
+        accounting_after_unload = _resource_summary(resources)
         reloaded_b, loaded_again = manager.load(
             options.model_b,
             **_runtime_overrides(options.backend_b),
@@ -220,7 +219,7 @@ def _run_cycle(
         if not loaded_again:
             raise RuntimeError("RRG-5 reload did not create a fresh runtime")
         reload_status = _single_chat_status(
-            app,
+            application,
             model=reloaded_b.key,
             max_tokens=options.max_tokens,
         )
@@ -247,17 +246,17 @@ def _run_cycle(
         else:
             raise RuntimeError("shutdown unexpectedly completed while an active lease was held")
 
-        retained = resources.summary()
+        retained = _resource_summary(resources)
         active_runtime = manager.resolve(runtime_a.key)
         failed_while_active = active_runtime.state.value == "failed"
-        retained_while_active = retained.get("committed_bytes", 0) > 0
+        retained_while_active = retained["committed_bytes"] > 0
 
         lease_release.set()
         lease_thread.join(timeout=5.0)
         if lease_thread.is_alive():
             raise RuntimeError("bounded active lease did not drain")
         manager.shutdown(timeout_seconds=30.0)
-        final_accounting = resources.summary()
+        final_accounting = _resource_summary(resources)
         after_shutdown = observer.snapshot()
 
         complete = bool(
@@ -267,17 +266,17 @@ def _run_cycle(
             and reload_status == 200
             and failed_while_active
             and retained_while_active
-            and final_accounting.get("committed_bytes") == 0
-            and final_accounting.get("reserved_bytes") == 0
-            and final_accounting.get("reservation_count") == 0
+            and final_accounting["committed_bytes"] == 0
+            and final_accounting["reserved_bytes"] == 0
+            and final_accounting["reservation_count"] == 0
         )
         return {
             "cycle_index": cycle_index,
             "loaded_models": [runtime_a.key, runtime_b.key],
             "after_load": _snapshot_summary(after_load),
             "pressure": pressure,
-            "accounting_after_pressure": _accounting_summary(accounting_after_pressure),
-            "accounting_after_unload": _accounting_summary(accounting_after_unload),
+            "accounting_after_pressure": accounting_after_pressure,
+            "accounting_after_unload": accounting_after_unload,
             "reload_http_status": reload_status,
             "shutdown_under_active_lease": {
                 "initial_shutdown_error_type": shutdown_initial_error,
@@ -285,7 +284,7 @@ def _run_cycle(
                 "accounting_retained_while_active": retained_while_active,
                 "retry_shutdown_completed": True,
             },
-            "final_accounting": _accounting_summary(final_accounting),
+            "final_accounting": final_accounting,
             "after_shutdown": _snapshot_summary(after_shutdown),
             "complete": complete,
         }
@@ -431,11 +430,22 @@ def _available_delta(
     return end - start
 
 
-def _accounting_summary(summary: Mapping[str, object]) -> dict[str, object]:
+def _resource_summary(resources: ResourceManager) -> dict[str, int]:
+    reservations = resources.snapshot()
+    committed = sum(
+        item.accounted_bytes
+        for item in reservations
+        if item.state is ReservationState.COMMITTED
+    )
+    reserved = sum(
+        item.accounted_bytes
+        for item in reservations
+        if item.state is ReservationState.RESERVED
+    )
     return {
-        "committed_bytes": summary.get("committed_bytes"),
-        "reserved_bytes": summary.get("reserved_bytes"),
-        "reservation_count": summary.get("reservation_count"),
+        "committed_bytes": committed,
+        "reserved_bytes": reserved,
+        "reservation_count": len(reservations),
     }
 
 
