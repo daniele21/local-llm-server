@@ -99,7 +99,7 @@ def review_multi_model_evidence(
     reference_key = valid[0]["compatibility_key"]
     compatible = [item for item in valid if item["compatibility_key"] == reference_key]
     if len(compatible) != len(valid):
-        reasons.append("model_runtime_or_procedure_identity_differs")
+        reasons.append("model_runtime_hardware_or_procedure_identity_differs")
         return _result(
             state=MultiModelReviewState.INCOMPATIBLE,
             reports=len(reports),
@@ -144,44 +144,71 @@ def _parse_report(report: Mapping[str, Any]) -> dict[str, Any] | None:
         return None
     procedure = report.get("procedure")
     models = report.get("models")
+    budget = report.get("budget")
+    host_before = report.get("host_before")
     cycles = report.get("cycles")
     shutdown = report.get("shutdown_under_load")
     if (
         not isinstance(procedure, Mapping)
         or procedure.get("name") != "multi_model_resource_governor_v1"
+        or procedure.get("prompt_recorded") is not False
+        or procedure.get("output_recorded") is not False
+        or procedure.get("process_ids_recorded") is not False
+        or procedure.get("automatic_eviction_enabled") is not False
         or not isinstance(models, list)
         or len(models) != 2
         or not all(isinstance(item, Mapping) for item in models)
+        or not isinstance(budget, Mapping)
+        or not isinstance(host_before, Mapping)
         or not isinstance(cycles, list)
         or not isinstance(shutdown, Mapping)
     ):
         return None
 
+    request_estimate = procedure.get("request_estimate_bytes")
+    if not _positive_int(request_estimate):
+        return None
+    if not _valid_models(models):
+        return None
+
     parsed_cycles: list[dict[str, object]] = []
     identity_fingerprints: tuple[str, ...] | None = None
+    cycle_auto_eviction = False
     for cycle in cycles:
         if not isinstance(cycle, Mapping):
             return None
-        identities = cycle.get("runtime_identities")
-        fingerprints = _identity_fingerprints(identities)
+        fingerprints = _identity_fingerprints(cycle.get("runtime_identities"))
         if fingerprints is not None:
             if identity_fingerprints is None:
                 identity_fingerprints = fingerprints
             elif fingerprints != identity_fingerprints:
                 return None
-        final_accounting = cycle.get("configured_accounting_after_unload")
-        clean_accounting = (
-            isinstance(final_accounting, Mapping)
-            and final_accounting.get("reservation_count") == 0
+
+        identity_verified = (
+            cycle.get("runtime_identities_verified") is True
+            and fingerprints is not None
+        )
+        overlap = _transient_overlap_recomputed(cycle, int(request_estimate))
+        clean_accounting = _accounting_clean(
+            cycle.get("configured_accounting_after_unload")
+        )
+        responses_ok = _responses_ok(cycle.get("responses"), models)
+        auto_eviction = cycle.get("automatic_eviction_exercised") is True
+        cycle_auto_eviction = cycle_auto_eviction or auto_eviction
+        recomputed_complete = (
+            cycle.get("complete") is True
+            and identity_verified
+            and overlap
+            and clean_accounting
+            and responses_ok
+            and not auto_eviction
         )
         post_stop = cycle.get("post_stop_observation")
         parsed_cycles.append(
             {
-                "complete": cycle.get("complete") is True,
-                "identity_verified": cycle.get("runtime_identities_verified") is True,
-                "transient_overlap": (
-                    cycle.get("concurrent_transient_overlap_observed") is True
-                ),
+                "complete": recomputed_complete,
+                "identity_verified": identity_verified,
+                "transient_overlap": overlap,
                 "clean_accounting": clean_accounting,
                 "rss_delta": _optional_number(
                     post_stop.get("rss_after_minus_before_bytes")
@@ -196,33 +223,82 @@ def _parse_report(report: Mapping[str, Any]) -> dict[str, Any] | None:
             }
         )
 
-    model_key = tuple(
-        (
-            str(item.get("key")),
-            str(item.get("model_id")),
-            str(item.get("backend")),
-            str(item.get("artifact_sha256")),
-            item.get("estimate_bytes"),
-        )
-        for item in models
+    shutdown_complete = _shutdown_contract_complete(shutdown)
+    report_complete = (
+        report.get("complete") is True
+        and report.get("status") == "complete"
+        and len(parsed_cycles) == procedure.get("cycles")
+        and all(bool(cycle["complete"]) for cycle in parsed_cycles)
+        and shutdown_complete
     )
+    automatic_eviction_exercised = (
+        report.get("automatic_eviction_exercised") is True
+        or cycle_auto_eviction
+        or shutdown.get("automatic_eviction_exercised") is True
+    )
+
     compatibility_key = (
-        model_key,
+        _model_key(models),
         identity_fingerprints,
+        _host_compatibility(host_before),
+        procedure.get("cycles"),
         procedure.get("max_tokens"),
-        procedure.get("request_estimate_bytes"),
+        request_estimate,
         procedure.get("global_max_running"),
         procedure.get("global_queue_capacity"),
         procedure.get("settle_after_unload_seconds"),
         procedure.get("shutdown_timeout_seconds"),
+        procedure.get("sample_interval_seconds"),
+        _budget_compatibility(budget),
     )
     return {
         "compatibility_key": compatibility_key,
         "cycles": parsed_cycles,
-        "shutdown_complete": shutdown.get("complete") is True,
-        "report_complete": report.get("complete") is True,
-        "automatic_eviction_exercised": report.get("automatic_eviction_exercised") is True,
+        "shutdown_complete": shutdown_complete,
+        "report_complete": report_complete,
+        "automatic_eviction_exercised": automatic_eviction_exercised,
     }
+
+
+def _valid_models(models: Sequence[Mapping[str, Any]]) -> bool:
+    seen_keys: set[str] = set()
+    seen_ids: set[str] = set()
+    for item in models:
+        key = item.get("key")
+        model_id = item.get("model_id")
+        backend = item.get("backend")
+        digest = item.get("artifact_sha256")
+        estimate = item.get("estimate_bytes")
+        if (
+            not isinstance(key, str)
+            or not key.strip()
+            or not isinstance(model_id, str)
+            or not model_id.strip()
+            or not isinstance(backend, str)
+            or not backend.strip()
+            or not isinstance(digest, str)
+            or not _is_sha256(digest)
+            or not _positive_int(estimate)
+            or key in seen_keys
+            or model_id in seen_ids
+        ):
+            return False
+        seen_keys.add(key)
+        seen_ids.add(model_id)
+    return True
+
+
+def _model_key(models: Sequence[Mapping[str, Any]]) -> tuple[tuple[object, ...], ...]:
+    return tuple(
+        (
+            str(item["key"]),
+            str(item["model_id"]),
+            str(item["backend"]),
+            str(item["artifact_sha256"]).lower(),
+            int(item["estimate_bytes"]),
+        )
+        for item in models
+    )
 
 
 def _identity_fingerprints(value: object) -> tuple[str, ...] | None:
@@ -233,10 +309,120 @@ def _identity_fingerprints(value: object) -> tuple[str, ...] | None:
         if not isinstance(identity, Mapping):
             return None
         fingerprint = identity.get("fingerprint")
-        if not isinstance(fingerprint, str) or len(fingerprint) != 64:
+        if not isinstance(fingerprint, str) or not _is_sha256(fingerprint):
             return None
-        fingerprints.append(fingerprint)
+        fingerprints.append(fingerprint.lower())
     return tuple(fingerprints)
+
+
+def _responses_ok(
+    value: object,
+    models: Sequence[Mapping[str, Any]],
+) -> bool:
+    if not isinstance(value, list) or len(value) != 2:
+        return False
+    expected = {str(item["key"]) for item in models}
+    observed: set[str] = set()
+    for response in value:
+        if not isinstance(response, Mapping):
+            return False
+        model = response.get("model")
+        status = response.get("http_status")
+        if not isinstance(model, str) or status != 200:
+            return False
+        observed.add(model)
+    return observed == expected
+
+
+def _transient_overlap_recomputed(
+    cycle: Mapping[str, Any],
+    request_estimate_bytes: int,
+) -> bool:
+    peak = cycle.get("configured_accounting_peak")
+    if not isinstance(peak, Mapping):
+        return False
+    transient = peak.get("transient_committed_bytes")
+    return (
+        cycle.get("concurrent_transient_overlap_observed") is True
+        and isinstance(transient, int)
+        and not isinstance(transient, bool)
+        and transient >= 2 * request_estimate_bytes
+    )
+
+
+def _accounting_clean(value: object) -> bool:
+    if not isinstance(value, Mapping):
+        return False
+    expected_zero = (
+        "resident_committed_bytes",
+        "resident_reserved_bytes",
+        "transient_committed_bytes",
+        "transient_reserved_bytes",
+        "reservation_count",
+    )
+    return all(value.get(key) == 0 for key in expected_zero)
+
+
+def _shutdown_contract_complete(shutdown: Mapping[str, Any]) -> bool:
+    if shutdown.get("automatic_eviction_exercised") is True:
+        return False
+    remaining = shutdown.get("remaining_after_first_shutdown")
+    retained_failed_owner = False
+    if isinstance(remaining, list):
+        retained_failed_owner = any(
+            isinstance(item, Mapping)
+            and item.get("state") == "failed"
+            and isinstance(item.get("active_requests"), int)
+            and not isinstance(item.get("active_requests"), bool)
+            and int(item["active_requests"]) > 0
+            for item in remaining
+        )
+    first_accounting = shutdown.get("configured_accounting_after_first_shutdown")
+    retained_accounting = (
+        isinstance(first_accounting, Mapping)
+        and isinstance(first_accounting.get("resident_committed_bytes"), int)
+        and not isinstance(first_accounting.get("resident_committed_bytes"), bool)
+        and int(first_accounting["resident_committed_bytes"]) > 0
+    )
+    return (
+        shutdown.get("complete") is True
+        and shutdown.get("first_shutdown_reported_incomplete") is True
+        and shutdown.get("active_owner_retained_after_timeout") is True
+        and retained_failed_owner
+        and retained_accounting
+        and _accounting_clean(shutdown.get("configured_accounting_after_retry"))
+    )
+
+
+def _host_compatibility(host_before: Mapping[str, Any]) -> tuple[object, ...] | None:
+    total = host_before.get("total_memory_bytes")
+    if not isinstance(total, Mapping):
+        return None
+    value = total.get("value")
+    source = total.get("source")
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value <= 0
+        or source != "measured"
+    ):
+        return None
+    platform_name = host_before.get("platform")
+    if not isinstance(platform_name, str) or not platform_name.strip():
+        return None
+    return (platform_name, value, source)
+
+
+def _budget_compatibility(budget: Mapping[str, Any]) -> tuple[object, ...]:
+    keys = (
+        "resident_estimate_bytes",
+        "transient_capacity_bytes",
+        "success_margin_bytes",
+        "headroom_bytes",
+        "host_safety_bytes",
+        "usable_budget_bytes",
+    )
+    return tuple(budget.get(key) for key in keys)
 
 
 def _totals(items: Sequence[Mapping[str, Any]]) -> dict[str, int]:
@@ -297,6 +483,14 @@ def _optional_number(value: object) -> int | float | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return value
     return None
+
+
+def _positive_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _is_sha256(value: str) -> bool:
+    return len(value) == 64 and all(ch in "0123456789abcdef" for ch in value.lower())
 
 
 def main() -> None:
