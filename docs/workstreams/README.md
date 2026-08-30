@@ -14,6 +14,7 @@ Do not create separate plan/progress/status files for the same workstream. Git h
 
 ## Active
 
+- [`api-blackbox-e2e-hardening.md`](api-blackbox-e2e-hardening.md) — direct external application-to-HTTP product acceptance coverage and final exact-head validation.
 - [`runtime-resource-governor.md`](runtime-resource-governor.md) — deterministic backend ownership, llama.cpp modernization, memory envelopes, global multi-model admission and representative pressure/reclamation evidence.
 - [`runtime-correctness-evidence-hardening.md`](runtime-correctness-evidence-hardening.md) — thinking/structured-output correctness, evaluation canonicalization, verified artifact identity, resource-policy validation and representative hardware evidence.
 - [`l2-reference-grade.md`](l2-reference-grade.md) — repository-side L2 is accepted; full engineering L2 remains gated by retained representative Apple Silicon/model/backend evidence.
