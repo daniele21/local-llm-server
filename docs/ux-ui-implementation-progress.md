@@ -37,7 +37,7 @@ Canonical experience contract: [`../design/ux-contract.json`](../design/ux-contr
 | Settings/privacy | PARTIAL | read-only effective policy/resource/residency/scheduler state | manual acceptance + mutation semantics only if product requires them |
 | Responsive | EVIDENCE | min-width guards, single-column breakpoints, action stacking and horizontal table access | real phone/tablet/desktop + 200% zoom verification |
 | Accessibility | EVIDENCE | route navigation semantics, local task-tab semantics, native details disclosures, visible evidence-kind text, focus expansion, non-color state text and reduced motion | contrast + full workflow/manual audit |
-| Visual regression | PARTIAL | blocking SHA-256 pixel contracts for deterministic Overview and Evaluation setup fixtures at 1440×1000 dark/reduced-motion | stable responsive/state coverage only as additional high-risk surfaces justify it |
+| Visual regression | PARTIAL | blocking perceptual geometry/hierarchy fingerprints for deterministic Overview and Evaluation setup fixtures at 1440×1000 dark/reduced-motion | stable responsive/state coverage only as additional high-risk surfaces justify it |
 | Hardware UX evidence | PARTIAL | repeatable worker reclamation CLI/report schema exists | representative device reports + real runtime screenshots |
 
 ## Current UX v2 structural state
@@ -74,7 +74,7 @@ Fine-grained timing, fingerprint, admission and provenance remain available unde
 
 When accounting headroom is constrained, Overview sends the user to the existing Models & Runtimes feasibility/recovery flow instead of introducing a second eviction mechanism.
 
-The deterministic 1440×1000 dark/reduced-motion Overview fixture now has a blocking in-memory screenshot SHA-256 contract. It protects the stable decision hierarchy only; it is not representative-hardware evidence and does not replace responsive/manual review.
+The deterministic 1440×1000 dark/reduced-motion Overview fixture now has a blocking in-memory perceptual geometry/hierarchy fingerprint. The screenshot is normalized to a small luminance edge grid so insignificant rasterization noise is ignored; the source PNG is not retained. This is not representative-hardware evidence and does not replace responsive/manual review.
 
 ### Models & Runtimes
 
@@ -112,7 +112,7 @@ Reproducibility and management controls remain available without dominating that
 
 Result quality/success/time/token metrics reuse canonical `EvidenceValue` semantics with visible evidence-kind text. Persisted history, comparison, per-sample detail and `/evaluations/{opaque-run-id}` deep links remain unchanged in ownership and behavior.
 
-The deterministic 1440×1000 dark/reduced-motion Evaluation setup fixture now has a blocking in-memory screenshot SHA-256 contract. The PNG is not retained by the normal gate. Richer experiment controls such as explicit warm/cold mode or user-configurable quality/performance weighting remain out of scope until a real server-owned contract exists.
+The deterministic 1440×1000 dark/reduced-motion Evaluation setup form now has the same blocking in-memory perceptual geometry/hierarchy contract. It deliberately excludes run/history state that is not stable setup geometry. Richer experiment controls such as explicit warm/cold mode or user-configurable quality/performance weighting remain out of scope until a real server-owned contract exists.
 
 ### System / Diagnostics
 
@@ -157,7 +157,7 @@ Verify on the real integrated UI:
 
 ### H2b — Responsive and visual regression
 
-The first targeted visual contracts are now integrated for stable Overview and Evaluation setup fixture surfaces. Extend visual coverage only when a state is stable and high-risk enough to justify a strict pixel contract. Candidate future states remain loading, empty/cold, unavailable source, warning/accounting constraint, error/action failure, success/resident/evidence-grade and insufficient-capacity/load-feasibility across representative widths.
+The first targeted perceptual visual contracts are integrated for stable Overview and Evaluation setup fixture surfaces. Extend visual coverage only when a state is stable and high-risk enough to justify a blocking geometry/hierarchy contract. Candidate future states remain loading, empty/cold, unavailable source, warning/accounting constraint, error/action failure, success/resident/evidence-grade and insufficient-capacity/load-feasibility across representative widths.
 
 Real runtime screenshots remain separate from deterministic fixture visual evidence and must not be promoted from hosted CI.
 
@@ -187,8 +187,8 @@ After the P2 surface acceptance stabilizes:
 - capability truth is server-owned; JavaScript presents/filters it but does not invent support.
 - custom test-set files are data, not executable scorer/plugin definitions.
 - explicit eviction/unload success is not presented as a host-memory reclamation guarantee.
-- deterministic accessibility/pixel-fixture tests are not a substitute for manual contrast/zoom or real hardware evidence.
-- a changed visual digest requires intentional review of the rendered fixture; it must not be mechanically updated just to make CI green.
+- deterministic accessibility/fixture-visual tests are not a substitute for manual contrast/zoom or real hardware evidence.
+- a changed perceptual visual fingerprint requires intentional review of the rendered fixture; it must not be mechanically updated just to make CI green.
 
 ## Acceptance still pending
 
