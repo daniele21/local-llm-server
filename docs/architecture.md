@@ -5,7 +5,7 @@ Document type: architecture
 Owner: runtime-and-platform
 Canonical scope: current.architecture
 Read when: changing runtime boundaries, composition roots, resource ownership, trust/data flow or backend integration
-Last reviewed: 2026-08-17
+Last reviewed: 2026-08-30
 
 This document owns the **current integrated architecture** of Local LLM Server. [`architecture-evolution-plan.md`](architecture-evolution-plan.md) remains the target/migration document; [`current-state.md`](current-state.md) owns operational progress and evidence blockers.
 
@@ -84,12 +84,16 @@ The in-process engine path and process-isolated worker/evidence path have differ
 
 ## Resource and scheduling boundary
 
-- `resource_manager.py` owns configured budget/headroom, reservation, admission, accounting and release.
-- `request_scheduler.py` owns bounded request admission/queue behavior.
+- `resource_manager.py` owns the single configured memory budget/headroom ledger, resident/transient reservation, admission, accounting and release.
+- `request_scheduler.py` composes optional per-runtime FIFO admission with optional global execution admission for supported HTTP inference; it does not own backend batching or memory accounting.
+- `global_execution_governor.py` owns the optional bounded cross-runtime execution pool and runtime round-robin fairness. It mirrors each runtime's configured concurrency only as an eligibility bound so global slots are not consumed by work that would immediately block on the runtime semaphore; the semaphore remains the final per-runtime safeguard.
+- first-class resident transcription consumes the same attached global governor before transient-memory reservation and runtime lease, so chat/vision and ASR participate in one cross-runtime execution bound.
 - `residency_eviction.py` owns deterministic explicit LRU/TTL candidate selection.
 - `residency_pressure.py` owns pressure-policy evaluation and hysteresis.
 
-Automatic pressure-triggered eviction remains disabled until its representative evidence gate is satisfied. Resource-policy code must never silently substitute a different model or evict an actively leased runtime as an admission side effect.
+Global execution admission is explicit and opt-in; the control plane does not silently reduce server concurrency. Per-runtime queueing remains independently opt-in. When both are configured, one pre-execution timeout budget spans both waits. Requests waiting only for execution capacity do not reserve transient memory. Streaming requests retain acquired execution slots until their response body completes or is cancelled.
+
+Automatic pressure-triggered eviction remains disabled until its representative evidence gate is satisfied. Resource-policy code must never silently substitute a different model or evict an actively leased runtime as an admission side effect. Global execution admission does not imply that an already-running in-process backend can always be interrupted.
 
 ## Backend boundary
 
