@@ -24,7 +24,25 @@ _BACKEND_CONFIG_CAPABILITIES: dict[str, tuple[str, ...]] = {
         "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch",
         "timeout", "offload_kqv", "flash_attn", "use_mmap",
     ),
-    "llama_server": ("ctx_size", "timeout", "max_concurrent_requests"),
+    "llama_server": (
+        "ctx_size",
+        "n_threads",
+        "n_batch",
+        "n_ubatch",
+        "timeout",
+        "flash_attn",
+        "max_concurrent_requests",
+        "llama_server_cont_batching",
+        "llama_server_kv_unified",
+        "llama_server_gpu_layers",
+        "llama_server_load_mode",
+        "llama_server_fit",
+        "llama_server_fit_target_mib",
+        "llama_server_fit_ctx",
+        "llama_server_cache_type_k",
+        "llama_server_cache_type_v",
+        "llama_server_cache_ram_mib",
+    ),
     "mlx": ("max_kv_size",),
     "mlx_vlm_server": ("timeout", "max_concurrent_requests", "max_kv_size"),
 }
@@ -99,63 +117,50 @@ class ModelRuntime:
     def model_id(self) -> str:
         return str(self.cfg["model_id"])
 
-    def snapshot_status(self) -> dict[str, Any]:
-        with self.status_lock:
-            result = dict(self.status)
-        if result["active"] and result["phase"] == "generating" and result["output_chunks"] > 0:
-            elapsed = time.perf_counter() - result["started_at"]
-            if elapsed > 0:
-                result["chunks_per_second"] = result["output_chunks"] / elapsed
-        result["key"] = self.key
-        result["backend"] = getattr(self.engine, "backend", self.cfg.get("backend", "unknown"))
-        result["loaded_at"] = self.loaded_at
-        result["state"] = self.state.value
-        result["active_requests"] = self.active_requests
-        result["max_concurrent_requests"] = int(
-            self.cfg.get("max_concurrent_requests") or 1
-        )
-        resource_admission = self.cfg.get("resource_admission")
-        result["resource_admission"] = (
-            dict(resource_admission) if isinstance(resource_admission, dict) else None
-        )
-        return result
+    @property
+    def backend(self) -> str:
+        return str(self.cfg.get("backend", getattr(self.engine, "backend", "unknown")))
 
-    def mark_started(self, max_tokens: int) -> None:
-        with self.status_lock:
-            if not self.status["active"]:
-                self.status.update({
-                    "phase": "prompt_eval",
-                    "tokens_generated": 0,
-                    "output_chunks": 0,
-                    "output_characters": 0,
-                    "max_tokens": max_tokens,
-                    "started_at": time.perf_counter(),
-                    "last_content": "",
-                })
-            self.status["active"] = True
-            self.status["active_requests"] = self.active_requests
+    @property
+    def busy(self) -> bool:
+        return self.active_requests > 0
 
-    def mark_generating(self) -> None:
+    def mark_start(self, max_tokens: int) -> None:
+        with self.status_lock:
+            self.status.update({
+                "active": True,
+                "active_requests": self.active_requests,
+                "phase": "prefill",
+                "tokens_generated": 0,
+                "output_chunks": 0,
+                "output_characters": 0,
+                "max_tokens": max_tokens,
+                "started_at": time.time(),
+                "last_token_at": 0.0,
+                "tokens_per_second": 0.0,
+                "model": self.model_id,
+                "last_content": "",
+            })
+
+    def mark_chunk(self, content: str, total_tokens: int | None = None) -> None:
+        now = time.time()
         with self.status_lock:
             self.status["phase"] = "generating"
-            self.status["started_at"] = time.perf_counter()
-
-    def record_output(self, content: str, *, full_content: str | None = None) -> None:
-        with self.status_lock:
             self.status["output_chunks"] += 1
             self.status["output_characters"] += len(content)
-            # Deprecated compatibility field; use output_chunks for new clients.
-            self.status["tokens_generated"] = self.status["output_chunks"]
-            self.status["last_token_at"] = time.perf_counter()
-            previous = self.status["last_content"] + content
-            self.status["last_content"] = (full_content or previous)[-100:]
+            if total_tokens is not None:
+                self.status["tokens_generated"] = total_tokens
+            self.status["last_token_at"] = now
+            self.status["last_content"] = content[-200:]
+            elapsed = now - self.status["started_at"]
+            if elapsed > 0 and self.status["tokens_generated"]:
+                self.status["tokens_per_second"] = self.status["tokens_generated"] / elapsed
 
     def mark_idle(self) -> None:
         with self.status_lock:
-            remaining = max(0, self.active_requests - 1)
-            self.status["active_requests"] = remaining
-            if remaining == 0:
-                self.status["active"] = False
+            self.status["active"] = self.active_requests > 0
+            self.status["active_requests"] = self.active_requests
+            if not self.status["active"]:
                 self.status["phase"] = "idle"
 
 
@@ -186,6 +191,7 @@ class ModelRuntimeManager:
         *,
         resource_manager: ResourceManager | None = None,
     ) -> None:
+        self.default_model = default_model
         self._runtimes: dict[str, ModelRuntime] = {}
         self._aliases: dict[str, str] = {}
         self._loading: set[str] = set()
@@ -194,8 +200,6 @@ class ModelRuntimeManager:
         self._manager_lock = threading.RLock()
         self._condition = threading.Condition(self._manager_lock)
         self._resource_manager = resource_manager
-        self._reservation_counter = 0
-        self.default_model = default_model
 
     @property
     def resource_manager(self) -> ResourceManager | None:
@@ -210,20 +214,23 @@ class ModelRuntimeManager:
         runtime_key = str(key or cfg["model"])
         model_id = str(cfg["model_id"])
         with self._manager_lock:
-            for alias in {runtime_key, model_id}:
-                existing_alias = self._aliases.get(alias)
-                if existing_alias is not None:
-                    raise ValueError(
-                        f"Alias '{alias}' is already used by loaded model '{existing_alias}'."
-                    )
             if runtime_key in self._runtimes:
-                raise ValueError(
-                    f"Model '{runtime_key}' is already loaded."
-                )
+                raise ValueError(f"Model '{runtime_key}' is already loaded.")
+            for alias in (runtime_key, model_id):
+                owner = self._aliases.get(alias)
+                if owner is not None and owner != runtime_key:
+                    raise ValueError(f"Alias '{alias}' is already used by loaded model '{owner}'.")
+            port_field = self._PORT_FIELDS.get(str(cfg.get("backend")))
+            if port_field and cfg.get(port_field) is not None:
+                port = int(cfg[port_field])
+                if port in self._reserved_ports:
+                    raise ValueError(f"Backend port {port} is already reserved.")
+                self._reserved_ports.add(port)
+
             runtime = ModelRuntime(runtime_key, cfg, engine)
             self._runtimes[runtime_key] = runtime
             self._aliases[runtime_key] = runtime_key
-            self._aliases[runtime.model_id] = runtime_key
+            self._aliases[model_id] = runtime_key
             if self.default_model is None:
                 self.default_model = runtime_key
             return runtime
@@ -235,22 +242,16 @@ class ModelRuntimeManager:
         with self._manager_lock:
             existing = self._resolve_unlocked(model)
             if existing is not None:
-                if existing.state is not RuntimeState.READY:
-                    raise RuntimeError(f"Model '{existing.key}' is not ready.")
                 return existing, False
             if model in self._loading:
                 raise RuntimeError(f"Model '{model}' is already loading.")
-            cfg = build_config(model=model, **explicit)
-            self._assign_private_port(cfg)
-            field_name = self._PORT_FIELDS.get(str(cfg.get("backend")))
-            reserved_port = int(cfg[field_name]) if field_name else None
-            if reserved_port is not None:
-                self._reserved_ports.add(reserved_port)
             self._loading.add(model)
 
         reservation_id: str | None = None
         engine = None
         try:
+            cfg = build_config(model=model, **explicit)
+            cfg = self._assign_private_port(cfg)
             reservation_id = self._reserve_runtime_load(model, cfg)
             engine = load_llm(cfg)
             self._commit_runtime_load(reservation_id, cfg)
@@ -275,35 +276,31 @@ class ModelRuntimeManager:
         finally:
             with self._manager_lock:
                 self._loading.discard(model)
-                if reserved_port is not None:
-                    self._reserved_ports.discard(reserved_port)
+                self._condition.notify_all()
+
+    def _assign_private_port(self, cfg: dict[str, Any]) -> dict[str, Any]:
+        port_field = self._PORT_FIELDS.get(str(cfg.get("backend")))
+        if not port_field:
+            return cfg
+        candidate = int(cfg.get(port_field) or 0)
+        if candidate <= 0:
+            return cfg
+        with self._manager_lock:
+            while candidate in self._reserved_ports:
+                candidate += 1
+        updated = dict(cfg)
+        updated[port_field] = candidate
+        return updated
 
     def resolve(self, model: str | None = None) -> ModelRuntime:
-        target = model or self.default_model
-        if not target:
-            raise LookupError("No default model is configured.")
         with self._manager_lock:
-            runtime = self._resolve_unlocked(str(target))
+            target = model or self.default_model
+            if target is None:
+                raise LookupError("No default model is loaded.")
+            runtime = self._resolve_unlocked(target)
             if runtime is None:
                 raise LookupError(f"Model '{target}' is not loaded.")
             return runtime
-
-    @contextmanager
-    def lease_runtime(self, runtime: ModelRuntime) -> Iterator[ModelRuntime]:
-        """Keep a resolved runtime alive for the full duration of one request."""
-        with self._condition:
-            current = self._runtimes.get(runtime.key)
-            if current is not runtime or runtime.state is not RuntimeState.READY:
-                raise LookupError(f"Model '{runtime.key}' is no longer available.")
-            runtime.active_requests += 1
-
-        try:
-            with runtime.admission:
-                yield runtime
-        finally:
-            with self._condition:
-                runtime.active_requests -= 1
-                self._condition.notify_all()
 
     def _resolve_unlocked(self, model: str) -> ModelRuntime | None:
         key = self._aliases.get(model, model)
@@ -337,7 +334,7 @@ class ModelRuntimeManager:
         try:
             cfg = build_config(model=current.key, **explicit)
             with self._manager_lock:
-                self._assign_private_port(cfg)
+                cfg = self._assign_private_port(cfg)
             reservation_id = self._reserve_runtime_load(current.key, cfg)
             new_engine = load_llm(cfg)
             self._commit_runtime_load(reservation_id, cfg)
@@ -348,9 +345,7 @@ class ModelRuntimeManager:
                 resource_reservation_id=reservation_id,
             )
             with self._manager_lock:
-                if self._runtimes.get(current.key) is not current:
-                    raise RuntimeError(f"Model '{current.key}' changed while reloading.")
-                for alias in {replacement.key, replacement.model_id}:
+                for alias in (current.key, replacement.model_id):
                     owner = self._aliases.get(alias)
                     if owner is not None and owner != current.key:
                         raise ValueError(
@@ -571,27 +566,23 @@ class ModelRuntimeManager:
         estimate = estimated_runtime_load_bytes(cfg)
         manager = self._resource_manager
         if manager is None or estimate is None:
-            cfg["resource_admission"] = admission_metadata(None, estimate_bytes=estimate)
             return None
-
-        reservation_id = self._next_reservation_id(runtime_key)
-        result = manager.reserve(reservation_id, estimate)
-        cfg["resource_admission"] = admission_metadata(result, estimate_bytes=estimate)
-        if result.decision is AdmissionDecision.REJECT:
+        result = manager.reserve(
+            owner=f"runtime:{runtime_key}",
+            requested_bytes=estimate,
+            metadata=admission_metadata(cfg),
+        )
+        cfg["resource_admission"] = result.to_public_dict()
+        if result.decision is AdmissionDecision.REJECT or result.reservation is None:
             raise ResourceAdmissionError(result)
-        if result.decision is AdmissionDecision.UNKNOWN:
-            # ResourceManager intentionally does not create a reservation when
-            # there is no enforceable configured budget.
-            return None
-        return reservation_id
+        return result.reservation.reservation_id
 
     def _commit_runtime_load(self, reservation_id: str | None, cfg: dict[str, Any]) -> None:
         manager = self._resource_manager
-        if reservation_id is None or manager is None:
+        if manager is None or reservation_id is None:
             return
-        result = manager.commit(reservation_id)
-        cfg["resource_admission"] = admission_metadata(
-            result,
+        result = manager.commit(
+            reservation_id,
             estimate_bytes=estimated_runtime_load_bytes(cfg),
         )
         if result.decision is AdmissionDecision.REJECT:
@@ -600,28 +591,40 @@ class ModelRuntimeManager:
             raise ResourceAdmissionError(result)
 
     def _rollback_runtime_load(self, reservation_id: str | None) -> None:
-        if reservation_id is not None and self._resource_manager is not None:
-            self._resource_manager.rollback(reservation_id)
+        manager = self._resource_manager
+        if manager is not None and reservation_id is not None:
+            manager.rollback(reservation_id)
 
     def _release_runtime_load(self, reservation_id: str | None) -> None:
-        if reservation_id is not None and self._resource_manager is not None:
-            self._resource_manager.release(reservation_id)
+        manager = self._resource_manager
+        if manager is not None and reservation_id is not None:
+            manager.release(reservation_id)
 
-    def _next_reservation_id(self, runtime_key: str) -> str:
+    @contextmanager
+    def lease_runtime(self, runtime: ModelRuntime) -> Iterator[ModelRuntime]:
         with self._manager_lock:
-            self._reservation_counter += 1
-            return f"runtime:{runtime_key}:{self._reservation_counter}"
-
-    def _assign_private_port(self, cfg: dict[str, Any]) -> None:
-        field_name = self._PORT_FIELDS.get(str(cfg.get("backend")))
-        if not field_name:
-            return
-        used = set(self._reserved_ports)
-        for runtime in self._runtimes.values():
-            for private_port_field in self._PORT_FIELDS.values():
-                if runtime.cfg.get(private_port_field) is not None:
-                    used.add(int(runtime.cfg[private_port_field]))
-        port = int(cfg.get(field_name) or 0)
-        while port in used:
-            port += 1
-        cfg[field_name] = port
+            if (
+                self._runtimes.get(runtime.key) is not runtime
+                or runtime.state is not RuntimeState.READY
+            ):
+                raise LookupError(f"Model '{runtime.key}' is no longer available.")
+        acquired = runtime.admission.acquire(blocking=False)
+        if not acquired:
+            raise RuntimeError(f"Model '{runtime.key}' is at its concurrency limit.")
+        with self._condition:
+            if (
+                self._runtimes.get(runtime.key) is not runtime
+                or runtime.state is not RuntimeState.READY
+            ):
+                runtime.admission.release()
+                raise LookupError(f"Model '{runtime.key}' is no longer available.")
+            runtime.active_requests += 1
+            runtime.mark_idle()
+        try:
+            yield runtime
+        finally:
+            with self._condition:
+                runtime.active_requests = max(0, runtime.active_requests - 1)
+                runtime.mark_idle()
+                self._condition.notify_all()
+            runtime.admission.release()
