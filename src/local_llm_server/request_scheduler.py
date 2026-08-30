@@ -193,8 +193,7 @@ def install_request_scheduler(
                     )
                     return _scheduler_error_response(_admission_timeout_error())
                 try:
-                    permit = await asyncio.to_thread(
-                        governor.acquire,
+                    governor.submit(
                         runtime.key,
                         global_request_id,
                         runtime_max_running=max(
@@ -203,6 +202,7 @@ def install_request_scheduler(
                         ),
                         timeout_seconds=remaining,
                     )
+                    permit = await asyncio.to_thread(governor.wait, global_request_id)
                 except InferenceError as exc:
                     await _release_admission(
                         gate=gate,
