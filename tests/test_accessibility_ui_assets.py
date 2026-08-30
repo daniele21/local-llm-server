@@ -75,9 +75,8 @@ def test_status_component_has_visible_text_plus_non_textual_indicator_contract()
 
     assert ".ds-status::before" in css
     assert '.ds-status[data-status="ready"]' in css
+    assert '.ds-status[data-status="warning"]' in css
     assert "color: var(--ds-text)" in css
-    # The pseudo-element is supplementary; status labels stay in DOM text in
-    # source-backed renderers rather than relying on a color-only class.
     shell = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
     assert 'data-status="loading">Loading sources</span>' in shell
 
