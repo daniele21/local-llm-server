@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import threading
 import time
 from typing import Any
 
@@ -21,6 +22,7 @@ ALT_MODEL_KEY = "e2e-alt"
 ALT_MODEL_ID = "org/e2e-alt"
 HOST = "127.0.0.1"
 PORT = 8765
+PARALLEL_BARRIER = threading.Barrier(2)
 
 
 def _runtime_config(
@@ -99,8 +101,17 @@ class DeterministicBrowserEngine:
         if "[backend-error]" in _last_user_text(payload):
             raise RuntimeError("deterministic fixture backend failure")
 
+    def _synchronize_if_requested(self, payload: dict[str, Any]) -> None:
+        if "[parallel-probe]" not in _last_user_text(payload):
+            return
+        try:
+            PARALLEL_BARRIER.wait(timeout=2.0)
+        except threading.BrokenBarrierError as exc:
+            raise RuntimeError("cross-runtime parallel probe did not overlap") from exc
+
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._raise_if_requested(payload)
+        self._synchronize_if_requested(payload)
         return {
             "id": "chatcmpl-e2e",
             "object": "chat.completion",
