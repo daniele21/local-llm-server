@@ -8,6 +8,7 @@
     const stylesheets = [
         ['data-local-llm-design-system', '/static/design-system.css'],
         ['data-local-llm-control-plane-shell', '/static/control-plane-shell.css'],
+        ['data-local-llm-control-plane-models', '/static/control-plane-models.css'],
         ['data-local-llm-control-plane-capabilities', '/static/control-plane-capabilities.css'],
         ['data-local-llm-control-plane-system', '/static/control-plane-system.css'],
         ['data-local-llm-control-plane-evaluation', '/static/control-plane-evaluation.css'],
