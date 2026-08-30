@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import threading
 import time
 from typing import Any
 
@@ -21,15 +22,23 @@ ALT_MODEL_KEY = "e2e-alt"
 ALT_MODEL_ID = "org/e2e-alt"
 HOST = "127.0.0.1"
 PORT = 8765
+PARALLEL_BARRIER = threading.Barrier(2)
 
 
-def _runtime_config(model_key: str, model_id: str) -> dict[str, Any]:
-    return {
+def _runtime_config(
+    model_key: str,
+    model_id: str,
+    *,
+    modalities: list[str] | None = None,
+    tasks: list[str] | None = None,
+) -> dict[str, Any]:
+    resolved_modalities = list(modalities or ["text"])
+    cfg: dict[str, Any] = {
         "model": model_key,
         "model_id": model_id,
         "model_path": f"/e2e/{model_key}.gguf",
         "backend": "llama_cpp",
-        "modalities": ["text"],
+        "modalities": resolved_modalities,
         "thinking_mode": "switchable",
         "enable_thinking": False,
         "show_thinking": False,
@@ -41,6 +50,9 @@ def _runtime_config(model_key: str, model_id: str) -> dict[str, Any]:
         "default_repeat_penalty": 1.0,
         "max_concurrent_requests": 1,
     }
+    if tasks:
+        cfg["tasks"] = list(tasks)
+    return cfg
 
 
 def _structured(payload: dict[str, Any]) -> bool:
@@ -80,11 +92,26 @@ class DeterministicBrowserEngine:
     backend = "llama_cpp"
     backend_version = "e2e-fixture"
 
-    def __init__(self, model_id: str, answer: int) -> None:
+    def __init__(self, model_id: str, answer: int, *, transcription: bool = False) -> None:
         self.model_id = model_id
         self.answer = answer
+        self.transcription = transcription
+
+    def _raise_if_requested(self, payload: dict[str, Any]) -> None:
+        if "[backend-error]" in _last_user_text(payload):
+            raise RuntimeError("deterministic fixture backend failure")
+
+    def _synchronize_if_requested(self, payload: dict[str, Any]) -> None:
+        if "[parallel-probe]" not in _last_user_text(payload):
+            return
+        try:
+            PARALLEL_BARRIER.wait(timeout=2.0)
+        except threading.BrokenBarrierError as exc:
+            raise RuntimeError("cross-runtime parallel probe did not overlap") from exc
 
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        self._raise_if_requested(payload)
+        self._synchronize_if_requested(payload)
         return {
             "id": "chatcmpl-e2e",
             "object": "chat.completion",
@@ -94,6 +121,7 @@ class DeterministicBrowserEngine:
         }
 
     def stream(self, payload: dict[str, Any]):
+        self._raise_if_requested(payload)
         final = f'{{"answer":{self.answer}}}' if _structured(payload) else str(self.answer)
         slow = "[slow-status]" in _last_user_text(payload)
         if payload.get("enable_thinking") is True:
@@ -108,21 +136,35 @@ class DeterministicBrowserEngine:
                 time.sleep(0.8)
         yield _stream_event(self.model_id, None, finish_reason="stop")
 
+    def transcribe(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not self.transcription:
+            raise RuntimeError("transcription adapter is disabled for this fixture runtime")
+        return {
+            "text": "deterministic transcript",
+            "language": payload.get("language") or "en",
+            "duration": 1.25,
+            "segments": [
+                {"start": 0.0, "end": 1.25, "text": "deterministic transcript"}
+            ],
+        }
+
     def close(self) -> None:
         return None
 
 
-def _catalog_item(model_key: str, model_id: str) -> dict[str, Any]:
-    cfg = _runtime_config(model_key, model_id)
+def _catalog_item(cfg: dict[str, Any]) -> dict[str, Any]:
+    model_key = str(cfg["model"])
+    model_id = str(cfg["model_id"])
+    modalities = list(cfg.get("modalities") or ["text"])
     capability = capability_catalog_item(model_key, cfg)
     return {
         "key": model_key,
         "model_id": model_id,
         "size_gb": 0.0,
         "tags": ["e2e"],
-        "backend": "llama_cpp",
-        "multimodal": False,
-        "modalities": ["text"],
+        "backend": cfg.get("backend", "llama_cpp"),
+        "multimodal": len(set(modalities)) > 1,
+        "modalities": modalities,
         "capabilities": capability["capabilities"],
         "capability_source": capability["capability_source"],
         "downloaded": True,
@@ -146,18 +188,40 @@ def _owned_run_state_from_environment() -> OwnedRunState:
 
 
 def build_app(run_state: OwnedRunState):
-    local_llm_server.list_models = lambda: [
-        _catalog_item(MODEL_KEY, MODEL_ID),
-        _catalog_item(ALT_MODEL_KEY, ALT_MODEL_ID),
-    ]
+    text_cfg = _runtime_config(MODEL_KEY, MODEL_ID)
+    alt_cfg = _runtime_config(
+        ALT_MODEL_KEY,
+        ALT_MODEL_ID,
+        modalities=["text", "image", "audio"],
+        tasks=["chat", "vision_language", "transcription"],
+    )
+    catalog = [text_cfg, alt_cfg]
+    local_llm_server.list_models = lambda: [_catalog_item(cfg) for cfg in catalog]
 
     manager = ProductRuntimeManager(default_model=MODEL_KEY)
-    manager.add(_runtime_config(MODEL_KEY, MODEL_ID), DeterministicBrowserEngine(MODEL_ID, 42))
-    manager.add(_runtime_config(ALT_MODEL_KEY, ALT_MODEL_ID), DeterministicBrowserEngine(ALT_MODEL_ID, 84))
+    manager.add(text_cfg, DeterministicBrowserEngine(MODEL_ID, 42))
+    manager.add(
+        alt_cfg,
+        DeterministicBrowserEngine(ALT_MODEL_ID, 84, transcription=True),
+    )
     application = create_app(manager, settings=ServerSettings(enable_admin_api=True))
     install_product_http_stack(application, evaluation_root=run_state.evaluation_root)
     application.state.e2e_run_id = run_state.run_id
     application.state.e2e_root = str(run_state.root)
+
+    @application.post("/__e2e__/reset-custom-test-sets", include_in_schema=False)
+    def reset_custom_test_sets() -> dict[str, bool]:
+        if not run_state.owns_root():
+            raise RuntimeError("E2E run root ownership was lost")
+        root = application.state.evaluation_test_set_store.root.resolve()
+        if root.parent != run_state.evaluation_root.resolve():
+            raise RuntimeError("E2E test-set store escaped the owned evaluation root")
+        if root.exists():
+            for path in root.glob("*.json"):
+                if path.is_file() and path.parent.resolve() == root:
+                    path.unlink()
+        return {"ok": True}
+
     return application
 
 

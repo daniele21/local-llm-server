@@ -3,7 +3,7 @@
   "contract_version": "0.1.0",
   "applicability": {
     "status": "required",
-    "reason": "The browser control plane and local inference server expose complete user/system journeys whose assembled HTTP, UI, runtime-state and cleanup behavior cannot be proven by lower-level tests alone."
+    "reason": "The browser control plane and local inference server expose complete user/system and external-application journeys whose assembled HTTP, UI, runtime-state and cleanup behavior cannot be proven by lower-level tests alone."
   },
   "principles": {
     "final_environment_should_confirm_not_discover": true,
@@ -33,6 +33,7 @@
         "unified-memory capacity and pressure",
         "production-sized context input and output shape",
         "browser-to-HTTP control-plane integration",
+        "external application-to-HTTP API integration",
         "sustained latency throughput thermal and power behavior when performance is claimed"
       ]
     }
@@ -43,11 +44,11 @@
       "fidelity_class": "host_or_fake",
       "automation": "automated",
       "platform": "GitHub-hosted Ubuntu with Chromium",
-      "artifact_surface": "source checkout running the real FastAPI/middleware/UI stack with a deterministic in-process fake inference engine",
+      "artifact_surface": "source checkout running the real FastAPI/middleware/UI stack with deterministic in-process inference, exercised both through Chromium user journeys and a direct external loopback HTTP API client",
       "target_environment_refs": ["target-apple-silicon-local-ai"],
       "known_gaps": [
         "does not load a production model",
-        "does not execute MLX or llama.cpp on Apple Silicon",
+        "does not execute production MLX or llama.cpp backend processes on Apple Silicon",
         "does not reproduce target unified-memory pressure thermals or accelerator behavior",
         "does not prove production-model latency throughput or output quality"
       ]
@@ -109,6 +110,19 @@
       "residual_gaps": [
         "real model loading token generation cancellation and backend error behavior require representative hardware evidence",
         "latency throughput memory and thermal claims require the recorded target model backend and workload"
+      ],
+      "real_environment_confirmation": "required",
+      "automation_gap_reason": null
+    },
+    {
+      "id": "application-api-consumer-contract",
+      "claim": "An external local application can discover runtime identity and capabilities, use text vision transcription evaluation and policy/admin HTTP contracts, select explicit or default routes, receive fail-closed errors and privacy-safe streams, exercise different resident runtimes concurrently and recover after a backend-originated failure without calling product internals.",
+      "target_environment_refs": ["target-apple-silicon-local-ai"],
+      "automated_environment_refs": ["ci-studio-deterministic"],
+      "minimum_automated_fidelity": "host_or_fake",
+      "residual_gaps": [
+        "the deterministic engine does not prove production llama.cpp or MLX adapter process behavior, model loading or native cancellation semantics",
+        "real backend compatibility memory reclamation latency throughput quality and accelerator behavior require representative Apple Silicon evidence"
       ],
       "real_environment_confirmation": "required",
       "automation_gap_reason": null
