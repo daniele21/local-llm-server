@@ -30,7 +30,7 @@ The control plane remains the canonical owner of residency, admission, lifecycle
 | RRG-2 | llama.cpp server modernization and backend identity contract | RRG-1 | DONE | strong remote preflight green on PR #156; attributable v0.3 server adapter/config/identity contracts accepted |
 | RRG-3 | resident + transient memory envelope | RRG-1, RRG-2 | DONE | strong remote preflight green on PR #157; shared resident/transient budget, stream/cancel and ASR request accounting accepted |
 | RRG-4 | global multi-model execution governor | RRG-3 | DONE | strong remote preflight green on PR #158; global bound, runtime fairness, cancellation/deadline, streaming, ASR and evaluation contracts accepted |
-| RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | ACTIVE | deterministic runner/reviewer tooling plus two compatible real-Mac reports; automatic eviction stays disabled |
+| RRG-5 | representative-device reclamation and pressure policy review | RRG-1..RRG-4 | ACTIVE | deterministic runner/reviewer tooling plus one-command campaign orchestration; still requires two compatible real-Mac reports; automatic eviction stays disabled |
 
 Allowed states: `READY`, `ACTIVE`, `BLOCKED`, `DONE`.
 
@@ -73,7 +73,9 @@ Fairness is runtime round-robin with FIFO order inside each runtime's global wai
 
 ## RRG-5 — real environment evidence
 
-The deterministic tooling is being extended to make the real-device campaign reproducible before asking hardware to confirm it. The target procedure is owned by `docs/device-evidence-runbook.md` and must cover:
+The deterministic tooling now includes `scripts/run_device_evidence_campaign.py`, which orchestrates the already-owned TH-E1, EV-3, HE-2 and RES-2 procedures plus repeated RRG-5 in one representative-device command. The orchestrator owns only sequencing, the temporary loopback server lifecycle, per-phase classification and the bounded campaign summary; individual evidence modules and their reviewers remain authoritative for thresholds and semantics. `docs/device-evidence-campaign.md` documents the one-command path, while `docs/device-evidence-runbook.md` remains the manual diagnostic source of truth.
+
+The target procedure must cover:
 
 - two distinct verified model artifacts resident at the same time;
 - two cross-runtime HTTP requests admitted concurrently under the RRG-4 global governor;
@@ -83,6 +85,8 @@ The deterministic tooling is being extended to make the real-device campaign rep
 - repeated load/infer/unload cycles with zero configured accounting after unload;
 - a bounded shutdown while one runtime lease remains active, proving fail-conservative retained ownership/accounting followed by successful shutdown retry;
 - two compatible attributable reports and a conservative repetition reviewer that preserves raw post-stop deltas without an automatic-eviction or reclamation-safety recommendation.
+
+The campaign differentiates `PASS`, `FAIL` and `INCONCLUSIVE`: host-memory safety refusals and missing representative preconditions do not become fake product failures, while reached lifecycle/accounting/API invariant violations do. The campaign summary is path/content/PID-free and is persisted after every phase; raw evaluation/server diagnostics remain machine-local evidence and are not meant to be committed wholesale.
 
 The tooling may be merged after deterministic STRONG preflight, but RRG-5 remains `ACTIVE` until the required representative Apple Silicon reports exist. Negative or inconclusive memory behavior remains evidence and cannot be converted into a pass by lowering margins or redefining a zero baseline.
 
