@@ -1,7 +1,7 @@
 # Current State
 
 Status: active
-Last reviewed: 2026-08-29
+Last reviewed: 2026-08-30
 
 Local LLM Server is a local-first, privacy-preserving multi-backend inference server. Local LLM Studio is its bundled browser control plane. Hosted CI proves deterministic software contracts; hardware- and human-dependent claims require identified real evidence.
 
@@ -20,6 +20,10 @@ Local LLM Server is a local-first, privacy-preserving multi-backend inference se
 ## Accepted deterministic L2 surface
 
 Repository Health permanently blocks on L1/L2 architecture, resource, lifecycle, security, repeatability, built-surface, product-experience, design-system and real-evidence-bridge fitness functions. It also validates the repo-template 0.8 operating/preflight contract and `.engineering/e2e.json`. Separate blocking surfaces include L2 Performance Regression, Artifact Lifecycle, Security Audit, Package Install Smoke, Python 3.10/3.11/3.12, lint, Playwright and zero residue.
+
+The runtime/resource boundary now also includes fail-conservative backend ownership: runtime routing/accounting is retained until teardown succeeds, failed teardown remains owned and retryable, and in-process `llama-cpp-python` close is explicit without being promoted into a host-memory reclamation claim.
+
+The managed external `llama_server` backend now has an attributable llama.cpp `v0.3.0` feature floor (`b10621`, commit `c1d0e7a004015f23bc0233470b747b596f29b264`). Explicit executable selection remains authoritative; automatic discovery chooses an attributable compatible executable rather than silently preferring an older path. Older or unparseable binaries require an explicit legacy escape hatch and do not receive v0.3-only options. Local LLM Server maps per-runtime admitted concurrency to llama.cpp `--parallel`; llama.cpp owns continuous batching and the runtime-local unified KV/cache implementation. The control plane does not adopt llama.cpp multi-model autoload/router ownership, and Local LLM Server does not download or silently replace the external executable. Build/version attribution is execution identity, not cryptographic provenance.
 
 The automated E2E boundary is explicitly environment-aware:
 
@@ -61,6 +65,7 @@ Two independent human tasks remain:
 
 ## Active workstreams
 
+- `docs/workstreams/runtime-resource-governor.md` — memory envelope, global multi-model governor and representative pressure/reclamation evidence after accepted runtime ownership and llama-server modernization slices.
 - `docs/workstreams/l2-reference-grade.md` — cumulative L2 completion gate.
 - `docs/workstreams/runtime-correctness-evidence-hardening.md` — representative-device evidence.
 - `docs/workstreams/v040-product-ui-l2.md` — manual accessibility/usability evidence.
