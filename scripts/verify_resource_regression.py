@@ -12,6 +12,8 @@ REQUIRED_IDS = {
     "ledger-returns-empty",
     "rejected-admission-does-not-grow-ledger",
     "python-heap-retention-bounded",
+    "resident-transient-shared-budget",
+    "transient-stream-reservation-release",
 }
 REQUIRED_NON_CLAIMS = {
     "native backend memory reclamation",
