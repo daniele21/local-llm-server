@@ -298,7 +298,9 @@ def _build_model_spec(
     }
     if options.backend is not None:
         overrides["backend"] = options.backend
-    preview = config_builder(model=model, model_path=model_path, **overrides)
+    if model_path is not None:
+        overrides["model_path"] = model_path
+    preview = config_builder(model=model, **overrides)
     estimate = estimated_runtime_load_bytes(preview)
     if estimate is None or estimate <= 0:
         raise RuntimeError(
@@ -364,6 +366,7 @@ def _run_multi_model_cycle(
             owned_backend_rss=after_b_backend_rss,
         )
         identities = [_runtime_identity_dict(runtime_a), _runtime_identity_dict(runtime_b)]
+        identities_verified = all(identity is not None for identity in identities)
 
         settings = ResourcePolicySettings(
             memory_limit_bytes=int(budget.limit_bytes or 0),
@@ -458,11 +461,12 @@ def _run_multi_model_cycle(
         clean = final_accounting["reservation_count"] == 0 and not manager.list()
         return {
             "cycle": cycle_number,
-            "complete": statuses_ok and transient_overlap and clean,
+            "complete": statuses_ok and transient_overlap and clean and identities_verified,
             "responses": responses,
             "configured_accounting_peak": peaks,
             "configured_accounting_after_unload": final_accounting,
             "concurrent_transient_overlap_observed": transient_overlap,
+            "runtime_identities_verified": identities_verified,
             "host": host_snapshots,
             "post_stop_observation": _post_stop_observation(host_snapshots),
             "pressure_policy_dry_run": pressure_evaluation,
