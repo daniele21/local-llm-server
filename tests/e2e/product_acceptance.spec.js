@@ -58,10 +58,11 @@ test('models and runtimes owns the lifecycle and resource decision surface', asy
 
   await expect(page.getByRole('heading', { name: 'Memory & Residency' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Model inventory' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Artifact' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Runtime' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Route' })).toBeVisible();
-  await expect(page.getByRole('columnheader', { name: 'Memory evidence' })).toBeVisible();
+  const inventoryHeaders = page.locator('.control-plane-models__table thead th');
+  await expect(inventoryHeaders.filter({ hasText: /^Artifact$/ })).toBeVisible();
+  await expect(inventoryHeaders.filter({ hasText: /^Runtime$/ })).toBeVisible();
+  await expect(inventoryHeaders.filter({ hasText: /^Route$/ })).toBeVisible();
+  await expect(inventoryHeaders.filter({ hasText: /^Memory evidence$/ })).toBeVisible();
   await expect(page.getByText('Open lifecycle controls')).toHaveCount(0);
 
   await page.locator('[data-set-default-model="e2e-alt"]').first().click();
