@@ -19,8 +19,6 @@ MODEL_KEY = "e2e-switchable"
 MODEL_ID = "org/e2e-switchable"
 ALT_MODEL_KEY = "e2e-alt"
 ALT_MODEL_ID = "org/e2e-alt"
-ASR_MODEL_KEY = "e2e-asr"
-ASR_MODEL_ID = "org/e2e-asr"
 HOST = "127.0.0.1"
 PORT = 8765
 
@@ -53,20 +51,6 @@ def _runtime_config(
     if tasks:
         cfg["tasks"] = list(tasks)
     return cfg
-
-
-def _asr_runtime_config() -> dict[str, Any]:
-    return {
-        "model": ASR_MODEL_KEY,
-        "model_id": ASR_MODEL_ID,
-        "model_path": f"/e2e/{ASR_MODEL_KEY}",
-        "backend": "fake_asr",
-        "modalities": ["audio", "text"],
-        "tasks": ["transcription"],
-        "input_modalities": ["audio"],
-        "output_modalities": ["text"],
-        "max_concurrent_requests": 1,
-    }
 
 
 def _structured(payload: dict[str, Any]) -> bool:
@@ -106,9 +90,10 @@ class DeterministicBrowserEngine:
     backend = "llama_cpp"
     backend_version = "e2e-fixture"
 
-    def __init__(self, model_id: str, answer: int) -> None:
+    def __init__(self, model_id: str, answer: int, *, transcription: bool = False) -> None:
         self.model_id = model_id
         self.answer = answer
+        self.transcription = transcription
 
     def _raise_if_requested(self, payload: dict[str, Any]) -> None:
         if "[backend-error]" in _last_user_text(payload):
@@ -140,15 +125,9 @@ class DeterministicBrowserEngine:
                 time.sleep(0.8)
         yield _stream_event(self.model_id, None, finish_reason="stop")
 
-    def close(self) -> None:
-        return None
-
-
-class DeterministicAsrEngine:
-    backend = "fake_asr"
-    backend_version = "e2e-fixture"
-
     def transcribe(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not self.transcription:
+            raise RuntimeError("transcription adapter is disabled for this fixture runtime")
         return {
             "text": "deterministic transcript",
             "language": payload.get("language") or "en",
@@ -199,19 +178,21 @@ def _owned_run_state_from_environment() -> OwnedRunState:
 
 def build_app(run_state: OwnedRunState):
     text_cfg = _runtime_config(MODEL_KEY, MODEL_ID)
-    vision_cfg = _runtime_config(
+    alt_cfg = _runtime_config(
         ALT_MODEL_KEY,
         ALT_MODEL_ID,
-        modalities=["text", "image"],
+        modalities=["text", "image", "audio"],
+        tasks=["chat", "transcription"],
     )
-    asr_cfg = _asr_runtime_config()
-    catalog = [text_cfg, vision_cfg, asr_cfg]
+    catalog = [text_cfg, alt_cfg]
     local_llm_server.list_models = lambda: [_catalog_item(cfg) for cfg in catalog]
 
     manager = ProductRuntimeManager(default_model=MODEL_KEY)
     manager.add(text_cfg, DeterministicBrowserEngine(MODEL_ID, 42))
-    manager.add(vision_cfg, DeterministicBrowserEngine(ALT_MODEL_ID, 84))
-    manager.add(asr_cfg, DeterministicAsrEngine())
+    manager.add(
+        alt_cfg,
+        DeterministicBrowserEngine(ALT_MODEL_ID, 84, transcription=True),
+    )
     application = create_app(manager, settings=ServerSettings(enable_admin_api=True))
     install_product_http_stack(application, evaluation_root=run_state.evaluation_root)
     application.state.e2e_run_id = run_state.run_id
