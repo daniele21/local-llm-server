@@ -173,7 +173,7 @@ class GlobalExecutionGovernor:
                         deadline_at=waiter.deadline_at,
                     )
                 if waiter.state is GlobalExecutionState.EXPIRED:
-                    self._waiters.pop(request_id, None)
+                    self._discard_waiter_locked(request_id, waiter)
                     raise InferenceError(
                         ErrorCode.TIMEOUT,
                         "request deadline expired while waiting for global execution admission",
@@ -181,7 +181,7 @@ class GlobalExecutionGovernor:
                         details={},
                     )
                 if waiter.state is GlobalExecutionState.CANCELLED:
-                    self._waiters.pop(request_id, None)
+                    self._discard_waiter_locked(request_id, waiter)
                     raise InferenceError(
                         ErrorCode.CANCELLED,
                         "request was cancelled before global execution admission",
@@ -236,6 +236,7 @@ class GlobalExecutionGovernor:
                 self._release_running_locked(waiter.runtime_key)
             else:
                 return False
+            self._discard_waiter_locked(request_id, waiter)
             self._admit_available_locked(now)
             self._condition.notify_all()
             return True
@@ -366,6 +367,11 @@ class GlobalExecutionGovernor:
                 changed = True
         if changed:
             self._condition.notify_all()
+
+    def _discard_waiter_locked(self, request_id: str, waiter: _Waiter) -> None:
+        """Discard exactly this waiter without deleting a later same-ID submission."""
+        if self._waiters.get(request_id) is waiter:
+            self._waiters.pop(request_id, None)
 
 
 def attach_global_execution_governor(
