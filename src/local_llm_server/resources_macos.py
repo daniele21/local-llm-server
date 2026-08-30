@@ -1,8 +1,8 @@
 """macOS resource observation adapter.
 
 Apple Silicon uses unified memory, so this adapter never invents a separate GPU
-VRAM pool. Total/available host memory and current-process RSS are derived from
-public OS counters; unsupported measurements remain explicitly unavailable.
+VRAM pool. Total/available host memory and process RSS are derived from public
+OS counters; unsupported measurements remain explicitly unavailable.
 """
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ class MacOSResourceObserver:
     def snapshot(self) -> SystemResourceSnapshot:
         total = _read_total_memory(self._run_command)
         available = _read_available_memory(self._run_command)
-        rss = _read_current_process_rss(self._run_command)
+        rss = read_process_rss(os.getpid(), run_command=self._run_command)
         return SystemResourceSnapshot(
             captured_at_monotonic=self._clock(),
             platform="darwin",
@@ -42,6 +42,25 @@ class MacOSResourceObserver:
             process_rss_bytes=rss,
             thermal_pressure=ResourceValue.unavailable("level"),
         )
+
+
+def read_process_rss(
+    pid: int,
+    *,
+    run_command: CommandRunner | None = None,
+) -> ResourceValue:
+    """Read RSS for one owned macOS PID without treating failure as zero."""
+    if isinstance(pid, bool) or pid <= 0:
+        return ResourceValue.unavailable("bytes")
+    runner = run_command or _default_run_command
+    try:
+        raw = runner(("ps", "-o", "rss=", "-p", str(pid))).strip()
+        value = int(raw) * 1024
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return ResourceValue.unavailable("bytes")
+    if value < 0:
+        return ResourceValue.unavailable("bytes")
+    return ResourceValue(value, ResourceValueSource.MEASURED, "bytes")
 
 
 def _read_total_memory(run_command: CommandRunner) -> ResourceValue:
@@ -77,18 +96,6 @@ def _read_available_memory(run_command: CommandRunner) -> ResourceValue:
         return ResourceValue.unavailable("bytes")
     pages = sum(counters[key] for key in required)
     return ResourceValue(pages * page_size, ResourceValueSource.MEASURED, "bytes")
-
-
-def _read_current_process_rss(run_command: CommandRunner) -> ResourceValue:
-    """Read RSS for this Local LLM Server process without treating failure as zero."""
-    try:
-        raw = run_command(("ps", "-o", "rss=", "-p", str(os.getpid()))).strip()
-        value = int(raw) * 1024
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return ResourceValue.unavailable("bytes")
-    if value < 0:
-        return ResourceValue.unavailable("bytes")
-    return ResourceValue(value, ResourceValueSource.MEASURED, "bytes")
 
 
 def _parse_page_size(raw: str) -> int | None:
