@@ -38,6 +38,21 @@ function aggregateSseContent(events) {
   return parts.join('');
 }
 
+function customEvaluationSet() {
+  return {
+    schema_version: 1,
+    id: 'api-blackbox-set',
+    version: '1.0.0',
+    provenance: { purpose: 'api-blackbox-e2e' },
+    samples: Array.from({ length: 10 }, (_, index) => ({
+      id: `sample-${String(index).padStart(2, '0')}`,
+      task: 'chat',
+      input: `Return only ${index}`,
+      expected: { exact: String(index) },
+    })),
+  };
+}
+
 test('external client sees coherent health, discovery, identity and status without private paths', async ({ request }) => {
   const health = await request.get('/health');
   expect(health.ok()).toBeTruthy();
@@ -87,6 +102,52 @@ test('default and explicit model routing are observable through the public HTTP 
   const alternatePayload = await alternateResponse.json();
   expect(alternatePayload.model).toBe('org/e2e-alt');
   expect(alternatePayload.choices[0].message.content).toBe('84');
+});
+
+test('admin default-route mutation is reflected by status and subsequent model-omitted inference', async ({ request }) => {
+  const activateAlt = await request.post('/api/v1/models/activate', {
+    data: { model: 'e2e-alt' },
+  });
+  expect(activateAlt.ok()).toBeTruthy();
+  expect((await activateAlt.json()).default).toBe(true);
+
+  const altStatus = await request.get('/status');
+  expect((await altStatus.json()).default_model).toBe('e2e-alt');
+  const altDefaultResponse = await request.post('/v1/chat/completions', {
+    data: chatPayload(),
+  });
+  expect(altDefaultResponse.ok()).toBeTruthy();
+  expect((await altDefaultResponse.json()).choices[0].message.content).toBe('84');
+
+  const restore = await request.post('/api/v1/models/activate', {
+    data: { model: 'e2e-switchable' },
+  });
+  expect(restore.ok()).toBeTruthy();
+  expect((await restore.json()).default).toBe(true);
+
+  const restoredStatus = await request.get('/status');
+  expect((await restoredStatus.json()).default_model).toBe('e2e-switchable');
+  const restoredInference = await request.post('/v1/chat/completions', {
+    data: chatPayload(),
+  });
+  expect((await restoredInference.json()).choices[0].message.content).toBe('42');
+});
+
+test('different resident runtimes can execute concurrently across the socket boundary', async ({ request }) => {
+  const messages = [{ role: 'user', content: 'Synchronize both runtimes. [parallel-probe]' }];
+  const [textResponse, alternateResponse] = await Promise.all([
+    request.post('/v1/chat/completions', {
+      data: chatPayload({ model: 'e2e-switchable', messages }),
+    }),
+    request.post('/v1/chat/completions', {
+      data: chatPayload({ model: 'e2e-alt', messages }),
+    }),
+  ]);
+
+  expect(textResponse.ok()).toBeTruthy();
+  expect(alternateResponse.ok()).toBeTruthy();
+  expect((await textResponse.json()).choices[0].message.content).toBe('42');
+  expect((await alternateResponse.json()).choices[0].message.content).toBe('84');
 });
 
 test('unknown routing and malformed input fail explicitly without poisoning the next request', async ({ request }) => {
@@ -192,16 +253,28 @@ test('backend failure is produced by the server stack and the next inference rec
   expect((await recovered.json()).choices[0].message.content).toBe('42');
 });
 
-test('multipart transcription reaches an explicit transcription-capable resident runtime', async ({ request }) => {
+test('transcription enforces explicit task capability and succeeds on the compatible resident runtime', async ({ request }) => {
+  const file = {
+    name: 'fixture.wav',
+    mimeType: 'audio/wav',
+    buffer: Buffer.from('RIFFdeterministic-e2e-audio'),
+  };
+
+  const unsupported = await request.post('/v1/audio/transcriptions', {
+    multipart: {
+      model: 'e2e-switchable',
+      language: 'it',
+      file,
+    },
+  });
+  expect(unsupported.status()).toBe(400);
+  expect((await unsupported.json()).detail.code).toBe('unsupported_task');
+
   const response = await request.post('/v1/audio/transcriptions', {
     multipart: {
       model: 'e2e-alt',
       language: 'it',
-      file: {
-        name: 'fixture.wav',
-        mimeType: 'audio/wav',
-        buffer: Buffer.from('RIFFdeterministic-e2e-audio'),
-      },
+      file,
     },
   });
 
@@ -252,7 +325,7 @@ test('resource, scheduler, policy and evidence admin surfaces are reachable and 
   }
 });
 
-test('evaluation catalog and execution work for an API-only consumer', async ({ request }) => {
+test('evaluation catalog and built-in execution work for an API-only consumer', async ({ request }) => {
   const catalogResponse = await request.get('/api/v1/evaluation/test-sets');
   expect(catalogResponse.ok()).toBeTruthy();
   const catalog = await catalogResponse.json();
@@ -277,4 +350,53 @@ test('evaluation catalog and execution work for an API-only consumer', async ({ 
   expect(run.report.manifest.seed).toBe(0);
   expect(run.report.manifest.content_retained).toBe(false);
   expect(run.report.results).toHaveLength(10);
+});
+
+test('custom evaluation import, duplicate rejection, discovery and execution cross the public admin HTTP boundary', async ({ request }) => {
+  const dataset = customEvaluationSet();
+  const upload = () => request.post('/api/v1/evaluation/test-sets/import', {
+    multipart: {
+      replace: 'false',
+      file: {
+        name: 'api-blackbox-set.json',
+        mimeType: 'application/json',
+        buffer: Buffer.from(JSON.stringify(dataset)),
+      },
+    },
+  });
+
+  const imported = await upload();
+  expect(imported.ok()).toBeTruthy();
+  const importedPayload = (await imported.json()).test_set;
+  expect(importedPayload.id).toBe('api-blackbox-set');
+  expect(importedPayload.version).toBe('1.0.0');
+  expect(importedPayload.sample_count).toBe(10);
+  expect(importedPayload.source).toBe('custom');
+  expect(JSON.stringify(importedPayload).toLowerCase()).not.toContain('path');
+
+  const duplicate = await upload();
+  expect(duplicate.status()).toBe(409);
+
+  const catalogResponse = await request.get('/api/v1/evaluation/test-sets');
+  const catalog = await catalogResponse.json();
+  const custom = catalog.test_sets.find((item) => item.id === 'api-blackbox-set');
+  expect(custom?.identity).toBe(importedPayload.identity);
+  expect(custom?.source).toBe('custom');
+
+  const runResponse = await request.post('/api/v1/evaluation/runs', {
+    data: {
+      model: 'e2e-switchable',
+      test_set_id: 'api-blackbox-set',
+      test_set_version: '1.0.0',
+      sample_count: 10,
+      seed: 0,
+      reasoning_policy: 'off',
+      retain_content: false,
+    },
+  });
+  expect(runResponse.ok()).toBeTruthy();
+  const report = (await runResponse.json()).report;
+  expect(report.manifest.test_set_id).toBe('api-blackbox-set');
+  expect(report.manifest.test_set_identity).toBe(importedPayload.identity);
+  expect(report.results).toHaveLength(10);
 });
