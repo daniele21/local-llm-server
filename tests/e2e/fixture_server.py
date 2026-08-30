@@ -182,7 +182,7 @@ def build_app(run_state: OwnedRunState):
         ALT_MODEL_KEY,
         ALT_MODEL_ID,
         modalities=["text", "image", "audio"],
-        tasks=["chat", "transcription"],
+        tasks=["chat", "vision_language", "transcription"],
     )
     catalog = [text_cfg, alt_cfg]
     local_llm_server.list_models = lambda: [_catalog_item(cfg) for cfg in catalog]
