@@ -26,9 +26,11 @@ Managed `llama_server` uses the attributable llama.cpp `v0.3.0` feature floor (`
 
 Automated E2E is environment-aware:
 
-- `ci-studio-deterministic` proves browser -> HTTP -> middleware/runtime-contract behavior with fake inference and zero residue;
+- `ci-studio-deterministic` proves both browser user journeys and a direct external API-consumer journey over the real loopback HTTP boundary, using the real FastAPI/middleware/task-policy/runtime/evaluation stack with deterministic inference;
+- the API black-box lane covers discovery/identity/status, default and explicit routing, default-route mutation, cross-runtime concurrency, fail-closed task/media policy, local vision, hidden-reasoning SSE, backend-originated failure/recovery, multipart transcription, residency policy surfaces and built-in/custom evaluation without calling product internals;
+- browser and API lanes share the same run-owned process/listener/temp-root lifecycle, and mutable custom evaluation fixture state is reset before later visual/browser evidence;
 - `ci-installed-wheel` proves the built/package surface independently of Apple Silicon behavior;
-- representative Apple Silicon evidence remains required for backend compatibility, unified-memory reclamation, performance and thermal/power claims.
+- representative Apple Silicon evidence remains required for production backend compatibility, unified-memory reclamation, native cancellation behavior, performance and thermal/power claims.
 
 The accepted product-ui system keeps `design-system.css` as semantic token/component owner; `design/ux-contract.json` owns task/state/accessibility/adaptive/motion/journey contracts; `design/brand-kit.json` routes brand/motion roles. Product telemetry remains off by default.
 
@@ -58,6 +60,7 @@ Two human tasks remain:
 
 ## Active workstreams
 
+- `docs/workstreams/api-blackbox-e2e-hardening.md` — direct external application-to-HTTP product acceptance coverage and final exact-head validation.
 - `docs/workstreams/runtime-resource-governor.md` — representative pressure/reclamation evidence after deterministic governor completion.
 - `docs/workstreams/l2-reference-grade.md` — cumulative L2 completion gate.
 - `docs/workstreams/runtime-correctness-evidence-hardening.md` — representative-device evidence.
