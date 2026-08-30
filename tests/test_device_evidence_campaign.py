@@ -3,14 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from local_llm_server import device_evidence_campaign as campaign_module
 from local_llm_server.device_evidence_campaign import (
     DeviceEvidenceCampaign,
-    _FAIL,
     _INCONCLUSIVE,
     _PASS,
     _phase,
@@ -55,6 +53,15 @@ def _snapshot() -> SystemResourceSnapshot:
     )
 
 
+def _git_state(tmp_path: Path) -> dict:
+    return {
+        "revision": "a" * 40,
+        "branch": "dev",
+        "tracked_clean": True,
+        "root": (tmp_path / "repo").resolve(),
+    }
+
+
 class _Observer:
     def snapshot(self):
         return _snapshot()
@@ -90,11 +97,7 @@ def test_preflight_refuses_non_loopback_bind(monkeypatch, tmp_path: Path) -> Non
     monkeypatch.setattr(campaign_module.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(campaign_module.platform, "machine", lambda: "arm64")
     monkeypatch.setattr(campaign_module, "MacOSResourceObserver", _Observer)
-    monkeypatch.setattr(
-        campaign_module,
-        "_git_state",
-        lambda: {"revision": "a" * 40, "branch": "dev", "tracked_clean": True},
-    )
+    monkeypatch.setattr(campaign_module, "_git_state", lambda: _git_state(tmp_path))
     monkeypatch.setattr(campaign_module, "_port_is_free", lambda _host, _port: True)
 
     result = runner._preflight()
@@ -112,11 +115,7 @@ def test_preflight_refuses_full_scope_without_positive_request_estimate(
     monkeypatch.setattr(campaign_module.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(campaign_module.platform, "machine", lambda: "arm64")
     monkeypatch.setattr(campaign_module, "MacOSResourceObserver", _Observer)
-    monkeypatch.setattr(
-        campaign_module,
-        "_git_state",
-        lambda: {"revision": "a" * 40, "branch": "dev", "tracked_clean": True},
-    )
+    monkeypatch.setattr(campaign_module, "_git_state", lambda: _git_state(tmp_path))
     monkeypatch.setattr(campaign_module, "_port_is_free", lambda _host, _port: True)
 
     result = runner._preflight()
@@ -280,11 +279,7 @@ def test_non_mac_preflight_exits_two_without_running_heavy_phases(
     runner = DeviceEvidenceCampaign(_args(tmp_path))
     monkeypatch.setattr(campaign_module.platform, "system", lambda: "Linux")
     monkeypatch.setattr(campaign_module.platform, "machine", lambda: "x86_64")
-    monkeypatch.setattr(
-        campaign_module,
-        "_git_state",
-        lambda: {"revision": "a" * 40, "branch": "dev", "tracked_clean": True},
-    )
+    monkeypatch.setattr(campaign_module, "_git_state", lambda: _git_state(tmp_path))
     monkeypatch.setattr(campaign_module, "_port_is_free", lambda _host, _port: True)
     monkeypatch.setattr(
         DeviceEvidenceCampaign,
