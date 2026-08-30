@@ -52,7 +52,7 @@ test('public runtime contract exposes coherent inference identity and status sur
   );
 });
 
-test('models and runtimes owns the lifecycle and resource decision surface', async ({ page }) => {
+test('models and runtimes owns the lifecycle and resource decision surface', async ({ page, request }) => {
   await openStudio(page);
   await page.getByRole('tab', { name: 'Models & Runtimes' }).click();
 
@@ -63,6 +63,20 @@ test('models and runtimes owns the lifecycle and resource decision surface', asy
   await expect(page.getByRole('columnheader', { name: 'Route' })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Memory evidence' })).toBeVisible();
   await expect(page.getByText('Open lifecycle controls')).toHaveCount(0);
+
+  await page.locator('[data-set-default-model="e2e-alt"]').first().click();
+  await expect.poll(async () => {
+    const response = await request.get('/status');
+    const payload = await response.json();
+    return payload.default_model;
+  }).toBe('e2e-alt');
+
+  await page.locator('[data-set-default-model="e2e-switchable"]').first().click();
+  await expect.poll(async () => {
+    const response = await request.get('/status');
+    const payload = await response.json();
+    return payload.default_model;
+  }).toBe('e2e-switchable');
 });
 
 test('playground is task-first and structured mode owns JSON output', async ({ page }) => {
