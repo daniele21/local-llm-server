@@ -68,24 +68,27 @@ Legacy/local styles may reference canonical tokens or retain non-`ds` names whil
 
 ## Visual regression policy
 
-Pixel-level visual regression is **not** a blocking repository-wide mechanism. Freezing every control-plane pixel would still create maintenance cost and false confidence while several secondary surfaces continue to converge.
+Repository-wide pixel-perfect visual regression is **not** a blocking mechanism. Freezing every control-plane pixel would create maintenance cost and false confidence while several secondary surfaces continue to converge, and raw PNG hashes proved sensitive to hosted-runner antialiasing/compositor differences even when the product geometry was unchanged.
 
 Targeted visual contracts are allowed when all of the following are true:
 
 - the surface is stable and high-risk enough that geometry/hierarchy is itself part of the user contract;
 - the fixture state, viewport, theme and motion preference are deterministic;
 - the visual evidence contains only synthetic fixture data and no prompt/output/private machine content;
-- a semantic/interaction test still proves the user outcome independently of the pixel contract;
-- a changed visual digest is reviewed as a product change rather than mechanically accepted.
+- a semantic/interaction test still proves the user outcome independently of the visual contract;
+- the comparison method tolerates insignificant rasterization differences but still reacts to meaningful layout/hierarchy changes;
+- a changed visual fingerprint is reviewed as a product change rather than mechanically accepted.
 
 The current blocking targeted set is intentionally small:
 
 - the `Overview` decision surface at the deterministic 1440×1000 dark/reduced-motion fixture;
-- the `Benchmark & Evaluation` setup surface at the same deterministic fixture.
+- the `Benchmark & Evaluation` setup form at the same deterministic fixture.
 
-`tests/e2e/product_experience_p2.spec.js` captures each bounded surface, computes a SHA-256 digest of the fixture screenshot in memory, and compares it with the reviewed expected digest. The PNG itself is not retained or uploaded by the normal gate. This gives strict pixel change detection without establishing a repository of potentially sensitive screenshots.
+`tests/e2e/product_experience_p2.spec.js` captures each bounded surface in memory, waits for document fonts, downsamples the screenshot to a fixed 33×32 luminance grid and derives a 32×32 horizontal-edge perceptual fingerprint. A small luminance threshold suppresses insignificant antialiasing/compositor noise while preserving structural edge changes. The screenshot PNG is not retained or uploaded by the normal gate.
 
-These two digests do **not** claim coverage for light mode, responsive widths, every loading/error state, real runtime data or representative hardware. Those surfaces should gain visual contracts only after they become stable enough to justify them. Existing semantic component/state tests, accessibility assertions and complete Playwright journeys remain the primary regression evidence.
+This is deliberately a **perceptual geometry/hierarchy contract**, not a claim of exact pixel identity. It does not replace semantic assertions, accessibility checks or complete user-journey E2E tests. If the fingerprint itself proves unstable across equivalent hosted runners, the contract must be redesigned or removed rather than weakening thresholds merely to make CI green.
+
+These two fingerprints do **not** claim coverage for light mode, responsive widths, every loading/error state, real runtime data or representative hardware. Additional surfaces should gain visual contracts only after they become stable enough to justify them.
 
 ## Manual accessibility review
 
