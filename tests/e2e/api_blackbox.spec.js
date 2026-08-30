@@ -47,7 +47,7 @@ test('external client sees coherent health, discovery, identity and status witho
   const models = await modelsResponse.json();
   const modelKeys = models.data.map((item) => item.key || item.id);
   expect(modelKeys).toEqual(
-    expect.arrayContaining(['e2e-switchable', 'e2e-alt', 'e2e-asr'])
+    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
   );
 
   const identityResponse = await request.get('/v1/runtime/identity');
@@ -56,7 +56,7 @@ test('external client sees coherent health, discovery, identity and status witho
   expect(identity.protocol_version).toBe('local-llm-identity-v1');
   expect(identity.default_model).toBe('e2e-switchable');
   expect(Object.keys(identity.models)).toEqual(
-    expect.arrayContaining(['e2e-switchable', 'e2e-alt', 'e2e-asr'])
+    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
   );
   const publicIdentity = JSON.stringify(identity);
   expect(publicIdentity).not.toContain('/e2e/');
@@ -67,7 +67,7 @@ test('external client sees coherent health, discovery, identity and status witho
   const status = await statusResponse.json();
   expect(status.default_model).toBe('e2e-switchable');
   expect(Object.keys(status.models)).toEqual(
-    expect.arrayContaining(['e2e-switchable', 'e2e-alt', 'e2e-asr'])
+    expect.arrayContaining(['e2e-switchable', 'e2e-alt'])
   );
 });
 
@@ -192,10 +192,10 @@ test('backend failure is produced by the server stack and the next inference rec
   expect((await recovered.json()).choices[0].message.content).toBe('42');
 });
 
-test('multipart transcription reaches the explicit ASR runtime through the public endpoint', async ({ request }) => {
+test('multipart transcription reaches an explicit transcription-capable resident runtime', async ({ request }) => {
   const response = await request.post('/v1/audio/transcriptions', {
     multipart: {
-      model: 'e2e-asr',
+      model: 'e2e-alt',
       language: 'it',
       file: {
         name: 'fixture.wav',
@@ -207,7 +207,7 @@ test('multipart transcription reaches the explicit ASR runtime through the publi
 
   expect(response.ok()).toBeTruthy();
   const payload = await response.json();
-  expect(payload.model).toBe('org/e2e-asr');
+  expect(payload.model).toBe('org/e2e-alt');
   expect(payload.text).toBe('deterministic transcript');
   expect(payload.language).toBe('it');
   expect(payload.duration_seconds ?? payload.duration).toBe(1.25);
@@ -273,7 +273,7 @@ test('evaluation catalog and execution work for an API-only consumer', async ({ 
   const run = await runResponse.json();
   expect(run.report.manifest.test_set_id).toBe('general-purpose');
   expect(run.report.manifest.test_set_version).toBe('1.0.0');
-  expect(run.report.manifest.sample_count).toBe(10);
+  expect(run.report.manifest.sample_ids).toHaveLength(10);
   expect(run.report.manifest.seed).toBe(0);
   expect(run.report.manifest.content_retained).toBe(false);
   expect(run.report.results).toHaveLength(10);
