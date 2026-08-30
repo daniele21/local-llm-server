@@ -11,6 +11,7 @@ classes; neither is silently promoted into a reclamation verdict.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import platform
 import threading
@@ -166,11 +167,7 @@ def execute_multi_model_device_evidence(
     backend_rss_reader: Callable[[int], ResourceValue] | None = None,
     sleep: Callable[[float], None] = time.sleep,
 ) -> dict[str, object]:
-    """Run bounded multi-model evidence and return a privacy-safe report.
-
-    Real execution is macOS-only. Tests may inject deterministic observers,
-    artifact receipts and fake backends while preserving the same product path.
-    """
+    """Run bounded multi-model evidence and return a privacy-safe report."""
     if platform.system().lower() != "darwin" and observer is None:
         raise RuntimeError("RRG-5 multi-model evidence must run on macOS")
 
@@ -338,9 +335,7 @@ def _run_multi_model_cycle(
     resources = _EvidenceResourceManager(budget)
     manager = ProductRuntimeManager(default_model=specs[0].key, resource_manager=resources)
     phase = "start"
-    raw_host_points: list[SystemResourceSnapshot] = []
     before_load = observer.snapshot()
-    raw_host_points.append(before_load)
     host_snapshots: dict[str, dict[str, object]] = {
         "before_load": _snapshot_to_public_dict(before_load)
     }
@@ -353,7 +348,6 @@ def _run_multi_model_cycle(
         if not loaded_a:
             raise RuntimeError("model_a was unexpectedly already resident")
         after_a = observer.snapshot()
-        raw_host_points.append(after_a)
         host_snapshots["after_model_a"] = _snapshot_to_public_dict(
             after_a,
             owned_backend_rss=_owned_backend_rss(manager, backend_rss_reader),
@@ -364,10 +358,10 @@ def _run_multi_model_cycle(
         if not loaded_b:
             raise RuntimeError("model_b was unexpectedly already resident")
         after_b = observer.snapshot()
-        raw_host_points.append(after_b)
+        after_b_backend_rss = _owned_backend_rss(manager, backend_rss_reader)
         host_snapshots["after_model_b"] = _snapshot_to_public_dict(
             after_b,
-            owned_backend_rss=_owned_backend_rss(manager, backend_rss_reader),
+            owned_backend_rss=after_b_backend_rss,
         )
         identities = [_runtime_identity_dict(runtime_a), _runtime_identity_dict(runtime_b)]
 
@@ -389,6 +383,8 @@ def _run_multi_model_cycle(
         )
 
         phase = "concurrent_inference"
+        peak_pressure_snapshot = after_b
+        peak_backend_rss = after_b_backend_rss
         with TestClient(application) as client:
             start_barrier = threading.Barrier(2)
 
@@ -414,20 +410,26 @@ def _run_multi_model_cycle(
             with ThreadPoolExecutor(max_workers=2, thread_name_prefix="rrg5") as executor:
                 futures = [executor.submit(invoke, runtime) for runtime in (runtime_a, runtime_b)]
                 while not all(future.done() for future in futures):
-                    raw_host_points.append(observer.snapshot())
+                    sampled = observer.snapshot()
+                    sampled_backend_rss = _owned_backend_rss(manager, backend_rss_reader)
+                    if _available_fraction(sampled) < _available_fraction(peak_pressure_snapshot):
+                        peak_pressure_snapshot = sampled
+                        peak_backend_rss = sampled_backend_rss
                     sleep(options.sample_interval_seconds)
                 responses = [future.result() for future in futures]
 
             after_requests = observer.snapshot()
-            raw_host_points.append(after_requests)
-            peak_pressure_snapshot = _select_most_pressured_snapshot(raw_host_points)
+            after_requests_backend_rss = _owned_backend_rss(manager, backend_rss_reader)
+            if _available_fraction(after_requests) < _available_fraction(peak_pressure_snapshot):
+                peak_pressure_snapshot = after_requests
+                peak_backend_rss = after_requests_backend_rss
             host_snapshots["during_concurrent_pressure_peak"] = _snapshot_to_public_dict(
                 peak_pressure_snapshot,
-                owned_backend_rss=_owned_backend_rss(manager, backend_rss_reader),
+                owned_backend_rss=peak_backend_rss,
             )
             host_snapshots["after_concurrent_inference"] = _snapshot_to_public_dict(
                 after_requests,
-                owned_backend_rss=_owned_backend_rss(manager, backend_rss_reader),
+                owned_backend_rss=after_requests_backend_rss,
             )
             pressure_evaluation = PressureEvictionPolicy().observe(
                 classify_memory_pressure(peak_pressure_snapshot),
@@ -587,7 +589,11 @@ def _run_shutdown_under_load(
             "host_after_first_shutdown": after_first,
             "host_after_retry_settle": after_retry,
             "post_stop_observation": _post_stop_observation(
-                {"before_load": before, "after_unload_settle": after_retry}
+                {
+                    "before_load": before,
+                    "after_model_b": loaded_host,
+                    "after_unload_settle": after_retry,
+                }
             ),
             "automatic_eviction_exercised": False,
         }
@@ -705,23 +711,19 @@ def _runtime_identity_dict(runtime: ModelRuntime) -> dict[str, object] | None:
     return identity.to_public_dict() if identity is not None else None
 
 
-def _select_most_pressured_snapshot(
-    snapshots: list[SystemResourceSnapshot],
-) -> SystemResourceSnapshot:
-    def available_fraction(snapshot: SystemResourceSnapshot) -> float:
-        total = _numeric_value(snapshot.total_memory_bytes)
-        available = _numeric_value(snapshot.available_memory_bytes)
-        if total is None or available is None or total <= 0:
-            return float("inf")
-        return float(available) / float(total)
-
-    return min(snapshots, key=available_fraction)
+def _available_fraction(snapshot: SystemResourceSnapshot) -> float:
+    total = _numeric_value(snapshot.total_memory_bytes)
+    available = _numeric_value(snapshot.available_memory_bytes)
+    if total is None or available is None or total <= 0:
+        return float("inf")
+    return float(available) / float(total)
 
 
 def _post_stop_observation(
     snapshots: Mapping[str, Mapping[str, object]],
 ) -> dict[str, object]:
     before = snapshots.get("before_load")
+    loaded = snapshots.get("after_model_b")
     after = snapshots.get("after_unload_settle")
     if not isinstance(before, Mapping) or not isinstance(after, Mapping):
         return {
@@ -729,7 +731,7 @@ def _post_stop_observation(
             "available_after_minus_before_bytes": None,
             "interpretation": "observational_only",
         }
-    return {
+    result: dict[str, object] = {
         "rss_after_minus_before_bytes": _serialized_delta(
             before.get("process_rss_bytes"), after.get("process_rss_bytes")
         ),
@@ -738,6 +740,16 @@ def _post_stop_observation(
         ),
         "interpretation": "observational_only",
     }
+    if isinstance(loaded, Mapping):
+        loaded_backend = loaded.get("owned_backend_rss_bytes")
+        after_backend = after.get("owned_backend_rss_bytes")
+        if isinstance(loaded_backend, Mapping):
+            result["owned_backend_rss_before_stop_bytes"] = loaded_backend.get("value")
+            result["owned_backend_owner_count_before_stop"] = loaded_backend.get("owner_count")
+        if isinstance(after_backend, Mapping):
+            result["owned_backend_rss_after_stop_bytes"] = after_backend.get("value")
+            result["owned_backend_owner_count_after_stop"] = after_backend.get("owner_count")
+    return result
 
 
 def _serialized_delta(before: object, after: object) -> int | float | None:
@@ -768,3 +780,57 @@ def write_multi_model_evidence_report(
     )
     temporary.replace(target)
     return target
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Run bounded RRG-5 multi-model evidence on a representative Mac."
+    )
+    parser.add_argument("--model-a", required=True)
+    parser.add_argument("--model-b", required=True)
+    parser.add_argument("--model-a-path", default=None)
+    parser.add_argument("--model-b-path", default=None)
+    parser.add_argument(
+        "--backend",
+        choices=["llama_cpp", "mlx", "llama_server", "mlx_vlm_server"],
+        default=None,
+    )
+    parser.add_argument("--request-estimate-mib", type=float, required=True)
+    parser.add_argument("--cycles", type=int, default=2)
+    parser.add_argument("--max-tokens", type=int, default=8)
+    parser.add_argument("--prompt", default="Reply with the single word OK.")
+    parser.add_argument("--headroom-gib", type=float, default=0.5)
+    parser.add_argument("--success-margin-gib", type=float, default=0.5)
+    parser.add_argument("--host-safety-gib", type=float, default=2.0)
+    parser.add_argument("--settle-seconds", type=float, default=2.0)
+    parser.add_argument("--shutdown-timeout-ms", type=float, default=50.0)
+    parser.add_argument("--sample-interval-ms", type=float, default=50.0)
+    parser.add_argument("--output", required=True)
+    args = parser.parse_args()
+
+    options = MultiModelDeviceEvidenceOptions(
+        model_a=args.model_a,
+        model_b=args.model_b,
+        request_estimate_bytes=int(args.request_estimate_mib * _MIB),
+        model_a_path=args.model_a_path,
+        model_b_path=args.model_b_path,
+        backend=args.backend,
+        cycles=args.cycles,
+        max_tokens=args.max_tokens,
+        prompt=args.prompt,
+        headroom_bytes=int(args.headroom_gib * _GIB),
+        success_margin_bytes=int(args.success_margin_gib * _GIB),
+        host_safety_bytes=int(args.host_safety_gib * _GIB),
+        settle_seconds=args.settle_seconds,
+        shutdown_timeout_seconds=args.shutdown_timeout_ms / 1000.0,
+        sample_interval_seconds=args.sample_interval_ms / 1000.0,
+    )
+    report = execute_multi_model_device_evidence(options)
+    output = write_multi_model_evidence_report(args.output, report)
+    print(f"RRG-5 multi-model evidence report written to {output.resolve()}")
+    if not report.get("complete"):
+        raise SystemExit(2)
+
+
+if __name__ == "__main__":
+    main()
