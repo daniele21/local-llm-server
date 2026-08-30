@@ -52,7 +52,6 @@ Hosted CI does not prove Apple memory reclamation, backend/model performance, th
 
 ## Active workstreams
 
-- `docs/workstreams/api-blackbox-e2e-hardening.md` — external application-to-HTTP acceptance coverage and exact-head validation.
 - `docs/workstreams/runtime-resource-governor.md` — representative pressure/reclamation evidence after deterministic governor completion.
 - `docs/workstreams/l2-reference-grade.md` — cumulative L2 completion gate.
 - `docs/workstreams/runtime-correctness-evidence-hardening.md` — representative-device evidence.
