@@ -118,11 +118,12 @@ def request_memory_envelope(
     request: InferenceRequest,
     runtime_config: Mapping[str, Any],
 ) -> MemoryEnvelope:
-    """Build the transient peak estimate held for one active request."""
+    """Build the transient peak estimate held for one chat/vision request."""
     override = _non_negative_int(runtime_config.get("resource_request_estimate_bytes"))
-    base = _optional_configured_component(
-        "request_base",
-        runtime_config.get("resource_request_base_bytes"),
+    base = _request_base_component(runtime_config)
+    input_component = _request_input_component(
+        _canonical_payload_bytes(request),
+        runtime_config,
     )
 
     per_output_token = _non_negative_int(
@@ -150,33 +151,30 @@ def request_memory_envelope(
             required=True,
         )
 
-    payload_bytes = _canonical_payload_bytes(request)
-    input_multiplier = _non_negative_int(
-        runtime_config.get("resource_request_input_byte_multiplier")
-    )
-    if input_multiplier is None:
-        input_component = MemoryComponent(
-            name="request_input",
-            bytes=None,
-            source="not_configured",
-            required=False,
-        )
-    else:
-        input_component = MemoryComponent(
-            name="request_input",
-            bytes=payload_bytes * input_multiplier,
-            source="configured_input_byte_multiplier",
-            required=True,
-        )
-
-    safety = _optional_configured_component(
-        "request_safety_margin",
-        runtime_config.get("resource_request_safety_margin_bytes"),
-    )
     return MemoryEnvelope(
         scope="transient",
-        components=(base, input_component, output, safety),
+        components=(base, input_component, output, _request_safety_component(runtime_config)),
         override_total_bytes=override,
+    )
+
+
+def transcription_memory_envelope(
+    audio_size_bytes: int,
+    runtime_config: Mapping[str, Any],
+) -> MemoryEnvelope:
+    """Build the transient execution estimate for one resident ASR request."""
+    if audio_size_bytes < 0:
+        raise ValueError("audio_size_bytes must be >= 0")
+    return MemoryEnvelope(
+        scope="transient",
+        components=(
+            _request_base_component(runtime_config),
+            _request_input_component(audio_size_bytes, runtime_config),
+            _request_safety_component(runtime_config),
+        ),
+        override_total_bytes=_non_negative_int(
+            runtime_config.get("resource_request_estimate_bytes")
+        ),
     )
 
 
@@ -229,6 +227,40 @@ def _projector_component(config: Mapping[str, Any]) -> MemoryComponent:
     except OSError:
         pass
     return MemoryComponent("projector", None, "unavailable", required=True)
+
+
+def _request_base_component(config: Mapping[str, Any]) -> MemoryComponent:
+    return _optional_configured_component(
+        "request_base",
+        config.get("resource_request_base_bytes"),
+    )
+
+
+def _request_input_component(
+    input_bytes: int,
+    config: Mapping[str, Any],
+) -> MemoryComponent:
+    multiplier = _non_negative_int(config.get("resource_request_input_byte_multiplier"))
+    if multiplier is None:
+        return MemoryComponent(
+            name="request_input",
+            bytes=None,
+            source="not_configured",
+            required=False,
+        )
+    return MemoryComponent(
+        name="request_input",
+        bytes=input_bytes * multiplier,
+        source="configured_input_byte_multiplier",
+        required=True,
+    )
+
+
+def _request_safety_component(config: Mapping[str, Any]) -> MemoryComponent:
+    return _optional_configured_component(
+        "request_safety_margin",
+        config.get("resource_request_safety_margin_bytes"),
+    )
 
 
 def _configured_component(name: str, value: Any) -> MemoryComponent:
