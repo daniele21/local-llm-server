@@ -116,7 +116,7 @@
                 <div class="overview-readiness-strip">
                     ${primaryMetric('Readiness', readiness.badge, serverState ? `Server state: ${serverState}` : 'Health source unavailable')}
                     ${primaryMetric('Resident', residentCount === null ? null : `${residentCount} runtime${residentCount === 1 ? '' : 's'}`, defaultModel ? `Default: ${defaultModel}` : 'Default route unavailable')}
-                    ${primaryMetric('AI budget', budgetLabel(accounted, budget), remaining === null ? 'Accounting headroom unavailable' : `${formatBytes(remaining)} headroom`)}
+                    ${primaryMetric('AI budget', budgetLabel(accounted, budget), headroomLabel(remaining))}
                     ${primaryMetric('Workload', workloadLabel(activeRequests, schedulerQueued), schedulerEnabled ? 'Scheduler enabled' : scheduler ? 'Scheduler disabled' : 'Scheduler unavailable')}
                     ${primaryMetric('Capacity', capacity.label, capacity.shortCopy)}
                 </div>
@@ -134,7 +134,7 @@
                     ${budgetProgress(accounted, budget)}
                     <dl class="overview-decision-list">
                         <div><dt>Accounted</dt><dd>${escapeHtml(formatBytes(accounted) || 'Unavailable')}</dd></div>
-                        <div><dt>Headroom</dt><dd>${escapeHtml(formatBytes(remaining) || 'Unavailable')}</dd></div>
+                        <div><dt>Headroom</dt><dd>${escapeHtml(headroomValue(remaining))}</dd></div>
                         <div><dt>Resident default</dt><dd>${escapeHtml(defaultModel || 'Unavailable')}</dd></div>
                     </dl>
                     <p class="overview-decision-copy">${escapeHtml(capacity.copy)}</p>
@@ -363,6 +363,18 @@
     function budgetLabel(accounted, budget) {
         if (accounted === null || budget === null) return null;
         return `${formatBytes(accounted)} / ${formatBytes(budget)}`;
+    }
+
+    function headroomLabel(remaining) {
+        if (remaining === null) return 'Accounting headroom unavailable';
+        if (remaining < 0) return `${formatBytes(Math.abs(remaining))} over budget`;
+        return `${formatBytes(remaining)} headroom`;
+    }
+
+    function headroomValue(remaining) {
+        if (remaining === null) return 'Unavailable';
+        if (remaining < 0) return `${formatBytes(Math.abs(remaining))} deficit`;
+        return formatBytes(remaining) || 'Unavailable';
     }
 
     function workloadLabel(active, queued) {
