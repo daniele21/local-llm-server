@@ -4,6 +4,11 @@ import json
 from pathlib import Path
 
 from local_llm_server.engine import LlamaServerEngine, load_llm
+from local_llm_server.llama_server_compat import (
+    LlamaServerBuildIdentity,
+    LlamaServerCompatibility,
+    resolve_llama_server_binary,
+)
 
 
 class _HealthResponse:
@@ -45,6 +50,13 @@ class _Process:
         return 0
 
 
+def _compatibility() -> LlamaServerCompatibility:
+    return LlamaServerCompatibility(
+        identity=LlamaServerBuildIdentity(build=10621, commit="c1d0e7a"),
+        supported=True,
+    )
+
+
 def test_load_llm_supports_llama_server(monkeypatch, tmp_path):
     model = tmp_path / "model.gguf"
     model.write_bytes(b"model")
@@ -53,6 +65,10 @@ def test_load_llm_supports_llama_server(monkeypatch, tmp_path):
     binary.chmod(0o755)
 
     monkeypatch.setattr("local_llm_server.engine.ensure_model", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        "local_llm_server.engine.resolve_llama_server_binary",
+        lambda _cfg: (binary, _compatibility()),
+    )
     monkeypatch.setattr("subprocess.Popen", lambda *_args, **_kwargs: _Process())
     monkeypatch.setattr(
         "urllib.request.urlopen",
@@ -72,20 +88,28 @@ def test_load_llm_supports_llama_server(monkeypatch, tmp_path):
             "timeout": 5,
             "download_url": "",
             "no_download": True,
+            "max_concurrent_requests": 1,
         }
     )
 
     assert isinstance(engine, LlamaServerEngine)
+    assert engine.backend_version == "build-10621@c1d0e7a"
     assert engine.complete({"messages": []})["choices"][0]["message"]["content"] == "ok"
     engine.close()
 
 
-def test_resolve_binary_prefers_explicit(tmp_path):
+def test_resolve_explicit_binary_is_authoritative_and_attributed(tmp_path):
     binary = tmp_path / "llama-server"
     binary.write_text("#!/bin/sh\n")
     binary.chmod(0o755)
 
-    assert LlamaServerEngine._resolve_binary({"llama_server_bin": str(binary)}) == Path(binary)
+    resolved, compatibility = resolve_llama_server_binary(
+        {"llama_server_bin": str(binary)},
+        run_command=lambda _path: "version: 10621 (c1d0e7a)\n",
+    )
+
+    assert resolved == Path(binary)
+    assert compatibility.backend_version == "build-10621@c1d0e7a"
 
 
 def test_llama_server_ensures_projector_and_passes_mmproj(monkeypatch, tmp_path):
@@ -98,6 +122,10 @@ def test_llama_server_ensures_projector_and_passes_mmproj(monkeypatch, tmp_path)
     commands = []
 
     monkeypatch.setattr("local_llm_server.engine.ensure_model", lambda **kwargs: ensured.append(kwargs))
+    monkeypatch.setattr(
+        "local_llm_server.engine.resolve_llama_server_binary",
+        lambda _cfg: (binary, _compatibility()),
+    )
     monkeypatch.setattr("subprocess.Popen", lambda command, **_kwargs: commands.append(command) or _Process())
     monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: _HealthResponse())
 
@@ -112,6 +140,7 @@ def test_llama_server_ensures_projector_and_passes_mmproj(monkeypatch, tmp_path)
             "ctx_size": 8192,
             "startup_timeout": 1,
             "no_download": False,
+            "max_concurrent_requests": 1,
         }
     )
 
@@ -129,7 +158,14 @@ def test_llama_server_drains_logs_before_waiting_for_readiness(monkeypatch):
     engine.mmproj_path = None
     engine.port = 19093
     engine.host = "127.0.0.1"
-    engine.cfg = {"ctx_size": 4096, "startup_timeout": 1}
+    engine.cfg = {
+        "ctx_size": 4096,
+        "startup_timeout": 1,
+        "max_concurrent_requests": 1,
+    }
+    engine.compatibility = _compatibility()
+    engine.backend_version = engine.compatibility.backend_version
+    engine.backend_compatibility_profile = engine.compatibility.profile
     events = []
 
     monkeypatch.setattr(
