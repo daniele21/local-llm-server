@@ -16,6 +16,7 @@ from .request_scheduler import install_request_scheduler
 from .residency_api import install_residency_api
 from .scheduler_policy import RequestSchedulerSettings
 from .streaming_metrics import install_streaming_metrics
+from .studio_ui import install_studio_ui_routes
 
 
 def install_product_http_stack(
@@ -36,9 +37,10 @@ def install_product_http_stack(
 
     The reasoning boundary receives raw route SSE only after streaming telemetry
     has observed it, and redacts hidden reasoning immediately before bytes reach
-    the client. Product API installs the cold-state layer afterwards. Identity
-    is public/read-only and path-free; residency and policy evidence routes
-    remain admin-only.
+    the client. Studio UI routes are product-level navigation and remain
+    available independently of the admin API. Product API installs the
+    cold-state layer afterwards. Identity is public/read-only and path-free;
+    residency and policy evidence routes remain admin-only.
     """
     install_request_resource_admission(application)
     install_request_scheduler(application, settings=scheduler_settings)
@@ -46,6 +48,7 @@ def install_product_http_stack(
     install_completion_metrics(application)
     install_streaming_metrics(application)
     install_reasoning_boundary(application)
+    install_studio_ui_routes(application)
     install_product_api(application, evaluation_root=evaluation_root)
     install_identity_api(application)
     install_residency_api(application)

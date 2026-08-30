@@ -16,7 +16,17 @@
         return `<span class="ds-status" data-status="${escapeHtml(status)}">${escapeHtml(label)}</span>`;
     }
 
-    function metric(label, value, source) {
+    function primaryMetric(label, value, detail = '') {
+        const rendered = value === null || value === undefined || value === '' ? 'Unavailable' : String(value);
+        return `
+            <div class="overview-primary-metric">
+                <span class="overview-primary-metric__label">${escapeHtml(label)}</span>
+                <strong class="overview-primary-metric__value">${escapeHtml(rendered)}</strong>
+                ${detail ? `<span class="overview-primary-metric__detail">${escapeHtml(detail)}</span>` : ''}
+            </div>`;
+    }
+
+    function evidenceMetric(label, value, source) {
         const rendered = value === null || value === undefined || value === '' ? 'Unavailable' : String(value);
         return `
             <div class="ds-metric">
@@ -37,6 +47,9 @@
             const header = panel.querySelector('.control-plane-header');
             if (header) header.insertAdjacentElement('afterend', surface);
             else panel.prepend(surface);
+            [...panel.children].forEach((child) => {
+                if (child !== surface && child.classList?.contains('ds-empty')) child.remove();
+            });
         }
         return surface;
     }
@@ -61,7 +74,7 @@
         const scheduler = fulfilled(results[5]);
 
         const models = Array.isArray(modelsPayload?.data) ? modelsPayload.data : null;
-        const serverReady = Boolean(health?.ok);
+        const serverReady = health?.ok === true;
         const serverState = health?.state || (serverReady ? 'ready' : null);
         const configuredDefault = health?.configured_default_model
             ?? evidence?.configured_default_model
@@ -76,112 +89,287 @@
         const canonicalMetrics = defaultEvidence?.metrics || null;
         const identity = defaultEvidence?.identity || null;
         const resourceAdmission = defaultEvidence?.resource_admission || null;
-        const resourceConfigured = resources?.policy_state === 'configured';
-        const resourceAvailable = resources !== null;
-        const schedulerAvailable = scheduler !== null;
         const schedulerEnabled = scheduler?.policy?.enabled === true;
         const schedulerRuntimes = Array.isArray(scheduler?.runtimes) ? scheduler.runtimes : [];
         const schedulerQueued = schedulerEnabled ? sumIntegerField(schedulerRuntimes, 'queued') : null;
         const schedulerInflight = schedulerEnabled ? sumIntegerField(schedulerRuntimes, 'inflight') : null;
+        const capacity = capacityState(resources);
+        const readiness = readinessState(health, capacity);
+        const budget = finiteNumber(resources?.usable_budget_bytes);
+        const committed = finiteNumber(resources?.committed_bytes);
+        const reserved = finiteNumber(resources?.reserved_bytes);
+        const remaining = finiteNumber(resources?.remaining_bytes);
+        const accounted = committed !== null && reserved !== null ? committed + reserved : null;
+
+        updateHeaderStatus(readiness);
 
         surface.innerHTML = `
-            <div class="control-plane-grid">
-                <article class="ds-card control-plane-card">
-                    <div class="control-plane-card-heading">
-                        <h3>Server</h3>
-                        ${statusBadge(
-                            serverReady ? capitalize(serverState || 'ready') : 'Unavailable',
-                            serverReady ? (serverState === 'cold' ? 'cold' : 'ready') : 'unavailable'
-                        )}
+            <section class="overview-readiness" aria-labelledby="overview-readiness-title">
+                <div class="overview-readiness__heading">
+                    <div>
+                        <span class="overview-eyebrow">Current state</span>
+                        <h3 id="overview-readiness-title">${escapeHtml(readiness.title)}</h3>
+                        <p>${escapeHtml(readiness.copy)}</p>
                     </div>
-                    ${metric('Backend', health?.backend ?? null, health ? '/health' : 'source unavailable')}
-                    ${metric('Resident default', defaultModel, health || runtimeStatus ? '/health · /status' : 'source unavailable')}
-                    ${metric('Configured default', configuredDefault, health || evidence ? '/health · /api/v1/evidence' : 'source unavailable')}
+                    ${statusBadge(readiness.badge, readiness.status)}
+                </div>
+                <div class="overview-readiness-strip">
+                    ${primaryMetric('Readiness', readiness.badge, serverState ? `Server state: ${serverState}` : 'Health source unavailable')}
+                    ${primaryMetric('Resident', residentCount === null ? null : `${residentCount} runtime${residentCount === 1 ? '' : 's'}`, defaultModel ? `Default: ${defaultModel}` : 'Default route unavailable')}
+                    ${primaryMetric('AI budget', budgetLabel(accounted, budget), remaining === null ? 'Accounting headroom unavailable' : `${formatBytes(remaining)} headroom`)}
+                    ${primaryMetric('Workload', workloadLabel(activeRequests, schedulerQueued), schedulerEnabled ? 'Scheduler enabled' : scheduler ? 'Scheduler disabled' : 'Scheduler unavailable')}
+                    ${primaryMetric('Capacity', capacity.label, capacity.shortCopy)}
+                </div>
+            </section>
+
+            <div class="control-plane-grid control-plane-grid--two overview-decision-grid">
+                <article class="ds-card control-plane-card overview-resource-card">
+                    <div class="control-plane-card-heading">
+                        <div>
+                            <span class="overview-eyebrow">Resource & residency</span>
+                            <h3>What can run next?</h3>
+                        </div>
+                        ${statusBadge(capacity.label, capacity.status)}
+                    </div>
+                    ${budgetProgress(accounted, budget)}
+                    <dl class="overview-decision-list">
+                        <div><dt>Accounted</dt><dd>${escapeHtml(formatBytes(accounted) || 'Unavailable')}</dd></div>
+                        <div><dt>Headroom</dt><dd>${escapeHtml(formatBytes(remaining) || 'Unavailable')}</dd></div>
+                        <div><dt>Resident default</dt><dd>${escapeHtml(defaultModel || 'Unavailable')}</dd></div>
+                    </dl>
+                    <p class="overview-decision-copy">${escapeHtml(capacity.copy)}</p>
+                    ${residentSummary(models)}
+                    <div class="control-plane-actions">
+                        <button type="button" class="ds-button" data-variant="primary" data-open-control-plane="registry-tab">Manage runtimes</button>
+                        ${capacity.needsAction ? '<span class="overview-action-note">Load feasibility and explicit unload recovery are available in Models & Runtimes.</span>' : ''}
+                    </div>
                 </article>
 
-                <article class="ds-card control-plane-card">
+                <article class="ds-card control-plane-card overview-workload-card">
                     <div class="control-plane-card-heading">
-                        <h3>Resident runtimes</h3>
-                        ${statusBadge(models || evidence ? 'Source connected' : 'Unavailable', models || evidence ? 'resident' : 'unavailable')}
+                        <div>
+                            <span class="overview-eyebrow">Live workload</span>
+                            <h3>What is using the runtime?</h3>
+                        </div>
+                        ${statusBadge(scheduler ? (schedulerEnabled ? 'Scheduler on' : 'Scheduler off') : 'Unavailable', scheduler ? (schedulerEnabled ? 'ready' : 'cold') : 'unavailable')}
                     </div>
-                    ${metric('Resident count', residentCount, models ? '/v1/models' : evidence ? '/api/v1/evidence' : 'source unavailable')}
-                    ${metric('Active requests', activeRequests, runtimeStatus ? '/status' : 'source unavailable')}
-                </article>
-
-                <article class="ds-card control-plane-card">
-                    <div class="control-plane-card-heading">
-                        <h3>Resource policy</h3>
-                        ${statusBadge(
-                            resourceAvailable ? (resourceConfigured ? 'Configured' : 'Disabled') : 'Unavailable',
-                            resourceAvailable ? (resourceConfigured ? 'ready' : 'cold') : 'unavailable'
-                        )}
+                    <dl class="overview-decision-list">
+                        <div><dt>Active requests</dt><dd>${escapeHtml(renderNumber(activeRequests))}</dd></div>
+                        <div><dt>Queued requests</dt><dd>${escapeHtml(renderNumber(schedulerQueued))}</dd></div>
+                        <div><dt>Inflight admissions</dt><dd>${escapeHtml(renderNumber(schedulerInflight))}</dd></div>
+                    </dl>
+                    <p class="overview-decision-copy">${scheduler
+                        ? (schedulerEnabled
+                            ? 'Queue state is source-backed. Open System for scheduler policy and diagnostic detail.'
+                            : 'The request scheduler is disabled; no queue state is inferred.')
+                        : 'Scheduler evidence is unavailable. No queue state is fabricated.'}</p>
+                    <div class="control-plane-actions">
+                        <button type="button" class="ds-button" data-open-control-plane="chat-tab">Open Playground</button>
+                        <button type="button" class="ds-button" data-open-control-plane="logs-tab">Open System</button>
                     </div>
-                    ${metric('Usable budget', formatBytes(resources?.usable_budget_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
-                    ${metric('Committed', formatBytes(resources?.committed_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
-                    ${metric('Reserved', formatBytes(resources?.reserved_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
-                    ${metric('Remaining', formatBytes(resources?.remaining_bytes), resources ? '/api/v1/resources' : 'source unavailable')}
-                </article>
-
-                <article class="ds-card control-plane-card">
-                    <div class="control-plane-card-heading">
-                        <h3>Request scheduler</h3>
-                        ${statusBadge(
-                            schedulerAvailable ? (schedulerEnabled ? 'Enabled' : 'Disabled') : 'Unavailable',
-                            schedulerAvailable ? (schedulerEnabled ? 'ready' : 'cold') : 'unavailable'
-                        )}
-                    </div>
-                    ${metric('Queue capacity / runtime', schedulerEnabled ? scheduler?.policy?.queue_capacity ?? null : null, scheduler ? '/api/v1/scheduler' : 'source unavailable')}
-                    ${metric('Default queue timeout', schedulerEnabled ? formatMs(scheduler?.policy?.default_queue_timeout_ms) : null, scheduler ? '/api/v1/scheduler' : 'source unavailable')}
-                    ${metric('Inflight admissions', schedulerInflight, scheduler ? '/api/v1/scheduler' : 'source unavailable')}
-                    ${metric('Queued requests', schedulerQueued, scheduler ? '/api/v1/scheduler' : 'source unavailable')}
                 </article>
             </div>
 
-            <div class="control-plane-grid control-plane-grid--two control-plane-evidence-grid">
-                <article class="ds-card control-plane-card">
-                    <div class="control-plane-card-heading">
-                        <h3>Latest runtime evidence</h3>
-                        ${statusBadge(canonicalMetrics ? 'Source connected' : 'Unavailable', canonicalMetrics ? 'ready' : 'unavailable')}
-                    </div>
-                    ${metric('Queue wait', formatMs(canonicalMetrics?.durations_ms?.queue_wait), metricSource(canonicalMetrics, 'queue_wait_ms'))}
-                    ${metric('Input tokens', canonicalMetrics?.counts?.input_tokens ?? null, metricSource(canonicalMetrics, 'input_tokens'))}
-                    ${metric('Output tokens', canonicalMetrics?.counts?.output_tokens ?? null, metricSource(canonicalMetrics, 'output_tokens'))}
-                    ${metric('Output chunks', canonicalMetrics?.counts?.output_chunks ?? null, metricSource(canonicalMetrics, 'output_chunks'))}
-                    ${metric('Prefill', formatMs(canonicalMetrics?.durations_ms?.prompt_prefill), metricSource(canonicalMetrics, 'prompt_prefill_ms'))}
-                    ${metric('TTFT', formatMs(canonicalMetrics?.durations_ms?.ttft), metricSource(canonicalMetrics, 'ttft_ms'))}
-                    ${metric('Decode', formatMs(canonicalMetrics?.durations_ms?.decode), metricSource(canonicalMetrics, 'decode_ms'))}
-                    ${metric('Decode throughput', formatRate(canonicalMetrics?.throughput?.decode_tokens_per_second, 'tok/s'), metricSource(canonicalMetrics, 'decode_tokens_per_second'))}
-                </article>
-
-                <article class="ds-card control-plane-card">
-                    <div class="control-plane-card-heading">
-                        <h3>Execution identity</h3>
-                        ${statusBadge(identity ? 'Captured' : 'Unavailable', identity ? 'ready' : 'unavailable')}
-                    </div>
-                    ${metric('Runtime fingerprint', identity?.fingerprint ?? null, identity ? '/api/v1/evidence' : 'source unavailable')}
-                    ${metric('Captured at', formatTimestamp(identity?.captured_at), identity ? '/api/v1/evidence' : 'source unavailable')}
-                    ${metric('Admission', resourceAdmission?.decision ?? null, resourceAdmission ? '/api/v1/evidence' : 'source unavailable')}
-                    ${metric('Load estimate', formatBytes(resourceAdmission?.estimate_bytes), resourceAdmission ? '/api/v1/evidence' : 'source unavailable')}
-                </article>
-            </div>
+            <details class="ds-card overview-evidence-details">
+                <summary>Runtime evidence & provenance</summary>
+                <p>Advanced evidence stays available without competing with readiness and resource decisions in the first scan.</p>
+                <div class="control-plane-grid control-plane-grid--two control-plane-evidence-grid">
+                    <article class="control-plane-card">
+                        <div class="control-plane-card-heading">
+                            <h3>Latest runtime evidence</h3>
+                            ${statusBadge(canonicalMetrics ? 'Connected' : 'Unavailable', canonicalMetrics ? 'ready' : 'unavailable')}
+                        </div>
+                        ${evidenceMetric('Queue wait', formatMs(canonicalMetrics?.durations_ms?.queue_wait), metricSource(canonicalMetrics, 'queue_wait_ms'))}
+                        ${evidenceMetric('Input tokens', canonicalMetrics?.counts?.input_tokens ?? null, metricSource(canonicalMetrics, 'input_tokens'))}
+                        ${evidenceMetric('Output tokens', canonicalMetrics?.counts?.output_tokens ?? null, metricSource(canonicalMetrics, 'output_tokens'))}
+                        ${evidenceMetric('Output chunks', canonicalMetrics?.counts?.output_chunks ?? null, metricSource(canonicalMetrics, 'output_chunks'))}
+                        ${evidenceMetric('Prefill', formatMs(canonicalMetrics?.durations_ms?.prompt_prefill), metricSource(canonicalMetrics, 'prompt_prefill_ms'))}
+                        ${evidenceMetric('TTFT', formatMs(canonicalMetrics?.durations_ms?.ttft), metricSource(canonicalMetrics, 'ttft_ms'))}
+                        ${evidenceMetric('Decode', formatMs(canonicalMetrics?.durations_ms?.decode), metricSource(canonicalMetrics, 'decode_ms'))}
+                        ${evidenceMetric('Decode throughput', formatRate(canonicalMetrics?.throughput?.decode_tokens_per_second, 'tok/s'), metricSource(canonicalMetrics, 'decode_tokens_per_second'))}
+                    </article>
+                    <article class="control-plane-card">
+                        <div class="control-plane-card-heading">
+                            <h3>Execution identity</h3>
+                            ${statusBadge(identity ? 'Captured' : 'Unavailable', identity ? 'ready' : 'unavailable')}
+                        </div>
+                        ${evidenceMetric('Configured default', configuredDefault, health || evidence ? '/health · /api/v1/evidence' : 'source unavailable')}
+                        ${evidenceMetric('Runtime fingerprint', identity?.fingerprint ?? null, identity ? '/api/v1/evidence' : 'source unavailable')}
+                        ${evidenceMetric('Captured at', formatTimestamp(identity?.captured_at), identity ? '/api/v1/evidence' : 'source unavailable')}
+                        ${evidenceMetric('Admission', resourceAdmission?.decision ?? null, resourceAdmission ? '/api/v1/evidence' : 'source unavailable')}
+                        ${evidenceMetric('Load estimate', formatBytes(resourceAdmission?.estimate_bytes), resourceAdmission ? '/api/v1/evidence' : 'source unavailable')}
+                    </article>
+                </div>
+            </details>
 
             ${resources === null || evidence === null || scheduler === null ? `
                 <div class="ds-empty control-plane-unavailable">
-                    Resource/evidence/scheduler control-plane sources are unavailable. Enable the admin API to expose them; no fallback values are fabricated.
-                </div>` : ''}
+                    Some advanced control-plane sources are unavailable. Enable the admin API to expose them; no fallback values are fabricated.
+                </div>` : ''}`;
 
-            <div class="control-plane-actions">
-                <button type="button" class="ds-button" data-open-control-plane="registry-tab">Open Models & Runtimes</button>
-                <button type="button" class="ds-button" data-open-control-plane="logs-tab">Open Diagnostics</button>
-                <button type="button" class="ds-button" data-open-control-plane="benchmark-tab">Open Evaluation</button>
+        bindActions(surface);
+    }
+
+    function readinessState(health, capacity) {
+        if (!health) {
+            return {
+                title: 'Readiness unavailable',
+                badge: 'Unavailable',
+                status: 'unavailable',
+                copy: 'The health source could not be read, so local execution readiness is not inferred.',
+            };
+        }
+        if (health.ok !== true) {
+            return {
+                title: 'Local AI needs attention',
+                badge: 'Not ready',
+                status: 'error',
+                copy: 'The server health contract is not ready. Open System for the owning diagnostic evidence.',
+            };
+        }
+        if (health.state === 'cold') {
+            return {
+                title: 'Local AI is ready but cold',
+                badge: 'Cold',
+                status: 'cold',
+                copy: 'The control plane is healthy, but an executable resident runtime may still need to be loaded.',
+            };
+        }
+        if (capacity.needsAction) {
+            return {
+                title: 'Local AI is ready with constrained capacity',
+                badge: 'Ready · constrained',
+                status: 'warning',
+                copy: 'The server is ready, but the accounting envelope may constrain the next model load. No physical-memory pressure claim is inferred.',
+            };
+        }
+        return {
+            title: 'Local AI is ready',
+            badge: 'Ready',
+            status: 'ready',
+            copy: 'The server health contract is ready. Capacity status below is based only on the configured accounting envelope.',
+        };
+    }
+
+    function capacityState(resources) {
+        if (!resources) {
+            return {
+                label: 'Unavailable',
+                status: 'unavailable',
+                shortCopy: 'Resource source unavailable',
+                copy: 'Resource accounting is unavailable, so load feasibility cannot be inferred here. The server remains the admission authority.',
+                needsAction: false,
+            };
+        }
+        if (resources.policy_state !== 'configured') {
+            return {
+                label: 'Admission disabled',
+                status: 'cold',
+                shortCopy: 'No configured AI envelope',
+                copy: 'The product resource envelope is not configured. This is not interpreted as unlimited capacity.',
+                needsAction: false,
+            };
+        }
+        const budget = finiteNumber(resources.usable_budget_bytes);
+        const remaining = finiteNumber(resources.remaining_bytes);
+        if (budget === null || remaining === null) {
+            return {
+                label: 'Unavailable',
+                status: 'unavailable',
+                shortCopy: 'Accounting evidence incomplete',
+                copy: 'The resource policy is configured, but budget/headroom evidence is incomplete. Load admission remains server-owned.',
+                needsAction: false,
+            };
+        }
+        if (remaining < 0) {
+            return {
+                label: 'Over budget',
+                status: 'error',
+                shortCopy: `${formatBytes(Math.abs(remaining))} deficit`,
+                copy: 'Accounted commitments exceed the configured AI budget. Review resident runtimes before loading another model.',
+                needsAction: true,
+            };
+        }
+        if (remaining === 0) {
+            return {
+                label: 'No headroom',
+                status: 'warning',
+                shortCopy: '0 B accounting headroom',
+                copy: 'The configured accounting envelope has no remaining headroom. Use explicit lifecycle actions before another load.',
+                needsAction: true,
+            };
+        }
+        if (budget > 0 && remaining / budget <= 0.1) {
+            return {
+                label: 'Low headroom',
+                status: 'warning',
+                shortCopy: `${formatBytes(remaining)} remains`,
+                copy: 'Accounting headroom is low. Check per-model load feasibility before changing residency.',
+                needsAction: true,
+            };
+        }
+        return {
+            label: 'Headroom available',
+            status: 'ready',
+            shortCopy: `${formatBytes(remaining)} remains`,
+            copy: 'The configured accounting envelope has headroom. This is not a claim about observed physical-memory pressure.',
+            needsAction: false,
+        };
+    }
+
+    function budgetProgress(accounted, budget) {
+        if (accounted === null || budget === null || budget <= 0) {
+            return '<div class="ds-empty overview-budget-unavailable">Budget utilization unavailable.</div>';
+        }
+        const value = Math.max(0, Math.min(accounted, budget));
+        return `
+            <div class="overview-budget">
+                <div class="overview-budget__labels"><span>Accounted AI budget</span><strong>${escapeHtml(formatBytes(accounted))} / ${escapeHtml(formatBytes(budget))}</strong></div>
+                <progress value="${value}" max="${budget}" aria-label="Accounted AI resource budget"></progress>
             </div>`;
+    }
 
+    function residentSummary(models) {
+        if (!models) return '<div class="ds-empty">Resident runtime source unavailable.</div>';
+        if (!models.length) return '<div class="ds-empty">No resident runtimes are currently reported.</div>';
+        const items = models.slice(0, 4).map((model) => {
+            const identity = model?.key || model?.id || model?.model_id || 'Unavailable';
+            const backend = model?.backend || 'backend unavailable';
+            return `<li><strong>${escapeHtml(identity)}</strong><span>${escapeHtml(backend)}</span></li>`;
+        }).join('');
+        return `<ul class="overview-resident-list">${items}</ul>`;
+    }
+
+    function bindActions(surface) {
         surface.querySelectorAll('[data-open-control-plane]').forEach((button) => {
             button.addEventListener('click', () => {
                 const id = button.dataset.openControlPlane;
+                if (window.localLlmControlPlane?.navigate) {
+                    window.localLlmControlPlane.navigate(id);
+                    return;
+                }
                 document.querySelector(`.sidebar-nav .nav-item[data-tab="${id}"]`)?.click();
             });
         });
+    }
+
+    function updateHeaderStatus(readiness) {
+        const badge = document.querySelector('#overview-tab .control-plane-header .ds-status');
+        if (!badge) return;
+        badge.dataset.status = readiness.status;
+        badge.textContent = readiness.badge;
+    }
+
+    function budgetLabel(accounted, budget) {
+        if (accounted === null || budget === null) return null;
+        return `${formatBytes(accounted)} / ${formatBytes(budget)}`;
+    }
+
+    function workloadLabel(active, queued) {
+        if (active === null && queued === null) return null;
+        const activeText = active === null ? 'active unavailable' : `${active} active`;
+        const queuedText = queued === null ? 'queue unavailable' : `${queued} queued`;
+        return `${activeText} · ${queuedText}`;
     }
 
     function fulfilled(result) {
@@ -236,6 +424,10 @@
         return finiteNumber(value);
     }
 
+    function renderNumber(value) {
+        return value === null || value === undefined ? 'Unavailable' : String(value);
+    }
+
     function formatBytes(value) {
         const number = finiteNumber(value);
         if (number === null || number < 0) return null;
@@ -260,11 +452,6 @@
         if (number === null || number < 0) return null;
         const date = new Date(number * 1000);
         return Number.isNaN(date.getTime()) ? null : date.toLocaleString();
-    }
-
-    function capitalize(value) {
-        const text = String(value || '');
-        return text ? `${text[0].toUpperCase()}${text.slice(1)}` : text;
     }
 
     function escapeHtml(value) {
