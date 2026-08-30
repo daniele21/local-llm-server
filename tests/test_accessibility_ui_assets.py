@@ -81,6 +81,51 @@ def test_status_component_has_visible_text_plus_non_textual_indicator_contract()
     assert 'data-status="loading">Loading sources</span>' in shell
 
 
+def test_product_semantic_components_are_canonical_and_keep_evidence_kind_visible():
+    css = (STATIC / "design-system.css").read_text(encoding="utf-8")
+    semantics = (STATIC / "control-plane-product-semantics.js").read_text(encoding="utf-8")
+    loader = (STATIC / "config.js").read_text(encoding="utf-8")
+
+    for component in (
+        ".ds-evidence-value",
+        ".ds-resource-budget",
+        ".ds-action-feedback",
+        ".ds-disclosure",
+    ):
+        assert component in css
+    assert ".ds-evidence-value__kind" in css
+    assert 'data-kind="estimated"' in css
+    assert 'data-kind="configured"' in css
+    assert 'data-kind="unavailable"' in css
+    assert "kindLabel.textContent = kind" in semantics
+    assert "control-plane-product-semantics.css" in loader
+    assert "control-plane-product-semantics.js" in loader
+
+
+def test_evaluation_progressive_disclosure_keeps_primary_run_path_visible():
+    semantics = (STATIC / "control-plane-product-semantics.js").read_text(encoding="utf-8")
+
+    assert "Advanced run settings" in semantics
+    assert "Dataset library" in semantics
+    assert "How evaluation evidence works" in semantics
+    assert "Run identity & reproducibility" in semantics
+    assert "startButton.setAttribute('data-variant', 'primary')" in semantics
+    assert "form.insertBefore(details, startButton)" in semantics
+    assert "data-evaluation-form" in semantics
+
+
+def test_resource_semantics_reuse_existing_models_owner_without_claiming_physical_pressure():
+    semantics = (STATIC / "control-plane-product-semantics.js").read_text(encoding="utf-8")
+    css = (STATIC / "design-system.css").read_text(encoding="utf-8")
+
+    assert "control-plane-models__budget" in semantics
+    assert "ds-resource-budget__track" in semantics
+    assert "ds-resource-budget__legend" in semantics
+    assert "data-model-action-status" in semantics
+    assert "Product-semantic resource accounting component" in css
+    assert "must not imply physical-memory observation" in css
+
+
 def test_control_plane_layouts_collapse_and_preserve_horizontal_table_access():
     shell_css = (STATIC / "control-plane-shell.css").read_text(encoding="utf-8")
     design_css = (STATIC / "design-system.css").read_text(encoding="utf-8")
@@ -103,12 +148,16 @@ def test_reduced_motion_contract_is_global_for_control_plane_motion():
     assert "transition: none" in css
 
 
-def test_control_plane_shell_javascript_is_syntactically_valid_when_node_is_available():
+@pytest.mark.parametrize(
+    "asset",
+    ["control-plane-shell.js", "control-plane-product-semantics.js"],
+)
+def test_control_plane_javascript_is_syntactically_valid_when_node_is_available(asset: str):
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed in this test environment")
     completed = subprocess.run(
-        [node, "--check", str(STATIC / "control-plane-shell.js")],
+        [node, "--check", str(STATIC / asset)],
         capture_output=True,
         text=True,
         check=False,
