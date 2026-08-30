@@ -19,6 +19,14 @@
       "warmup_iterations": 1000,
       "measured_iterations": 10000,
       "max_retained_growth_bytes": 524288
+    },
+    {
+      "id": "resident-transient-shared-budget",
+      "test": "tests/test_resource_manager_reservation_kinds.py::test_resident_and_transient_reservations_share_one_budget"
+    },
+    {
+      "id": "transient-stream-reservation-release",
+      "test": "tests/test_request_resource_admission.py::test_stream_wrapper_holds_transient_reservation_until_iterator_finishes"
     }
   ],
   "non_claims": [
