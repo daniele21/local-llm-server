@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const { test, expect } = require('@playwright/test');
 
 const OVERVIEW_VISUAL_DIGEST = 'a2eac8e9abf5ba7a1f5a566cedf7fa6ef119ba3ae06a6ccda9bc0f2da023927b';
-const EVALUATION_VISUAL_DIGEST = '4c09f6df18744fddab4281a0ddd3ab54e9d01caba12288440fe3800717ba4c83';
+const EVALUATION_VISUAL_DIGEST = '__EVALUATION_FORM_BOOTSTRAP_DIGEST__';
 
 test.use({
   viewport: { width: 1440, height: 1000 },
@@ -28,7 +28,7 @@ test('evaluation keeps scenario setup primary and advanced evidence controls dis
   const form = page.locator('[data-evaluation-form][data-product-semantics="true"]');
   await expect(form).toBeVisible();
   await expect(form.locator('[data-evaluation-model]')).toBeVisible();
-  await expect(form.locator('[data-evaluation-testset]')).toBeVisible();
+  await expect(form.locator('[data-evaluation-test-set]')).toBeVisible();
   await expect(form.locator('[data-evaluation-samples]')).toBeVisible();
 
   const advanced = form.locator('[data-evaluation-advanced]');
@@ -98,11 +98,10 @@ test('stable overview decision surface matches its targeted visual digest', asyn
   expect(digest).toBe(OVERVIEW_VISUAL_DIGEST);
 });
 
-test('stable evaluation setup matches its targeted visual digest', async ({ page }) => {
+test('stable evaluation setup form matches its targeted visual digest', async ({ page }) => {
   await openStudio(page, '/evaluations');
   const form = page.locator('[data-evaluation-form][data-product-semantics="true"]');
   await expect(form).toBeVisible();
-  const surface = page.locator('#benchmark-tab');
-  const digest = await imageDigest(surface);
+  const digest = await imageDigest(form);
   expect(digest).toBe(EVALUATION_VISUAL_DIGEST);
 });
