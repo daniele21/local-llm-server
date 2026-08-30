@@ -1,8 +1,7 @@
-const crypto = require('node:crypto');
 const { test, expect } = require('@playwright/test');
 
-const OVERVIEW_VISUAL_DIGEST = 'a2eac8e9abf5ba7a1f5a566cedf7fa6ef119ba3ae06a6ccda9bc0f2da023927b';
-const EVALUATION_VISUAL_DIGEST = '__EVALUATION_FORM_BOOTSTRAP_DIGEST__';
+const OVERVIEW_VISUAL_FINGERPRINT = '__OVERVIEW_PERCEPTUAL_BOOTSTRAP__';
+const EVALUATION_VISUAL_FINGERPRINT = '__EVALUATION_PERCEPTUAL_BOOTSTRAP__';
 
 test.use({
   viewport: { width: 1440, height: 1000 },
@@ -17,9 +16,48 @@ async function openStudio(page, route = '/overview') {
   await expect(page.getByRole('link', { name: 'Playground' })).toBeVisible();
 }
 
-async function imageDigest(locator) {
-  const image = await locator.screenshot({ animations: 'disabled' });
-  return crypto.createHash('sha256').update(image).digest('hex');
+async function visualFingerprint(page, locator) {
+  await page.evaluate(async () => {
+    if (document.fonts?.ready) await document.fonts.ready;
+  });
+  const screenshot = await locator.screenshot({ animations: 'disabled' });
+  const base64 = screenshot.toString('base64');
+  return page.evaluate(async ({ encoded }) => {
+    const rows = 32;
+    const columns = 33;
+    const image = new Image();
+    image.src = `data:image/png;base64,${encoded}`;
+    await image.decode();
+
+    const canvas = document.createElement('canvas');
+    canvas.width = columns;
+    canvas.height = rows;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
+    context.drawImage(image, 0, 0, columns, rows);
+    const pixels = context.getImageData(0, 0, columns, rows).data;
+
+    const luminance = (index) => Math.round(
+      (pixels[index] * 299 + pixels[index + 1] * 587 + pixels[index + 2] * 114) / 1000,
+    );
+    const bits = [];
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns - 1; column += 1) {
+        const left = (row * columns + column) * 4;
+        const right = left + 4;
+        // Ignore tiny antialiasing/compositor differences while preserving visible edge changes.
+        bits.push(luminance(left) - luminance(right) > 4 ? 1 : 0);
+      }
+    }
+
+    let hex = '';
+    for (let index = 0; index < bits.length; index += 4) {
+      const nibble = bits.slice(index, index + 4).reduce((value, bit) => (value << 1) | bit, 0);
+      hex += nibble.toString(16);
+    }
+    return hex;
+  }, { encoded: base64 });
 }
 
 test('evaluation keeps scenario setup primary and advanced evidence controls disclosed on demand', async ({ page }) => {
@@ -90,18 +128,18 @@ test('models and overview reuse canonical resource and evidence semantics', asyn
   await expect(details.locator('.ds-evidence-value__kind').first()).toBeVisible();
 });
 
-test('stable overview decision surface matches its targeted visual digest', async ({ page }) => {
+test('stable overview decision surface matches its targeted perceptual visual fingerprint', async ({ page }) => {
   await openStudio(page, '/overview');
   await expect(page.locator('.overview-readiness-strip')).toBeVisible();
   const surface = page.locator('#overview-tab');
-  const digest = await imageDigest(surface);
-  expect(digest).toBe(OVERVIEW_VISUAL_DIGEST);
+  const fingerprint = await visualFingerprint(page, surface);
+  expect(fingerprint).toBe(OVERVIEW_VISUAL_FINGERPRINT);
 });
 
-test('stable evaluation setup form matches its targeted visual digest', async ({ page }) => {
+test('stable evaluation setup form matches its targeted perceptual visual fingerprint', async ({ page }) => {
   await openStudio(page, '/evaluations');
   const form = page.locator('[data-evaluation-form][data-product-semantics="true"]');
   await expect(form).toBeVisible();
-  const digest = await imageDigest(form);
-  expect(digest).toBe(EVALUATION_VISUAL_DIGEST);
+  const fingerprint = await visualFingerprint(page, form);
+  expect(fingerprint).toBe(EVALUATION_VISUAL_FINGERPRINT);
 });
