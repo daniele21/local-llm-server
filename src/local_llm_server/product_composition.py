@@ -11,6 +11,7 @@ from .identity_api import install_identity_api
 from .policy_evidence import install_policy_evidence_api
 from .reasoning_http import install_reasoning_boundary
 from .request_middleware import install_request_policy
+from .request_resource_admission import install_request_resource_admission
 from .request_scheduler import install_request_scheduler
 from .residency_api import install_residency_api
 from .scheduler_policy import RequestSchedulerSettings
@@ -26,13 +27,20 @@ def install_product_http_stack(
     """Install admission, policy, truthful timing and modular product APIs.
 
     Starlette executes the last-added HTTP middleware outermost. Registration is
-    intentionally scheduler -> canonical policy -> completion metrics -> stream
-    metrics -> reasoning boundary. The reasoning boundary therefore receives raw
-    route SSE only after streaming telemetry has observed it, and redacts hidden
-    reasoning immediately before bytes reach the client. Product API installs
-    the cold-state layer afterwards. Identity is public/read-only and path-free;
-    residency and policy evidence routes remain admin-only.
+    intentionally transient-resource -> scheduler -> canonical policy ->
+    completion metrics -> stream metrics -> reasoning boundary. Execution is the
+    reverse for those three admission layers: canonical policy prepares the
+    request, the optional scheduler waits for a runtime slot, then transient
+    memory is reserved only when the request is ready to enter the route.
+    Streaming reservations remain held until the body iterator finishes.
+
+    The reasoning boundary receives raw route SSE only after streaming telemetry
+    has observed it, and redacts hidden reasoning immediately before bytes reach
+    the client. Product API installs the cold-state layer afterwards. Identity
+    is public/read-only and path-free; residency and policy evidence routes
+    remain admin-only.
     """
+    install_request_resource_admission(application)
     install_request_scheduler(application, settings=scheduler_settings)
     install_request_policy(application)
     install_completion_metrics(application)
