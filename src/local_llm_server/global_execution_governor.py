@@ -102,14 +102,15 @@ class GlobalExecutionGovernor:
         self._runtime_inflight: Counter[str] = Counter()
         self._inflight = 0
 
-    def acquire(
+    def submit(
         self,
         runtime_key: str,
         request_id: str,
         *,
         runtime_max_running: int,
         timeout_seconds: float | None = None,
-    ) -> GlobalExecutionPermit:
+    ) -> None:
+        """Register a waiter synchronously so cancellation can always find it."""
         if not runtime_key.strip():
             raise ValueError("runtime_key must be non-empty")
         if not request_id.strip():
@@ -143,19 +144,24 @@ class GlobalExecutionGovernor:
                     details={"capacity": self.queue_capacity},
                 )
 
-            waiter = _Waiter(
+            self._waiters[request_id] = _Waiter(
                 request_id=request_id,
                 runtime_key=runtime_key,
                 runtime_max_running=runtime_max_running,
                 submitted_at=now,
                 deadline_at=(now + timeout_seconds) if timeout_seconds is not None else None,
             )
-            self._waiters[request_id] = waiter
             self._runtime_queues.setdefault(runtime_key, deque()).append(request_id)
             self._schedule_runtime_locked(runtime_key)
             self._admit_available_locked(now)
             self._condition.notify_all()
 
+    def wait(self, request_id: str) -> GlobalExecutionPermit:
+        """Block until a previously submitted waiter is running or terminal."""
+        with self._condition:
+            waiter = self._waiters.get(request_id)
+            if waiter is None:
+                raise KeyError(request_id)
             while True:
                 if waiter.state is GlobalExecutionState.RUNNING:
                     assert waiter.started_at is not None
@@ -197,6 +203,23 @@ class GlobalExecutionGovernor:
                     continue
                 self._condition.wait(timeout=remaining)
 
+    def acquire(
+        self,
+        runtime_key: str,
+        request_id: str,
+        *,
+        runtime_max_running: int,
+        timeout_seconds: float | None = None,
+    ) -> GlobalExecutionPermit:
+        """Synchronous convenience wrapper used by non-async execution paths."""
+        self.submit(
+            runtime_key,
+            request_id,
+            runtime_max_running=runtime_max_running,
+            timeout_seconds=timeout_seconds,
+        )
+        return self.wait(request_id)
+
     def abandon(self, request_id: str) -> bool:
         """Cancel an acquisition that will not be handed to execution."""
         now = self.clock()
@@ -213,7 +236,6 @@ class GlobalExecutionGovernor:
                 self._release_running_locked(waiter.runtime_key)
             else:
                 return False
-            self._waiters.pop(request_id, None)
             self._admit_available_locked(now)
             self._condition.notify_all()
             return True
