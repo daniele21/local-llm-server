@@ -32,6 +32,7 @@ class Engine(Protocol):
 
 class LlamaCppEngine:
     backend = "llama-cpp-python"
+    execution_isolation = "in_process"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         model_path = Path(cfg["model_path"]).expanduser()
@@ -77,23 +78,40 @@ class LlamaCppEngine:
         self.llm = Llama(**kwargs)
 
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if self.llm is None:
+            raise RuntimeError("llama-cpp-python runtime is closed")
         result = llama_cpp_chat_completion(self.llm, payload, stream=False)
         if not isinstance(result, dict):
             raise RuntimeError("llama_cpp non-stream request returned an invalid iterator")
         return result
 
     def stream(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        if self.llm is None:
+            raise RuntimeError("llama-cpp-python runtime is closed")
         result = llama_cpp_chat_completion(self.llm, payload, stream=True)
         if isinstance(result, dict):
             raise RuntimeError("llama_cpp stream request returned a completed response")
         return iter(result)
 
     def close(self) -> None:
-        return None
+        """Explicitly release the native llama.cpp model/context owner.
+
+        llama-cpp-python exposes ``Llama.close()`` in the currently locked
+        0.3.x line. Calling it makes the teardown boundary explicit, but this is
+        still not evidence that host/unified memory has returned to baseline.
+        """
+        llm = getattr(self, "llm", None)
+        if llm is None:
+            return
+        llm.close()
+        self.llm = None
+
+    shutdown = close
 
 
 class MLXEngine:
     backend = "mlx-lm"
+    execution_isolation = "in_process"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         try:
@@ -254,6 +272,7 @@ class LlamaServerEngine:
     """
 
     backend = "llama_server"
+    execution_isolation = "subprocess"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         self.cfg = cfg
@@ -402,6 +421,7 @@ class MLXVLMServerEngine:
     """Engine backed by the OpenAI-compatible ``mlx_vlm.server`` subprocess."""
 
     backend = "mlx_vlm_server"
+    execution_isolation = "subprocess"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         from .model_sources import resolve_mlx_runtime_path
