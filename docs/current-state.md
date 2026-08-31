@@ -11,7 +11,8 @@ Local LLM Server is a local-first multi-backend inference server with Local LLM 
 - Target maturity: **L2** with Python, local-AI, TypeScript, macOS and `product-ui` profiles.
 - Repository-side L2 acceptance: `d528b6c5b676e705e7ccf24800929da6d5534203`.
 - Representative Apple Silicon hardware evidence is accepted for the minimum L2 runtime bundle and RRG-5 multi-model ownership/accounting procedure.
-- Full L2 remains blocked only by the two real-human `product-ui` evidence tasks: manual accessibility and representative-user usability.
+- Bounded manual accessibility and representative-user usability evidence were accepted on 2026-08-31 for source revision `a29e77c1ce4e65294440cfe4fc47e33c92173096`.
+- Full L2 evidence is complete; promotion to `main` is in final deterministic publication preflight.
 
 ## Accepted deterministic L2 surface
 
@@ -47,17 +48,17 @@ RRG-5 was then completed separately on the representative Mac after fixing repea
 
 The retained post-stop RSS and available-memory deltas remain observational. `automatic_eviction_recommendation=not_provided`, `reclamation_safety_claim=false` and `production_safety_claim=false`; automatic pressure eviction therefore remains disabled. This evidence confirms the exercised target-Mac procedures only and is not a cross-device, thermal, throughput or production-safety claim.
 
-## Remaining L2 evidence
+## Accepted product experience evidence
 
-### Product experience
+PX4-09 and PX4-10 are complete. The retained bounded evidence contains no prompts, model outputs, private paths, machine identity or credentials:
 
-- PX4-09 — manual accessibility review of primary journeys;
-- PX4-10 — representative-user usability with bounded non-sensitive evidence.
+- `docs/evidence/manual-accessibility-2026-08-31.json` — all six required manual accessibility checks accepted with no blocking finding;
+- `docs/evidence/representative-usability-2026-08-31.json` — all four required usability journeys completed with no high/critical finding;
+- `docs/evidence/product-ui-evidence-summary-2026-08-31.json` — acceptance-ready bounded summary tied to the exact tested source revision.
 
 ## Active workstreams
 
-- `docs/workstreams/l2-reference-grade.md` — cumulative L2 completion gate, now waiting on the two human product-experience evidence tasks.
-- `docs/workstreams/v040-product-ui-l2.md` — manual accessibility/usability evidence.
+There are no remaining L2 completion workstreams. New work should be opened only for a new bounded capability or evidence objective.
 
 ## Durable operational references
 
