@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "representative_user_usability",
+  "source_revision": "0000000000000000000000000000000000000000",
+  "records": [
+    {
+      "study_id": "example-usability-study",
+      "journey_id": "control-plane-status-and-navigation",
+      "task_completed": false,
+      "needed_recovery": false,
+      "assistance_required": false,
+      "duration_bucket": "not-measured",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation; do not reproduce product content."
+    },
+    {
+      "study_id": "example-usability-study",
+      "journey_id": "chat-inference-and-recovery",
+      "task_completed": false,
+      "needed_recovery": false,
+      "assistance_required": false,
+      "duration_bucket": "not-measured",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation."
+    },
+    {
+      "study_id": "example-usability-study",
+      "journey_id": "advanced-control-discovery",
+      "task_completed": false,
+      "needed_recovery": false,
+      "assistance_required": false,
+      "duration_bucket": "not-measured",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation."
+    },
+    {
+      "study_id": "example-usability-study",
+      "journey_id": "evidence-interpretation",
+      "task_completed": false,
+      "needed_recovery": false,
+      "assistance_required": false,
+      "duration_bucket": "not-measured",
+      "severity": "none",
+      "sanitized_observation": "Replace with a bounded interaction observation."
+    }
+  ]
+}

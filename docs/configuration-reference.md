@@ -5,7 +5,7 @@ Document type: operational-reference
 Owner: runtime configuration
 Canonical scope: operations.configuration
 Read when: choosing server/runtime settings, diagnosing unexpected effective configuration, or preparing reproducible runs
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-30
 
 Local LLM Server resolves runtime configuration from multiple sources. This reference documents the supported precedence and the settings that materially affect serving behavior and execution identity.
 
@@ -46,6 +46,23 @@ The public `/v1/runtime/identity` endpoint exposes only a safe allowlisted effec
 | `verbose` | `--verbose` | `LOCAL_LLM_VERBOSE` | `false` | debug logging |
 
 Boolean environment variables accept common truthy values such as `1`, `true`, `yes` and `on` case-insensitively.
+
+## Request admission and global execution governor
+
+Request admission is explicitly opt-in and is configured independently from per-model `build_config`. Leaving all values unset preserves the existing no-queue/no-global-cap behavior.
+
+| Environment | Fallback | Meaning |
+| --- | --- | --- |
+| `LOCAL_LLM_REQUEST_QUEUE_CAPACITY` | `null` | bounded FIFO wait capacity for each resident runtime before execution admission |
+| `LOCAL_LLM_QUEUE_TIMEOUT_MS` | `null` | deadline for the complete pre-execution wait; requires a per-runtime queue and/or global governor |
+| `LOCAL_LLM_GLOBAL_MAX_RUNNING` | `null` | aggregate number of executions that may hold a global compute slot across resident runtimes |
+| `LOCAL_LLM_GLOBAL_QUEUE_CAPACITY` | `null` | bounded aggregate wait capacity for the global execution governor |
+
+`LOCAL_LLM_GLOBAL_MAX_RUNNING` and `LOCAL_LLM_GLOBAL_QUEUE_CAPACITY` must be configured together. The global governor uses runtime round-robin fairness and also respects each runtime's `max_concurrent_requests` as an eligibility bound so global slots are not consumed by work that would immediately block on that runtime's semaphore. The runtime semaphore remains the final per-runtime safeguard, and backend-native batching remains backend-owned.
+
+The optional request header `x-local-llm-queue-timeout-ms` overrides `LOCAL_LLM_QUEUE_TIMEOUT_MS` for that HTTP request. The timeout covers the combined pre-execution wait rather than restarting between the per-runtime queue and global governor; it is not an end-to-end inference timeout.
+
+Transient request memory is reserved only after execution admission, so queued requests do not claim transient RAM. When the global governor is configured, first-class chat/vision HTTP execution, resident transcription and evaluation samples share the same aggregate execution owner. Global admission does not create a second memory budget or enable automatic pressure eviction.
 
 ## Default generation settings
 

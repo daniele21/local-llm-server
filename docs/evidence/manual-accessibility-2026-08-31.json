@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "manual_accessibility",
+  "study_id": "product-ui-final-a11y-2026-08-31",
+  "source_revision": "a29e77c1ce4e65294440cfe4fc47e33c92173096",
+  "checks": [
+    {
+      "check_id": "keyboard-primary-shell",
+      "outcome": "pass",
+      "severity": "none",
+      "sanitized_observation": "Manual review reported the primary shell and critical actions usable by keyboard without a blocking issue."
+    },
+    {
+      "check_id": "focus-order-and-visibility",
+      "outcome": "pass",
+      "severity": "none",
+      "sanitized_observation": "Manual review reported focus order and focus visibility acceptable on the exercised primary flows."
+    },
+    {
+      "check_id": "accessibility-tree-or-screen-reader",
+      "outcome": "pass",
+      "severity": "none",
+      "sanitized_observation": "Manual accessibility inspection reported the primary status, navigation and chat journey understandable without a blocking issue."
+    },
+    {
+      "check_id": "zoom-and-text-scaling",
+      "outcome": "pass",
+      "severity": "none",
+      "sanitized_observation": "Manual review reported zoom and text scaling preserved the primary action and recovery path on the exercised surface."
+    },
+    {
+      "check_id": "reduced-motion",
+      "outcome": "pass",
+      "severity": "none",
+      "sanitized_observation": "Manual review reported reduced-motion behavior acceptable without loss of essential feedback."
+    },
+    {
+      "check_id": "error-loading-empty-disabled-states",
+      "outcome": "pass",
+      "severity": "none",
+      "sanitized_observation": "Manual review reported representative error, loading, empty and disabled states understandable with no blocking recovery issue."
+    }
+  ]
+}

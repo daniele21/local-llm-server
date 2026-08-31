@@ -1,7 +1,9 @@
 """Resource reservation and admission foundation.
 
 This module manages configured budget accounting only. It does not claim that a
-runtime can reclaim memory; B3 owns reclamation evidence and worker isolation.
+runtime can reclaim memory; representative-device evidence owns reclamation.
+Resident runtimes and active requests share one ledger so individually safe
+owners cannot collectively exceed the configured usable budget.
 """
 from __future__ import annotations
 
@@ -23,12 +25,18 @@ class ReservationState(str, Enum):
     COMMITTED = "committed"
 
 
+class ReservationKind(str, Enum):
+    RESIDENT = "resident"
+    TRANSIENT = "transient"
+
+
 @dataclass(frozen=True, slots=True)
 class ResourceReservation:
     reservation_id: str
     requested_bytes: int
     accounted_bytes: int
     state: ReservationState
+    kind: ReservationKind = ReservationKind.RESIDENT
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,7 +50,7 @@ class AdmissionResult:
 
 
 class ResourceManager:
-    """Thread-safe configured-budget ledger for load admission."""
+    """Thread-safe configured-budget ledger shared by all memory owners."""
 
     def __init__(self, budget: ResourceBudget) -> None:
         self._budget = budget
@@ -53,11 +61,24 @@ class ResourceManager:
     def budget(self) -> ResourceBudget:
         return self._budget
 
-    def snapshot(self) -> tuple[ResourceReservation, ...]:
+    def snapshot(
+        self,
+        *,
+        kind: ReservationKind | None = None,
+    ) -> tuple[ResourceReservation, ...]:
         with self._lock:
-            return tuple(sorted(self._reservations.values(), key=lambda item: item.reservation_id))
+            reservations = self._reservations.values()
+            if kind is not None:
+                reservations = (item for item in reservations if item.kind is kind)
+            return tuple(sorted(reservations, key=lambda item: item.reservation_id))
 
-    def reserve(self, reservation_id: str, requested_bytes: int) -> AdmissionResult:
+    def reserve(
+        self,
+        reservation_id: str,
+        requested_bytes: int,
+        *,
+        kind: ReservationKind = ReservationKind.RESIDENT,
+    ) -> AdmissionResult:
         if not reservation_id.strip():
             raise ValueError("reservation_id must be non-empty")
         if requested_bytes < 0:
@@ -73,6 +94,7 @@ class ResourceManager:
                     requested_bytes=requested_bytes,
                     accounted_bytes=requested_bytes,
                     state=ReservationState.RESERVED,
+                    kind=kind,
                 )
             return decision
 
@@ -99,6 +121,7 @@ class ResourceManager:
                 requested_bytes=current.requested_bytes,
                 accounted_bytes=accounted,
                 state=ReservationState.COMMITTED,
+                kind=current.kind,
             )
             return self._result(
                 AdmissionDecision.ADMIT if usable is not None else AdmissionDecision.UNKNOWN,

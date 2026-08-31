@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "contract_version": "0.5.0",
+  "product_name": "Local LLM Studio",
+  "assets": {
+    "logo_primary": "src/local_llm_server/static/logo.svg",
+    "logo_compact": "src/local_llm_server/static/logo.svg",
+    "logo_monochrome": "n/a — no separate monochrome asset is currently shipped; docs/brand-guidelines.md owns the future variant requirement",
+    "app_icon": "n/a — the current product surface is browser-based and ships no native application icon",
+    "favicon": "src/local_llm_server/static/logo.svg"
+  },
+  "themes": {
+    "light": true,
+    "dark": true
+  },
+  "tokens": {
+    "colors": {
+      "surface": "--ds-bg / --ds-surface-1 in src/local_llm_server/static/design-system.css",
+      "surface_elevated": "--ds-surface-2 / --ds-surface-3",
+      "text_primary": "--ds-text",
+      "text_secondary": "--ds-text-muted",
+      "primary": "--ds-electric-blue",
+      "success": "--ds-status-ready",
+      "warning": "--ds-status-warning",
+      "error": "--ds-status-error",
+      "border": "--ds-border / --ds-border-subtle",
+      "focus": "--ds-focus"
+    },
+    "typography": "--ds-font-ui / --ds-font-data / --ds-font-mono in src/local_llm_server/static/design-system.css",
+    "spacing": "4px-based --ds-space-* scale in src/local_llm_server/static/design-system.css",
+    "radius": "--ds-radius-sm/md/lg",
+    "elevation": "--ds-shadow-panel; elevation is intentionally restrained"
+  },
+  "style": {
+    "iconography": "Monoline/geometric inline SVG with consistent stroke treatment; vendor-neutral for core task concepts",
+    "motion": "Short functional transitions only; non-essential motion honors prefers-reduced-motion and must not compensate for unclear structure",
+    "imagery": "Operational product UI first; screenshots must be real implemented surfaces and concept mockups are reference-only",
+    "voice_microcopy": "Concise, technical, state-explicit and recovery-oriented; avoid anthropomorphic or unmeasured marketing claims"
+  },
+  "motion_tokens": {
+    "durations": {
+      "instant": "0ms for immediate state changes and reduced-motion fallback",
+      "fast": "--ds-transition-fast = 120ms ease for frequent control feedback",
+      "standard": "n/a — no separate canonical standard-duration token is currently shipped; use fast functional motion unless a semantic need justifies a new token",
+      "large": "n/a — no large decorative/navigation duration is currently canonical"
+    },
+    "easing": {
+      "enter": "ease via --ds-transition-fast for current functional transitions",
+      "exit": "ease via --ds-transition-fast for current functional transitions",
+      "move": "ease via --ds-transition-fast for current functional transitions"
+    },
+    "spring": {
+      "default": "n/a — spring motion is not part of the current browser product language",
+      "bounce": "n/a — bounce is intentionally avoided for frequent technical workflows"
+    },
+    "reduced_motion_strategy": "Global @media (prefers-reduced-motion: reduce) disables transitions/animations and restores immediate scrolling behavior in design-system.css."
+  }
+}

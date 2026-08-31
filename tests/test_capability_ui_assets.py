@@ -41,6 +41,29 @@ def test_capability_ui_uses_canonical_task_and_feature_names():
         assert value in script
 
 
+def test_playground_is_task_first_and_cold_models_are_explicit_load_actions():
+    script = (STATIC / "control-plane-capabilities.js").read_text(encoding="utf-8")
+    assert "data-playground-task" in script
+    assert "Chat" in script
+    assert "Structured output" in script
+    assert "Vision-language" in script
+    assert "Transcription" in script
+    assert "compatibleRecords(activeTask)" in script
+    assert "data-load-and-use" in script
+    assert "/api/v1/models/load" in script
+    assert "Load & use" in script
+    assert "syncLegacyModelSelect" in script
+
+
+def test_structured_task_owns_json_mode_instead_of_model_heuristics():
+    script = (STATIC / "control-plane-capabilities.js").read_text(encoding="utf-8")
+    assert "state.structuredSupported" in script
+    assert "json.checked = true" in script
+    assert "json.disabled = true" in script
+    assert "structured_generation" in script
+    assert "structured_output" in script
+
+
 def test_transcription_playground_is_multipart_and_model_explicit():
     script = (STATIC / "control-plane-capabilities.js").read_text(encoding="utf-8")
     assert "new FormData()" in script

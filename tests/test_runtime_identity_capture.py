@@ -29,6 +29,12 @@ def _runtime_cfg(*, sha256=None):
     }
 
 
+def _make_executable(path):
+    path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
 def test_missing_artifact_sha_keeps_runtime_exploratory(monkeypatch):
     runtime = SimpleNamespace(
         key="demo",
@@ -107,19 +113,43 @@ def test_unknown_backend_can_use_explicit_version_without_package_probe():
     assert public["identity"]["backend"]["version"] == "2026.08"
 
 
-def test_llama_server_version_probe_uses_build_and_commit_only(monkeypatch):
+def test_llama_server_engine_identity_is_used_without_reprobe(monkeypatch):
     cfg = _runtime_cfg(sha256="c" * 64)
     cfg["backend"] = "llama_server"
     engine = SimpleNamespace(
         backend="llama_server",
         binary="/private/bin/llama-server",
+        backend_version="build-10621@c1d0e7a",
     )
     runtime = SimpleNamespace(key="demo", cfg=cfg, engine=engine)
 
     monkeypatch.setattr(
-        "local_llm_server.runtime_identity_capture.subprocess.run",
+        "local_llm_server.runtime_identity_capture.probe_llama_server_version",
+        lambda _binary: (_ for _ in ()).throw(AssertionError("must not re-probe")),
+    )
+
+    snapshot = capture_verified_runtime_identity(runtime)
+
+    assert snapshot is not None
+    rendered = snapshot.to_public_dict()
+    assert rendered["identity"]["backend"]["version"] == "build-10621@c1d0e7a"
+    assert "/private/bin" not in str(rendered)
+
+
+def test_llama_server_version_probe_uses_build_and_commit_only(monkeypatch, tmp_path):
+    cfg = _runtime_cfg(sha256="d" * 64)
+    cfg["backend"] = "llama_server"
+    binary = _make_executable(tmp_path / "llama-server")
+    engine = SimpleNamespace(
+        backend="llama_server",
+        binary=str(binary),
+    )
+    runtime = SimpleNamespace(key="demo", cfg=cfg, engine=engine)
+
+    monkeypatch.setattr(
+        "local_llm_server.llama_server_compat.subprocess.run",
         lambda *args, **kwargs: SimpleNamespace(
-            stdout="version: 9261 (`ad27757`)\nbuilt with AppleClang for Darwin arm64\n",
+            stdout="version: 10621 (`c1d0e7a`)\nbuilt with AppleClang for Darwin arm64\n",
             stderr="",
             returncode=0,
         ),
@@ -129,20 +159,21 @@ def test_llama_server_version_probe_uses_build_and_commit_only(monkeypatch):
 
     assert snapshot is not None
     rendered = snapshot.to_public_dict()
-    assert rendered["identity"]["backend"]["version"] == "build-9261@ad27757"
-    assert "/private/bin" not in str(rendered)
+    assert rendered["identity"]["backend"]["version"] == "build-10621@c1d0e7a"
+    assert str(tmp_path) not in str(rendered)
 
 
-def test_unparseable_llama_server_version_keeps_runtime_exploratory(monkeypatch):
-    cfg = _runtime_cfg(sha256="d" * 64)
+def test_unparseable_llama_server_version_keeps_runtime_exploratory(monkeypatch, tmp_path):
+    cfg = _runtime_cfg(sha256="e" * 64)
     cfg["backend"] = "llama_server"
+    binary = _make_executable(tmp_path / "llama-server")
     runtime = SimpleNamespace(
         key="demo",
         cfg=cfg,
-        engine=SimpleNamespace(backend="llama_server", binary="/tmp/llama-server"),
+        engine=SimpleNamespace(backend="llama_server", binary=str(binary)),
     )
     monkeypatch.setattr(
-        "local_llm_server.runtime_identity_capture.subprocess.run",
+        "local_llm_server.llama_server_compat.subprocess.run",
         lambda *args, **kwargs: SimpleNamespace(
             stdout="unknown build output",
             stderr="",

@@ -1,8 +1,17 @@
 from __future__ import annotations
 
+import threading
+import time
+
 import pytest
 
 from local_llm_server.core.contracts import ErrorCode, InferenceError
+from local_llm_server.global_execution_governor import (
+    GlobalExecutionGovernor,
+    attach_global_execution_governor,
+)
+from local_llm_server.resource_manager import ReservationKind, ResourceManager
+from local_llm_server.resources import ResourceBudget
 from local_llm_server.runtime import ModelRuntimeManager
 from local_llm_server.transcription import ResidentTranscriptionService, TranscriptionRequest
 
@@ -28,6 +37,19 @@ class _AsrEngine:
         pass
 
 
+class _ResourceAwareAsrEngine(_AsrEngine):
+    def __init__(self, resources: ResourceManager):
+        super().__init__()
+        self.resources = resources
+        self.saw_transient_reservation = False
+
+    def transcribe(self, payload):
+        self.saw_transient_reservation = (
+            len(self.resources.snapshot(kind=ReservationKind.TRANSIENT)) == 1
+        )
+        return super().transcribe(payload)
+
+
 class _AudioChatEngine:
     backend = "fake_audio_chat"
 
@@ -35,8 +57,7 @@ class _AudioChatEngine:
         pass
 
 
-def _explicit_asr_manager():
-    engine = _AsrEngine()
+def _asr_cfg(**overrides):
     cfg = {
         "model": "asr",
         "model_id": "org/asr",
@@ -48,9 +69,24 @@ def _explicit_asr_manager():
         "features": ["streaming"],
         "max_concurrent_requests": 1,
     }
+    cfg.update(overrides)
+    return cfg
+
+
+def _explicit_asr_manager():
+    engine = _AsrEngine()
     manager = ModelRuntimeManager(default_model="asr")
-    manager.add(cfg, engine)
+    manager.add(_asr_cfg(), engine)
     return manager, engine
+
+
+def _wait_until(predicate, *, timeout: float = 1.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.002)
+    raise AssertionError("condition was not reached before timeout")
 
 
 def test_explicit_transcription_runtime_executes_asr_task():
@@ -72,6 +108,131 @@ def test_explicit_transcription_runtime_executes_asr_task():
     assert engine.calls == 1
     assert engine.payload["audio"] == b"RIFFfake"
     assert engine.payload["filename"] == "meeting.wav"
+
+
+def test_transcription_waits_for_global_slot_before_reserving_transient_memory():
+    resources = ResourceManager(ResourceBudget(limit_bytes=100))
+    engine = _ResourceAwareAsrEngine(resources)
+    manager = ModelRuntimeManager(default_model="asr", resource_manager=resources)
+    manager.add(_asr_cfg(resource_request_estimate_bytes=60), engine)
+    governor = GlobalExecutionGovernor(max_running=1, queue_capacity=2)
+    attach_global_execution_governor(manager, governor)
+    governor.acquire("other", "occupied", runtime_max_running=1)
+    results = []
+
+    def run_transcription() -> None:
+        results.append(
+            ResidentTranscriptionService(manager).transcribe(
+                TranscriptionRequest(model="asr", audio=b"audio")
+            )
+        )
+
+    worker = threading.Thread(target=run_transcription)
+    worker.start()
+    _wait_until(lambda: governor.snapshot().queued == 1)
+    assert engine.calls == 0
+    assert resources.snapshot(kind=ReservationKind.TRANSIENT) == ()
+
+    governor.release("occupied")
+    worker.join(timeout=1)
+    assert not worker.is_alive()
+    assert results[0].text == "hello world"
+    assert engine.calls == 1
+    assert engine.saw_transient_reservation is True
+    assert governor.snapshot().inflight == 0
+    assert resources.snapshot() == ()
+
+
+def test_transcription_holds_transient_reservation_through_backend_execution():
+    resources = ResourceManager(ResourceBudget(limit_bytes=100))
+    engine = _ResourceAwareAsrEngine(resources)
+    manager = ModelRuntimeManager(default_model="asr", resource_manager=resources)
+    manager.add(_asr_cfg(resource_request_estimate_bytes=60), engine)
+
+    result = ResidentTranscriptionService(manager).transcribe(
+        TranscriptionRequest(model="asr", audio=b"audio")
+    )
+
+    assert result.text == "hello world"
+    assert engine.saw_transient_reservation is True
+    assert resources.snapshot() == ()
+
+
+def test_transcription_rejects_peak_before_backend_execution_and_releases_global_slot():
+    resources = ResourceManager(ResourceBudget(limit_bytes=100))
+    engine = _AsrEngine()
+    manager = ModelRuntimeManager(default_model="asr", resource_manager=resources)
+    manager.add(_asr_cfg(resource_request_estimate_bytes=60), engine)
+    governor = GlobalExecutionGovernor(max_running=1, queue_capacity=1)
+    attach_global_execution_governor(manager, governor)
+    resources.reserve("runtime:other", 50, kind=ReservationKind.RESIDENT)
+    resources.commit("runtime:other")
+
+    with pytest.raises(InferenceError) as exc_info:
+        ResidentTranscriptionService(manager).transcribe(
+            TranscriptionRequest(model="asr", audio=b"audio")
+        )
+
+    assert exc_info.value.code is ErrorCode.RESOURCE_EXHAUSTED
+    assert exc_info.value.retryable is True
+    assert engine.calls == 0
+    [resident] = resources.snapshot()
+    assert resident.kind is ReservationKind.RESIDENT
+    assert resident.accounted_bytes == 50
+    assert governor.snapshot().inflight == 0
+    assert governor.snapshot().queued == 0
+
+
+def test_transcription_global_overflow_rejects_before_backend_execution():
+    manager, engine = _explicit_asr_manager()
+    governor = GlobalExecutionGovernor(max_running=1, queue_capacity=1)
+    attach_global_execution_governor(manager, governor)
+    governor.acquire("other", "running", runtime_max_running=1)
+    queued_error: list[InferenceError] = []
+
+    def fill_queue() -> None:
+        try:
+            governor.acquire("other-2", "queued", runtime_max_running=1)
+        except InferenceError as exc:
+            queued_error.append(exc)
+
+    queued = threading.Thread(target=fill_queue)
+    queued.start()
+    _wait_until(lambda: governor.snapshot().queued == 1)
+
+    with pytest.raises(InferenceError) as exc_info:
+        ResidentTranscriptionService(manager).transcribe(
+            TranscriptionRequest(model="asr", audio=b"audio")
+        )
+    assert exc_info.value.code is ErrorCode.RESOURCE_EXHAUSTED
+    assert engine.calls == 0
+
+    assert governor.abandon("queued") is True
+    queued.join(timeout=1)
+    assert not queued.is_alive()
+    assert queued_error[0].code is ErrorCode.CANCELLED
+    governor.release("running")
+
+
+def test_transcription_input_multiplier_accounts_audio_bytes():
+    resources = ResourceManager(ResourceBudget(limit_bytes=100))
+    engine = _ResourceAwareAsrEngine(resources)
+    manager = ModelRuntimeManager(default_model="asr", resource_manager=resources)
+    manager.add(
+        _asr_cfg(
+            resource_request_base_bytes=10,
+            resource_request_input_byte_multiplier=2,
+            resource_request_safety_margin_bytes=5,
+        ),
+        engine,
+    )
+
+    ResidentTranscriptionService(manager).transcribe(
+        TranscriptionRequest(model="asr", audio=b"12345678")
+    )
+
+    assert engine.saw_transient_reservation is True
+    assert resources.snapshot() == ()
 
 
 def test_legacy_audio_modality_does_not_imply_transcription():

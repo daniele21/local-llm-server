@@ -1,12 +1,13 @@
 """Lifecycle, routing, and concurrency ownership for resident model engines."""
 from __future__ import annotations
 
+import socket
 import threading
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from enum import Enum
-from collections.abc import Iterator
 from typing import Any
 
 from .resource_manager import AdmissionDecision, AdmissionResult, ResourceManager
@@ -17,6 +18,18 @@ def _close_engine(engine: Any) -> None:
     close = getattr(engine, "close", None) or getattr(engine, "shutdown", None)
     if close is not None:
         close()
+
+
+def _loopback_port_is_available(port: int) -> bool:
+    """Return whether one concrete loopback TCP port can currently be bound."""
+    if port < 1 or port > 65535:
+        return False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
 
 
 _BACKEND_CONFIG_CAPABILITIES: dict[str, tuple[str, ...]] = {
@@ -60,8 +73,10 @@ def new_runtime_status(model_id: str) -> dict[str, Any]:
 
 
 class RuntimeState(str, Enum):
+    STARTING = "starting"
     READY = "ready"
     DRAINING = "draining"
+    STOPPING = "stopping"
     STOPPED = "stopped"
     FAILED = "failed"
 
@@ -157,12 +172,29 @@ class ModelRuntime:
                 self.status["phase"] = "idle"
 
 
+@dataclass
+class _PendingCleanup:
+    engine: Any
+    resource_reservation_id: str | None
+    reason: str
+
+
 class ModelRuntimeManager:
-    """Own all loaded engines and route model keys/IDs to their runtime."""
+    """Own all loaded engines and route model keys/IDs to their runtime.
+
+    Logical residency and resource accounting are deliberately fail-conservative:
+    an engine is not declared stopped and its reservation is not released until
+    backend teardown succeeds. Engines allocated on a failed load/reload are
+    retained internally when cleanup itself fails so shutdown can retry them.
+    """
 
     _PORT_FIELDS = {
         "llama_server": "llama_server_port",
         "mlx_vlm_server": "mlx_vlm_server_port",
+    }
+    _DEFAULT_PRIVATE_PORTS = {
+        "llama_server": 8091,
+        "mlx_vlm_server": 8092,
     }
 
     def __init__(
@@ -175,6 +207,7 @@ class ModelRuntimeManager:
         self._aliases: dict[str, str] = {}
         self._loading: set[str] = set()
         self._reserved_ports: set[int] = set()
+        self._pending_cleanup: list[_PendingCleanup] = []
         self._manager_lock = threading.RLock()
         self._condition = threading.Condition(self._manager_lock)
         self._resource_manager = resource_manager
@@ -184,6 +217,11 @@ class ModelRuntimeManager:
     @property
     def resource_manager(self) -> ResourceManager | None:
         return self._resource_manager
+
+    @property
+    def pending_cleanup_count(self) -> int:
+        with self._manager_lock:
+            return len(self._pending_cleanup)
 
     def add(self, cfg: dict[str, Any], engine: Any, *, key: str | None = None) -> ModelRuntime:
         runtime_key = str(key or cfg["model"])
@@ -233,20 +271,24 @@ class ModelRuntimeManager:
             reservation_id = self._reserve_runtime_load(model, cfg)
             engine = load_llm(cfg)
             self._commit_runtime_load(reservation_id, cfg)
-            try:
-                runtime = self.add(cfg, engine, key=model)
-            except Exception:
-                _close_engine(engine)
-                engine = None
-                self._rollback_runtime_load(reservation_id)
-                raise
+            runtime = self.add(cfg, engine, key=model)
             runtime.resource_reservation_id = reservation_id
             return runtime, True
-        except Exception:
+        except Exception as exc:
             if engine is not None:
-                _close_engine(engine)
-            self._rollback_runtime_load(reservation_id)
-            raise
+                cleanup_error = self._cleanup_unpublished_engine(
+                    engine,
+                    reservation_id,
+                    reason=f"failed load for {model}",
+                )
+                if cleanup_error is not None:
+                    raise RuntimeError(
+                        f"Model '{model}' load failed and backend cleanup also failed; "
+                        "resource accounting was retained."
+                    ) from cleanup_error
+            elif reservation_id is not None:
+                self._rollback_runtime_load(reservation_id)
+            raise exc
         finally:
             with self._manager_lock:
                 self._loading.discard(model)
@@ -287,11 +329,13 @@ class ModelRuntimeManager:
     def set_default(self, model: str) -> ModelRuntime:
         runtime = self.resolve(model)
         with self._manager_lock:
+            if runtime.state is not RuntimeState.READY:
+                raise RuntimeError(f"Model '{runtime.key}' is not ready.")
             self.default_model = runtime.key
         return runtime
 
     def reload(self, model: str, **explicit: Any) -> ModelRuntime:
-        """Replace one idle runtime atomically, preserving it if loading fails."""
+        """Replace one idle runtime without publishing an unowned replacement."""
         from .config import build_config
         from .engine import load_llm
 
@@ -305,14 +349,23 @@ class ModelRuntimeManager:
                 raise RuntimeError(f"Model '{current.key}' has an active request.")
             current.state = RuntimeState.DRAINING
 
-        new_engine = None
         reservation_id: str | None = None
+        reserved_port: int | None = None
+        new_engine = None
         try:
             cfg = build_config(model=current.key, **explicit)
             with self._manager_lock:
                 self._assign_private_port(cfg)
+                field_name = self._PORT_FIELDS.get(str(cfg.get("backend")))
+                reserved_port = int(cfg[field_name]) if field_name else None
+                if reserved_port is not None:
+                    self._reserved_ports.add(reserved_port)
             reservation_id = self._reserve_runtime_load(current.key, cfg)
             new_engine = load_llm(cfg)
+            with self._manager_lock:
+                if reserved_port is not None:
+                    self._reserved_ports.discard(reserved_port)
+                    reserved_port = None
             self._commit_runtime_load(reservation_id, cfg)
             replacement = ModelRuntime(
                 current.key,
@@ -329,66 +382,220 @@ class ModelRuntimeManager:
                         raise ValueError(
                             f"Alias '{alias}' is already used by loaded model '{owner}'."
                         )
-                self._runtimes[current.key] = replacement
-                for alias, key in list(self._aliases.items()):
-                    if key == current.key:
-                        self._aliases.pop(alias, None)
-                self._aliases[current.key] = current.key
-                self._aliases[replacement.model_id] = current.key
-            _close_engine(current.engine)
-            self._release_runtime_load(current.resource_reservation_id)
-            current.state = RuntimeState.STOPPED
-            return replacement
-        except Exception:
+                current.state = RuntimeState.STOPPING
+        except Exception as exc:
             if new_engine is not None:
-                _close_engine(new_engine)
-            self._rollback_runtime_load(reservation_id)
+                cleanup_error = self._cleanup_unpublished_engine(
+                    new_engine,
+                    reservation_id,
+                    reason=f"failed replacement for {current.key}",
+                )
+                if cleanup_error is not None:
+                    with self._manager_lock:
+                        if self._runtimes.get(current.key) is current:
+                            current.state = RuntimeState.READY
+                    raise RuntimeError(
+                        f"Reload for '{current.key}' failed and replacement cleanup also failed; "
+                        "replacement accounting was retained."
+                    ) from cleanup_error
+            elif reservation_id is not None:
+                self._rollback_runtime_load(reservation_id)
             with self._manager_lock:
                 if self._runtimes.get(current.key) is current:
                     current.state = RuntimeState.READY
+            raise exc
+        finally:
+            if reserved_port is not None:
+                with self._manager_lock:
+                    self._reserved_ports.discard(reserved_port)
+
+        try:
+            _close_engine(current.engine)
+        except Exception:
+            with self._manager_lock:
+                current.state = RuntimeState.FAILED
+            cleanup_error = self._cleanup_unpublished_engine(
+                replacement.engine,
+                replacement.resource_reservation_id,
+                reason=f"replacement abandoned after teardown failure for {current.key}",
+            )
+            if cleanup_error is not None:
+                raise RuntimeError(
+                    f"Reload for '{current.key}' could not stop the current runtime and "
+                    "could not clean up its replacement; both remain accounted."
+                ) from cleanup_error
             raise
+
+        self._release_runtime_load(current.resource_reservation_id)
+        with self._manager_lock:
+            if self._runtimes.get(current.key) is not current:
+                current.state = RuntimeState.STOPPED
+                cleanup_error = self._cleanup_unpublished_engine(
+                    replacement.engine,
+                    replacement.resource_reservation_id,
+                    reason=f"replacement lost ownership race for {current.key}",
+                )
+                if cleanup_error is not None:
+                    raise RuntimeError(
+                        f"Runtime '{current.key}' changed during final reload publication and "
+                        "replacement cleanup failed."
+                    ) from cleanup_error
+                raise RuntimeError(f"Model '{current.key}' changed while reloading.")
+
+            self._runtimes[current.key] = replacement
+            for alias, key in list(self._aliases.items()):
+                if key == current.key:
+                    self._aliases.pop(alias, None)
+            self._aliases[current.key] = current.key
+            self._aliases[replacement.model_id] = current.key
+            if self.default_model == current.key:
+                self.default_model = replacement.key
+        current.state = RuntimeState.STOPPED
+        return replacement
 
     def list(self) -> list[ModelRuntime]:
         with self._manager_lock:
             return list(self._runtimes.values())
 
     def unload(self, model: str) -> ModelRuntime:
+        return self._unload(model, allow_last=False)
+
+    def _unload(self, model: str, *, allow_last: bool) -> ModelRuntime:
+        """Stop one idle runtime before removing routing/accounting ownership."""
         runtime = self.resolve(model)
         with self._manager_lock:
             if self._runtimes.get(runtime.key) is not runtime:
                 raise LookupError(f"Model '{model}' is no longer loaded.")
-            if runtime.state is not RuntimeState.READY:
+            if runtime.state not in {RuntimeState.READY, RuntimeState.FAILED}:
                 raise RuntimeError(f"Model '{runtime.key}' is not ready.")
-            if len(self._runtimes) == 1:
+            if not allow_last and len(self._runtimes) == 1:
                 raise RuntimeError("Cannot unload the last resident model.")
             if runtime.active_requests:
                 raise RuntimeError(f"Model '{runtime.key}' has an active request.")
             runtime.state = RuntimeState.DRAINING
-            self._runtimes.pop(runtime.key, None)
-            for alias, key in list(self._aliases.items()):
-                if key == runtime.key:
-                    self._aliases.pop(alias, None)
-            if self.default_model == runtime.key:
-                self.default_model = next(iter(self._runtimes), None)
-        _close_engine(runtime.engine)
+            runtime.state = RuntimeState.STOPPING
+
+        try:
+            _close_engine(runtime.engine)
+        except Exception:
+            with self._manager_lock:
+                runtime.state = RuntimeState.FAILED
+            raise
+
         self._release_runtime_load(runtime.resource_reservation_id)
-        runtime.state = RuntimeState.STOPPED
+        with self._manager_lock:
+            if self._runtimes.get(runtime.key) is runtime:
+                self._runtimes.pop(runtime.key, None)
+                for alias, key in list(self._aliases.items()):
+                    if key == runtime.key:
+                        self._aliases.pop(alias, None)
+                if self.default_model == runtime.key:
+                    self.default_model = self._next_ready_runtime_key_unlocked()
+            runtime.state = RuntimeState.STOPPED
         return runtime
 
-    def shutdown(self) -> None:
+    def shutdown(self, *, timeout_seconds: float = 30.0) -> None:
+        """Bound drain time, then stop every idle owned engine fail-conservatively.
+
+        Runtimes that fail to drain or fail backend teardown remain tracked and
+        accounted with state ``FAILED``. This is intentionally truthful: process
+        exit may later reclaim them, but the manager does not fabricate STOPPED.
+        """
+        timeout = float(timeout_seconds)
+        if timeout < 0:
+            raise ValueError("timeout_seconds must be >= 0")
+
+        deadline = time.monotonic() + timeout
         with self._condition:
             runtimes = list(self._runtimes.values())
             for runtime in runtimes:
-                runtime.state = RuntimeState.DRAINING
-            self._runtimes.clear()
-            self._aliases.clear()
+                if runtime.state is RuntimeState.READY:
+                    runtime.state = RuntimeState.DRAINING
             self.default_model = None
             while any(runtime.active_requests for runtime in runtimes):
-                self._condition.wait()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._condition.wait(timeout=remaining)
+
+        failures: list[str] = []
         for runtime in runtimes:
-            _close_engine(runtime.engine)
+            with self._manager_lock:
+                if self._runtimes.get(runtime.key) is not runtime:
+                    continue
+                if runtime.active_requests:
+                    runtime.state = RuntimeState.FAILED
+                    failures.append(
+                        f"{runtime.key}: {runtime.active_requests} active request(s) did not drain"
+                    )
+                    continue
+                runtime.state = RuntimeState.STOPPING
+            try:
+                _close_engine(runtime.engine)
+            except Exception as exc:
+                with self._manager_lock:
+                    runtime.state = RuntimeState.FAILED
+                failures.append(f"{runtime.key}: backend teardown failed: {exc}")
+                continue
+
             self._release_runtime_load(runtime.resource_reservation_id)
-            runtime.state = RuntimeState.STOPPED
+            with self._manager_lock:
+                if self._runtimes.get(runtime.key) is runtime:
+                    self._runtimes.pop(runtime.key, None)
+                    for alias, key in list(self._aliases.items()):
+                        if key == runtime.key:
+                            self._aliases.pop(alias, None)
+                runtime.state = RuntimeState.STOPPED
+
+        failures.extend(self._retry_pending_cleanup())
+        if failures:
+            raise RuntimeError("Runtime shutdown incomplete: " + "; ".join(failures))
+
+    def _cleanup_unpublished_engine(
+        self,
+        engine: Any,
+        reservation_id: str | None,
+        *,
+        reason: str,
+    ) -> Exception | None:
+        """Close an allocated engine before releasing its provisional accounting."""
+        try:
+            _close_engine(engine)
+        except Exception as exc:
+            with self._manager_lock:
+                self._pending_cleanup.append(
+                    _PendingCleanup(engine, reservation_id, reason)
+                )
+            return exc
+        self._rollback_runtime_load(reservation_id)
+        return None
+
+    def _retry_pending_cleanup(self) -> list[str]:
+        with self._manager_lock:
+            pending = list(self._pending_cleanup)
+            self._pending_cleanup.clear()
+
+        failures: list[str] = []
+        for item in pending:
+            try:
+                _close_engine(item.engine)
+            except Exception as exc:
+                failures.append(f"pending cleanup ({item.reason}): {exc}")
+                with self._manager_lock:
+                    self._pending_cleanup.append(item)
+                continue
+            self._release_runtime_load(item.resource_reservation_id)
+        return failures
+
+    def _next_ready_runtime_key_unlocked(self) -> str | None:
+        return next(
+            (
+                runtime.key
+                for runtime in self._runtimes.values()
+                if runtime.state is RuntimeState.READY
+            ),
+            None,
+        )
 
     def _reserve_runtime_load(self, runtime_key: str, cfg: dict[str, Any]) -> str | None:
         estimate = estimated_runtime_load_bytes(cfg)
@@ -418,7 +625,8 @@ class ModelRuntimeManager:
             estimate_bytes=estimated_runtime_load_bytes(cfg),
         )
         if result.decision is AdmissionDecision.REJECT:
-            manager.rollback(reservation_id)
+            # The caller owns the live backend and must close it before the
+            # reservation can truthfully be released.
             raise ResourceAdmissionError(result)
 
     def _rollback_runtime_load(self, reservation_id: str | None) -> None:
@@ -435,7 +643,8 @@ class ModelRuntimeManager:
             return f"runtime:{runtime_key}:{self._reservation_counter}"
 
     def _assign_private_port(self, cfg: dict[str, Any]) -> None:
-        field_name = self._PORT_FIELDS.get(str(cfg.get("backend")))
+        backend = str(cfg.get("backend"))
+        field_name = self._PORT_FIELDS.get(backend)
         if not field_name:
             return
         used = set(self._reserved_ports)
@@ -443,7 +652,15 @@ class ModelRuntimeManager:
             for private_port_field in self._PORT_FIELDS.values():
                 if runtime.cfg.get(private_port_field) is not None:
                     used.add(int(runtime.cfg[private_port_field]))
-        port = int(cfg.get(field_name) or 0)
-        while port in used:
+        default_port = self._DEFAULT_PRIVATE_PORTS[backend]
+        port = int(cfg.get(field_name) or default_port)
+        if port < 1 or port > 65535:
+            raise ValueError(f"{field_name} must be between 1 and 65535")
+        while port <= 65535:
+            if port not in used and _loopback_port_is_available(port):
+                cfg[field_name] = port
+                return
             port += 1
-        cfg[field_name] = port
+        raise RuntimeError(
+            f"No available private loopback port remains for backend '{backend}'."
+        )

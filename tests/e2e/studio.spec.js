@@ -4,12 +4,14 @@ async function openStudio(page) {
   await page.route('https://fonts.googleapis.com/**', (route) => route.abort());
   await page.route('https://fonts.gstatic.com/**', (route) => route.abort());
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('tab', { name: 'Playground' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Playground' })).toBeVisible();
+  await expect(page).toHaveURL(/\/overview$/);
 }
 
 async function openPlayground(page) {
   await openStudio(page);
-  await page.getByRole('tab', { name: 'Playground' }).click();
+  await page.getByRole('link', { name: 'Playground' }).click();
+  await expect(page).toHaveURL(/\/playground$/);
   await expect(page.locator('#chat-tab')).toBeVisible();
 
   const panel = page.locator('#advanced-params-panel');
@@ -49,20 +51,31 @@ async function sendMessage(page, text = 'What is 17 + 25?') {
   return request.postDataJSON();
 }
 
-test('control-plane tabs support keyboard roving focus', async ({ page }) => {
+test('control-plane routes survive refresh and browser history', async ({ page }) => {
   await openStudio(page);
-  const tabs = page.getByRole('tab');
-  await expect(tabs).toHaveCount(7);
+  const navigation = page.locator('.control-plane-navigation');
+  const links = navigation.getByRole('link');
+  await expect(links).toHaveCount(7);
 
-  const overview = page.getByRole('tab', { name: 'Overview' });
-  const models = page.getByRole('tab', { name: 'Models & Runtimes' });
-  await overview.click();
-  await overview.focus();
-  await page.keyboard.press('ArrowDown');
+  const overview = navigation.getByRole('link', { name: 'Overview' });
+  const models = navigation.getByRole('link', { name: 'Models & Runtimes' });
+  await expect(overview).toHaveAttribute('aria-current', 'page');
 
-  await expect(models).toBeFocused();
-  await expect(models).toHaveAttribute('aria-selected', 'true');
+  await models.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/models$/);
+  await expect(models).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('#registry-tab')).toBeVisible();
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/models$/);
+  await expect(page.getByRole('link', { name: 'Models & Runtimes' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#registry-tab')).toBeVisible();
+
+  await page.goBack({ waitUntil: 'domcontentloaded' });
+  await expect(page).toHaveURL(/\/overview$/);
+  await expect(page.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#overview-tab')).toBeVisible();
 });
 
 test('switchable thinking sends an explicit OFF request', async ({ page }) => {
@@ -128,7 +141,8 @@ test('typed API failures render a useful UI error instead of object coercion', a
 
 test('general-purpose evaluation sends and records reasoning OFF', async ({ page }) => {
   await openStudio(page);
-  await page.getByRole('tab', { name: 'Benchmark & Evaluation' }).click();
+  await page.getByRole('link', { name: 'Benchmark & Evaluation' }).click();
+  await expect(page).toHaveURL(/\/evaluations$/);
 
   const testSet = page.locator('[data-evaluation-test-set]');
   const samples = page.locator('[data-evaluation-samples]');

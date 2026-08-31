@@ -4,7 +4,11 @@ import threading
 
 import pytest
 
-from local_llm_server.runtime import ModelRuntimeManager, config_capabilities_for_backend
+from local_llm_server.runtime import (
+    ModelRuntimeManager,
+    RuntimeState,
+    config_capabilities_for_backend,
+)
 
 
 class _Engine:
@@ -14,6 +18,17 @@ class _Engine:
 
     def shutdown(self):
         self.stopped = True
+
+
+class _FailingEngine(_Engine):
+    def __init__(self, backend="fake"):
+        super().__init__(backend)
+        self.fail_close = True
+
+    def shutdown(self):
+        if self.fail_close:
+            raise RuntimeError("close failed")
+        super().shutdown()
 
 
 def _cfg(key, *, backend="fake", model_id=None, port=None):
@@ -110,6 +125,30 @@ def test_stale_resolved_runtime_cannot_be_leased_after_unload():
             pytest.fail("a stopped engine must never be leased")
 
 
+def test_failed_unload_keeps_runtime_owned_until_teardown_can_be_retried():
+    manager = ModelRuntimeManager(default_model="failing")
+    engine = _FailingEngine()
+    runtime = manager.add(_cfg("failing", model_id="org/failing"), engine)
+    manager.add(_cfg("other"), _Engine())
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        manager.unload("failing")
+
+    assert manager.resolve("failing") is runtime
+    assert manager.resolve("org/failing") is runtime
+    assert runtime.state is RuntimeState.FAILED
+    assert engine.stopped is False
+
+    engine.fail_close = False
+    stopped = manager.unload("failing")
+
+    assert stopped is runtime
+    assert runtime.state is RuntimeState.STOPPED
+    assert engine.stopped is True
+    with pytest.raises(LookupError):
+        manager.resolve("failing")
+
+
 def test_alias_cannot_collide_with_an_existing_model_id():
     manager = ModelRuntimeManager()
     manager.add(_cfg("first", model_id="org/shared"), _Engine())
@@ -123,6 +162,10 @@ def test_private_ports_are_unique(monkeypatch):
     manager.add(_cfg("one", backend="llama_server", port=8091), _Engine("llama_server"))
     captured = {}
 
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda _port: True,
+    )
     monkeypatch.setattr("local_llm_server.config.build_config", lambda **_kwargs: _cfg("two", backend="llama_server", port=8091))
     monkeypatch.setattr("local_llm_server.engine.load_llm", lambda cfg: captured.update(cfg) or _Engine("llama_server"))
 
@@ -131,6 +174,138 @@ def test_private_ports_are_unique(monkeypatch):
     assert loaded is True
     assert runtime.cfg["llama_server_port"] == 8092
     assert captured["llama_server_port"] == 8092
+
+
+def test_private_ports_skip_external_loopback_listener(monkeypatch):
+    manager = ModelRuntimeManager()
+    captured = {}
+
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda **_kwargs: _cfg("one", backend="llama_server", port=8091),
+    )
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda port: port != 8091,
+    )
+    monkeypatch.setattr(
+        "local_llm_server.engine.load_llm",
+        lambda cfg: captured.update(cfg) or _Engine("llama_server"),
+    )
+
+    runtime, loaded = manager.load("one")
+
+    assert loaded is True
+    assert runtime.cfg["llama_server_port"] == 8092
+    assert captured["llama_server_port"] == 8092
+
+
+def test_private_port_zero_uses_real_backend_default(monkeypatch):
+    manager = ModelRuntimeManager()
+    captured = {}
+
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda **_kwargs: {
+            "model": "one",
+            "model_id": "one",
+            "backend": "llama_server",
+            "llama_server_port": 0,
+        },
+    )
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda _port: True,
+    )
+    monkeypatch.setattr(
+        "local_llm_server.engine.load_llm",
+        lambda cfg: captured.update(cfg) or _Engine("llama_server"),
+    )
+
+    runtime, loaded = manager.load("one")
+
+    assert loaded is True
+    assert runtime.cfg["llama_server_port"] == 8091
+    assert captured["llama_server_port"] == 8091
+
+
+def test_private_port_allocation_fails_closed_when_range_exhausted(monkeypatch):
+    manager = ModelRuntimeManager()
+    backend_loads = []
+
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda **_kwargs: _cfg("one", backend="llama_server", port=65535),
+    )
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda _port: False,
+    )
+    monkeypatch.setattr(
+        "local_llm_server.engine.load_llm",
+        lambda cfg: backend_loads.append(cfg) or _Engine("llama_server"),
+    )
+
+    with pytest.raises(RuntimeError, match="No available private loopback port"):
+        manager.load("one")
+
+    assert backend_loads == []
+
+
+def test_reload_reserves_replacement_port_while_backend_starts(monkeypatch):
+    manager = ModelRuntimeManager(default_model="one")
+    manager.add(
+        _cfg("one", backend="llama_server", port=8091),
+        _Engine("llama_server"),
+    )
+    reload_started = threading.Event()
+    release_reload = threading.Event()
+    errors = []
+    observed_ports = {}
+
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda _port: True,
+    )
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda model=None, **_kwargs: _cfg(
+            str(model), backend="llama_server", port=8091
+        ),
+    )
+
+    def load_engine(cfg):
+        if cfg["model"] == "one":
+            observed_ports["reload"] = cfg["llama_server_port"]
+            reload_started.set()
+            release_reload.wait(timeout=2)
+        else:
+            observed_ports["load"] = cfg["llama_server_port"]
+        return _Engine("llama_server")
+
+    monkeypatch.setattr("local_llm_server.engine.load_llm", load_engine)
+
+    def reload_one():
+        try:
+            manager.reload("one")
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=reload_one)
+    thread.start()
+    assert reload_started.wait(timeout=2)
+
+    runtime, loaded = manager.load("two")
+
+    release_reload.set()
+    thread.join(timeout=2)
+
+    assert loaded is True
+    assert not thread.is_alive()
+    assert errors == []
+    assert observed_ports == {"reload": 8092, "load": 8093}
+    assert runtime.cfg["llama_server_port"] == 8093
+    assert manager.resolve("one").cfg["llama_server_port"] == 8092
 
 
 def test_reload_replaces_only_target_runtime(monkeypatch):
@@ -151,6 +326,24 @@ def test_reload_replaces_only_target_runtime(monkeypatch):
     assert manager.resolve("two") is other
     assert old_engine.stopped is True
     assert other_engine.stopped is False
+
+
+def test_reload_teardown_failure_does_not_publish_replacement(monkeypatch):
+    manager = ModelRuntimeManager(default_model="one")
+    old_engine = _FailingEngine()
+    current = manager.add(_cfg("one"), old_engine)
+    replacement_engine = _Engine()
+
+    monkeypatch.setattr("local_llm_server.config.build_config", lambda **_kwargs: _cfg("one"))
+    monkeypatch.setattr("local_llm_server.engine.load_llm", lambda _cfg: replacement_engine)
+
+    with pytest.raises(RuntimeError, match="close failed"):
+        manager.reload("one")
+
+    assert manager.resolve("one") is current
+    assert current.state is RuntimeState.FAILED
+    assert old_engine.stopped is False
+    assert replacement_engine.stopped is True
 
 
 def test_unload_cannot_overlap_reload(monkeypatch):
@@ -178,6 +371,29 @@ def test_unload_cannot_overlap_reload(monkeypatch):
     release.set()
     thread.join(timeout=2)
     assert not thread.is_alive()
+
+
+def test_shutdown_timeout_keeps_busy_runtime_owned_and_retryable():
+    manager = ModelRuntimeManager(default_model="busy")
+    engine = _Engine()
+    runtime = manager.add(_cfg("busy"), engine)
+    lease = manager.lease_runtime(runtime)
+    lease.__enter__()
+
+    try:
+        with pytest.raises(RuntimeError, match="did not drain"):
+            manager.shutdown(timeout_seconds=0)
+        assert manager.resolve("busy") is runtime
+        assert runtime.state is RuntimeState.FAILED
+        assert engine.stopped is False
+    finally:
+        lease.__exit__(None, None, None)
+
+    manager.shutdown(timeout_seconds=0)
+
+    assert engine.stopped is True
+    assert runtime.state is RuntimeState.STOPPED
+    assert manager.list() == []
 
 
 def test_backend_config_capabilities_match_consumed_engine_settings():

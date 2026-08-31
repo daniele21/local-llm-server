@@ -7,7 +7,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import shutil
 import sys
 import urllib.error
 import urllib.request
@@ -16,6 +15,10 @@ from typing import Any, Iterator, Protocol
 
 from .downloader import ensure_model
 from .llama_cpp_request import chat_completion as llama_cpp_chat_completion
+from .llama_server_compat import (
+    build_llama_server_command,
+    resolve_llama_server_binary,
+)
 from .mlx_generation_evidence import openai_evidence_from_mlx_generation
 from .process import ManagedProcess
 
@@ -32,6 +35,7 @@ class Engine(Protocol):
 
 class LlamaCppEngine:
     backend = "llama-cpp-python"
+    execution_isolation = "in_process"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         model_path = Path(cfg["model_path"]).expanduser()
@@ -77,23 +81,40 @@ class LlamaCppEngine:
         self.llm = Llama(**kwargs)
 
     def complete(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if self.llm is None:
+            raise RuntimeError("llama-cpp-python runtime is closed")
         result = llama_cpp_chat_completion(self.llm, payload, stream=False)
         if not isinstance(result, dict):
             raise RuntimeError("llama_cpp non-stream request returned an invalid iterator")
         return result
 
     def stream(self, payload: dict[str, Any]) -> Iterator[dict[str, Any]]:
+        if self.llm is None:
+            raise RuntimeError("llama-cpp-python runtime is closed")
         result = llama_cpp_chat_completion(self.llm, payload, stream=True)
         if isinstance(result, dict):
             raise RuntimeError("llama_cpp stream request returned a completed response")
         return iter(result)
 
     def close(self) -> None:
-        return None
+        """Explicitly release the native llama.cpp model/context owner.
+
+        llama-cpp-python exposes ``Llama.close()`` in the currently locked
+        0.3.x line. Calling it makes the teardown boundary explicit, but this is
+        still not evidence that host/unified memory has returned to baseline.
+        """
+        llm = getattr(self, "llm", None)
+        if llm is None:
+            return
+        llm.close()
+        self.llm = None
+
+    shutdown = close
 
 
 class MLXEngine:
     backend = "mlx-lm"
+    execution_isolation = "in_process"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         try:
@@ -246,14 +267,10 @@ class MLXEngine:
 
 
 class LlamaServerEngine:
-    """
-    Engine backed by an external llama-server subprocess.
-
-    This is intended for llama.cpp features not exposed reliably through
-    llama-cpp-python, such as multimodal projectors passed with --mmproj.
-    """
+    """Managed external llama.cpp server with attributable runtime identity."""
 
     backend = "llama_server"
+    execution_isolation = "subprocess"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         self.cfg = cfg
@@ -278,65 +295,44 @@ class LlamaServerEngine:
                 no_download=cfg.get("no_download", False),
             )
 
-        self.binary = self._resolve_binary(cfg)
+        self.binary, self.compatibility = resolve_llama_server_binary(cfg)
+        self.backend_version = self.compatibility.backend_version
+        self.backend_compatibility_profile = self.compatibility.profile
         self._start()
 
-    @staticmethod
-    def _resolve_binary(cfg: dict[str, Any]) -> Path:
-        candidates: list[Path] = []
-        explicit = cfg.get("llama_server_bin") or os.getenv("LOCAL_LLM_SERVER_BIN")
-        if explicit:
-            candidates.append(Path(str(explicit)).expanduser())
-
-        lmstudio_backends = Path.home() / ".lmstudio" / "extensions" / "backends"
-        candidates.extend(
-            sorted(
-                lmstudio_backends.glob("llama.cpp-*/llama-server"),
-                key=lambda p: p.parent.name,
-                reverse=True,
-            )
-        )
-
-        which = shutil.which("llama-server")
-        if which:
-            candidates.append(Path(which))
-
-        for candidate in candidates:
-            if candidate.exists() and os.access(candidate, os.X_OK):
-                return candidate
-
-        searched = ", ".join(str(p) for p in candidates) or "no candidates"
-        raise FileNotFoundError(
-            "llama-server binary not found. Set LOCAL_LLM_SERVER_BIN or "
-            f"llama_server_bin to an executable path. Searched: {searched}"
-        )
-
     def _start(self) -> None:
-        cmd = [
-            str(self.binary),
-            "-m",
-            str(self.model_path),
-            "--port",
-            str(self.port),
-            "--host",
-            self.host,
-            "-c",
-            str(self.cfg.get("ctx_size", 4096)),
-        ]
-        if self.mmproj_path:
-            cmd.extend(["--mmproj", str(self.mmproj_path)])
-
-        logger.info("Starting llama-server: %s", " ".join(cmd))
+        cmd = build_llama_server_command(
+            binary=self.binary,
+            model_path=self.model_path,
+            mmproj_path=self.mmproj_path,
+            host=self.host,
+            port=self.port,
+            cfg=self.cfg,
+            compatibility=self.compatibility,
+        )
+        logger.info(
+            "Starting llama-server (%s, %s): %s",
+            self.backend_compatibility_profile,
+            self.backend_version or "unattributed",
+            " ".join(cmd),
+        )
         self.process = ManagedProcess(
             cmd,
             name="llama-server",
             logger=logger,
         )
-        self.process.start()
-        self.process.wait_ready(
-            self._is_ready,
-            timeout=float(self.cfg.get("startup_timeout") or 60),
-        )
+        try:
+            self.process.start()
+            self.process.wait_ready(
+                self._is_ready,
+                timeout=float(self.cfg.get("startup_timeout") or 60),
+            )
+        except Exception:
+            process = self.process
+            self.process = None
+            if process is not None:
+                process.close()
+            raise
 
     def _is_ready(self) -> bool:
         with urllib.request.urlopen(f"{self.base_url}/health", timeout=2) as response:
@@ -392,8 +388,11 @@ class LlamaServerEngine:
         return self._request(payload, stream=True)
 
     def close(self) -> None:
-        if self.process is not None:
-            self.process.close()
+        process = self.process
+        if process is None:
+            return
+        process.close()
+        self.process = None
 
     shutdown = close
 
@@ -402,6 +401,7 @@ class MLXVLMServerEngine:
     """Engine backed by the OpenAI-compatible ``mlx_vlm.server`` subprocess."""
 
     backend = "mlx_vlm_server"
+    execution_isolation = "subprocess"
 
     def __init__(self, cfg: dict[str, Any]) -> None:
         from .model_sources import resolve_mlx_runtime_path

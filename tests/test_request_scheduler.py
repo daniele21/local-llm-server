@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from local_llm_server.async_scheduler import AsyncRuntimeGate
 from local_llm_server.core.contracts import InferenceRequest, TaskType
+from local_llm_server.global_execution_governor import GlobalExecutionGovernor
 from local_llm_server.request_middleware import install_request_policy
 from local_llm_server.request_scheduler import (
     _hold_gate_for_stream,
@@ -42,7 +43,13 @@ def _request_payload(model: str):
     }
 
 
-def _app(*, models=("demo",), capacity=1):
+def _app(
+    *,
+    models=("demo",),
+    capacity: int | None = 1,
+    global_max_running: int | None = None,
+    global_queue_capacity: int | None = None,
+):
     manager = ModelRuntimeManager(default_model=models[0])
     for model in models:
         manager.add(_cfg(model), _Engine())
@@ -50,10 +57,14 @@ def _app(*, models=("demo",), capacity=1):
     app.state.runtime_manager = manager
     install_request_scheduler(
         app,
-        settings=RequestSchedulerSettings(queue_capacity=capacity),
+        settings=RequestSchedulerSettings(
+            queue_capacity=capacity,
+            global_max_running=global_max_running,
+            global_queue_capacity=global_queue_capacity,
+        ),
     )
     # Last-added middleware executes outermost, so policy prepares the request
-    # before the scheduler middleware runs.
+    # before scheduler/global-governor admission runs.
     install_request_policy(app)
     return app, manager
 
@@ -167,6 +178,134 @@ def test_runtime_gates_are_isolated_per_resident_model():
     asyncio.run(scenario())
 
 
+def test_global_only_governor_bounds_two_resident_models():
+    async def scenario():
+        app, _ = _app(
+            models=("a", "b"),
+            capacity=None,
+            global_max_running=1,
+            global_queue_capacity=2,
+        )
+        a_started = asyncio.Event()
+        a_release = asyncio.Event()
+        route_calls = {"a": 0, "b": 0}
+
+        @app.post("/v1/chat/completions")
+        async def chat(request: Request):
+            model = request.state.prepared_inference_request.canonical.model
+            route_calls[model] += 1
+            if model == "a":
+                a_started.set()
+                await a_release.wait()
+            return JSONResponse({"model": model})
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            a_request = asyncio.create_task(client.post("/v1/chat/completions", json=_request_payload("a")))
+            await asyncio.wait_for(a_started.wait(), timeout=1)
+            b_request = asyncio.create_task(client.post("/v1/chat/completions", json=_request_payload("b")))
+            await asyncio.sleep(0.02)
+
+            assert route_calls == {"a": 1, "b": 0}
+            assert app.state.runtime_gate_registry is None
+            assert app.state.global_execution_governor.snapshot().queued == 1
+
+            a_release.set()
+            a_response, b_response = await asyncio.gather(a_request, b_request)
+            assert a_response.status_code == 200
+            assert b_response.status_code == 200
+            assert route_calls == {"a": 1, "b": 1}
+            assert float(b_response.headers["x-local-llm-global-wait-ms"]) > 0
+
+        snapshot = app.state.global_execution_governor.snapshot()
+        assert snapshot.inflight == 0
+        assert snapshot.queued == 0
+
+    asyncio.run(scenario())
+
+
+def test_global_wait_uses_existing_admission_timeout_contract():
+    async def scenario():
+        app, _ = _app(
+            models=("a", "b"),
+            capacity=None,
+            global_max_running=1,
+            global_queue_capacity=2,
+        )
+        started = asyncio.Event()
+        release = asyncio.Event()
+        route_calls = {"a": 0, "b": 0}
+
+        @app.post("/v1/chat/completions")
+        async def chat(request: Request):
+            model = request.state.prepared_inference_request.canonical.model
+            route_calls[model] += 1
+            if model == "a":
+                started.set()
+                await release.wait()
+            return JSONResponse({"model": model})
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            first = asyncio.create_task(client.post("/v1/chat/completions", json=_request_payload("a")))
+            await asyncio.wait_for(started.wait(), timeout=1)
+            response = await client.post(
+                "/v1/chat/completions",
+                json=_request_payload("b"),
+                headers={"x-local-llm-queue-timeout-ms": "10"},
+            )
+            assert response.status_code == 408
+            assert response.json()["detail"]["code"] == "timeout"
+            assert route_calls == {"a": 1, "b": 0}
+            release.set()
+            assert (await first).status_code == 200
+
+        assert app.state.global_execution_governor.snapshot().queued == 0
+
+    asyncio.run(scenario())
+
+
+def test_cancelling_global_wait_does_not_leak_execution_slot():
+    async def scenario():
+        app, _ = _app(
+            models=("a", "b"),
+            capacity=None,
+            global_max_running=1,
+            global_queue_capacity=2,
+        )
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        @app.post("/v1/chat/completions")
+        async def chat(request: Request):
+            model = request.state.prepared_inference_request.canonical.model
+            if model == "a":
+                started.set()
+                await release.wait()
+            return JSONResponse({"model": model})
+
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            first = asyncio.create_task(client.post("/v1/chat/completions", json=_request_payload("a")))
+            await asyncio.wait_for(started.wait(), timeout=1)
+            waiting = asyncio.create_task(client.post("/v1/chat/completions", json=_request_payload("b")))
+            while app.state.global_execution_governor.snapshot().queued != 1:
+                await asyncio.sleep(0.002)
+            waiting.cancel()
+            try:
+                await waiting
+            except asyncio.CancelledError:
+                pass
+            assert app.state.global_execution_governor.snapshot().queued == 0
+            assert app.state.global_execution_governor.snapshot().inflight == 1
+            release.set()
+            assert (await first).status_code == 200
+
+        assert app.state.global_execution_governor.snapshot().inflight == 0
+
+    asyncio.run(scenario())
+
+
 def test_invalid_timeout_header_fails_before_route():
     async def scenario():
         app, _ = _app(capacity=1)
@@ -216,5 +355,36 @@ def test_streaming_body_holds_gate_until_iterator_finishes_and_then_prunes():
         snapshot = await gate.snapshot()
         assert snapshot.inflight == 0
         assert snapshot.requests == ()
+
+    asyncio.run(scenario())
+
+
+def test_streaming_body_holds_global_permit_until_iterator_finishes():
+    async def scenario():
+        governor = GlobalExecutionGovernor(max_running=1, queue_capacity=1)
+        governor.acquire("demo", "global-stream", runtime_max_running=1)
+        continue_stream = asyncio.Event()
+
+        async def source():
+            yield b"first"
+            await continue_stream.wait()
+            yield b"second"
+
+        wrapped = _hold_gate_for_stream(
+            source(),
+            gate=None,
+            request_id=None,
+            governor=governor,
+            global_request_id="global-stream",
+        )
+        assert await wrapped.__anext__() == b"first"
+        assert governor.snapshot().inflight == 1
+        continue_stream.set()
+        assert await wrapped.__anext__() == b"second"
+        try:
+            await wrapped.__anext__()
+        except StopAsyncIteration:
+            pass
+        assert governor.snapshot().inflight == 0
 
     asyncio.run(scenario())

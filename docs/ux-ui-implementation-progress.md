@@ -5,9 +5,10 @@ Document type: workstream-state
 Owner: web-product
 Canonical scope: state.web-ux
 Read when: determining the remaining UX/UI redesign work and its data-contract blockers
-Last reviewed: 2026-08-15
+Last reviewed: 2026-08-30
 
 Canonical target specification: [`ux-ui-implementation-plan.md`](ux-ui-implementation-plan.md)
+Canonical experience contract: [`../design/ux-contract.json`](../design/ux-contract.json)
 
 ## Status legend
 
@@ -17,44 +18,101 @@ Canonical target specification: [`ux-ui-implementation-plan.md`](ux-ui-implement
 
 | Workstream | Status | Integrated boundary | Remaining gate |
 | --- | --- | --- | --- |
-| Existing Studio workflows | PARTIAL | real Chat, Models lifecycle, Logs, examples and Swagger preserved during migration | legacy-internal cleanup without regression |
-| Design system | EVIDENCE | tokens/primitives + expanded native/control focus + reduced-motion/light-dark semantics | manual light/dark contrast evidence |
-| Shell/navigation | EVIDENCE | seven destinations + dedicated ARIA tablist/tabpanel + roving keyboard focus + skip link | real end-to-end keyboard/zoom traversal |
-| Overview | PARTIAL | health/status/models + resource/evidence/scheduler sources | representative runtime/hardware evidence |
-| Models & Runtimes | PARTIAL | catalog/resident/capability/resource/identity/residency sources + pin UX | lifecycle/manual-accessibility/hardware evidence |
-| Resource budget/pressure | PARTIAL | configured product policy + deterministic pressure-policy contracts | representative pressure/hardware evidence before automation |
-| Capability UX | PARTIAL | server descriptors drive Endpoints and Playground controls | broader backend/task evidence + manual acceptance |
+| Existing Studio workflows | PARTIAL | real Chat and Logs preserved while Models lifecycle is owned directly by the control-plane surface | legacy internal markup cleanup without regression |
+| Design system | EVIDENCE | tokens/primitives + canonical EvidenceValue, ResourceBudget, ActionFeedback and disclosure semantics + native/control focus + reduced-motion/light-dark semantics | manual light/dark contrast and semantic-component acceptance |
+| Shell/navigation | EVIDENCE | seven canonical URL destinations, refresh/back/forward behavior, opaque model/evaluation detail links, skip link and `aria-current` navigation | real keyboard/zoom/screen-reader traversal |
+| Overview | EVIDENCE | readiness/residency/budget/workload/capacity first scan with advanced evidence/provenance disclosure + targeted deterministic visual contract | representative runtime/hardware + manual usability evidence |
+| Models & Runtimes | PARTIAL | integrated load/unload/default-route/pin actions + semantic ResourceBudget/ActionFeedback + resource accounting + per-runtime estimate + refresh-stable contextual detail + load-feasibility recovery | route-preserving reload contract, destructive-action acceptance, manual accessibility and hardware evidence |
+| Resource budget/pressure | PARTIAL | configured accounting envelope + deterministic pressure-policy contracts + explicit load-capacity decision support and semantic ResourceBudget presentation | representative pressure/hardware evidence before automation |
+| Capability UX | PARTIAL | server descriptors drive Endpoints and a task-first Playground model | broader backend/task evidence + manual acceptance |
 | Pin/auto-evict | PARTIAL | pin/unpin + evictable + LRU/TTL + hysteretic dry policy | hardware review before any automatic unload |
-| Runtime fingerprint | PARTIAL | verified auto-capture + broader backend-version evidence + UI presentation | specialist artifact/backend coverage |
-| Endpoints | PARTIAL | task/model compatibility matrix from real capability sources | visual/manual regression evidence |
-| Playground text | PARTIAL | real chat + canonical capability-driven controls | legacy-internal cleanup + manual acceptance |
-| Playground vision | PARTIAL | real multimodal path + capability-driven image control + fail-closed remote media | regression/hardware evidence |
-| Playground transcription | PARTIAL | first-class multipart transcription API + capability-driven mini-playground | compatible backend/hardware evidence |
-| Benchmark & Evaluation | PARTIAL | run/results/history/comparison + custom JSON import/version selection | richer experiments + visual/manual evidence |
+| Runtime fingerprint | PARTIAL | verified auto-capture + broader backend-version evidence + contextual/progressive-disclosure UI presentation | specialist artifact/backend coverage |
+| Endpoints | PARTIAL | task/model compatibility matrix from real capability sources + Try in Playground action | copyable language examples + visual/manual regression evidence |
+| Playground text | PARTIAL | task-first Chat mode over the real composer and explicit resident-model selection | legacy-internal cleanup + manual acceptance |
+| Playground structured | PARTIAL | first-class task choice owns JSON mode and compatible runtime filtering | schema-oriented UX + broader backend evidence |
+| Playground vision | PARTIAL | first-class task choice + real multimodal path + capability-driven image control + fail-closed remote media | regression/hardware evidence |
+| Playground transcription | PARTIAL | first-class task choice + multipart local transcription workflow | compatible backend/hardware evidence |
+| Benchmark & Evaluation | EVIDENCE | primary Model/Test set/Samples/Run hierarchy + progressive seed/retention/dataset/evidence/identity disclosure + results/history/comparison + deep links + targeted deterministic visual contract | richer experiment dimensions + manual usability/accessibility evidence |
 | System/Diagnostics | PARTIAL | canonical runtime/resource/scheduler/identity summary above real logs | visual/hardware evidence |
 | Settings/privacy | PARTIAL | read-only effective policy/resource/residency/scheduler state | manual acceptance + mutation semantics only if product requires them |
 | Responsive | EVIDENCE | min-width guards, single-column breakpoints, action stacking and horizontal table access | real phone/tablet/desktop + 200% zoom verification |
-| Accessibility | EVIDENCE | tab semantics, Arrow/Home/End navigation, skip link, focus expansion, decorative-icon hiding, text status | contrast + full workflow/manual audit |
-| Visual regression | PENDING | no stable screenshot suite yet | deterministic source-state fixtures + screenshot gate |
+| Accessibility | EVIDENCE | route navigation semantics, local task-tab semantics, native details disclosures, visible evidence-kind text, focus expansion, non-color state text and reduced motion | contrast + full workflow/manual audit |
+| Visual regression | PARTIAL | blocking perceptual geometry/hierarchy fingerprints for deterministic Overview and Evaluation setup fixtures at 1440×1000 dark/reduced-motion | stable responsive/state coverage only as additional high-risk surfaces justify it |
 | Hardware UX evidence | PARTIAL | repeatable worker reclamation CLI/report schema exists | representative device reports + real runtime screenshots |
 
-## Source-backed product state now available
+## Current UX v2 structural state
+
+### Navigation and deep links
+
+Primary control-plane navigation now follows the route contract instead of presenting the whole application as one ARIA tabset:
+
+- `/overview`;
+- `/models` and `/models/{opaque-model-id}`;
+- `/endpoints`;
+- `/playground`;
+- `/evaluations` and `/evaluations/{opaque-run-id}`;
+- `/system`;
+- `/settings`.
+
+The server owns these routes and serves the same Studio surface on direct refresh. Sidebar destinations are links with `aria-current="page"`; ARIA tab semantics remain reserved for local subsection controls such as the task selector. The legacy `/` entry point remains compatible and canonicalizes to `/overview` in the browser.
+
+Model and evaluation detail URLs use opaque, URL-safe identifiers derived from already-public UI identities. Direct detail refresh waits for the owning async surface and then restores the existing canonical detail renderer. Missing/invalid detail state fails into an explicit recovery notice instead of guessing.
 
 ### Overview
 
-The Overview consumes real `/health`, `/status`, `/v1/models`, `/api/v1/resources`, `/api/v1/evidence` and `/api/v1/scheduler`. It distinguishes configured default identity from resident default route, cold state from failure, resource policy state, queue wait and verified/exploratory identity. Missing values remain **Unavailable**.
+Overview consumes real `/health`, `/status`, `/v1/models`, `/api/v1/resources`, `/api/v1/evidence` and `/api/v1/scheduler`. Missing values remain **Unavailable**.
+
+The first scan is intentionally bounded to five questions:
+
+- is local AI ready;
+- how many runtimes are resident and which route is default;
+- how much of the configured AI accounting budget is used and what headroom remains;
+- how much work is active/queued;
+- whether the accounting envelope currently has headroom for another load decision.
+
+Fine-grained timing, fingerprint, admission and provenance remain available under **Runtime evidence & provenance** rather than competing above the fold. Advanced metrics now reuse the canonical `EvidenceValue` presentation and expose evidence kind as visible text. Resource language remains deliberately framed as configured/accounted capacity: low or exhausted headroom is **not** presented as observed physical-memory pressure.
+
+When accounting headroom is constrained, Overview sends the user to the existing Models & Runtimes feasibility/recovery flow instead of introducing a second eviction mechanism.
+
+The deterministic 1440×1000 dark/reduced-motion Overview fixture now has a blocking in-memory perceptual geometry/hierarchy fingerprint. The screenshot is normalized to a small luminance edge grid so insignificant rasterization noise is ignored; the source PNG is not retained. This is not representative-hardware evidence and does not replace responsive/manual review.
 
 ### Models & Runtimes
 
-The Models view combines resident identity, status/default routing, configured catalog/capabilities, resource admission, verified runtime identity and residency/pinning evidence. Pin/unpin is a real admin action. `Evictable` means current policy eligibility only and is never displayed as proof of memory reclamation.
+Models & Runtimes remains the canonical lifecycle surface. It directly uses the existing server-owned lifecycle contracts:
+
+- `POST /api/v1/models/load`;
+- `POST /api/v1/models/activate` for default-route changes;
+- `DELETE /api/v1/models/{model}` for explicit unload;
+- `POST /api/v1/residency/pin` for explicit pin/unpin.
+
+Artifact, runtime, route and policy remain separate columns/states. The view does not invent `Verified` artifact evidence when the catalog only proves local availability.
+
+Resource UX separates configured usable budget, accounted committed bytes, accounted reservations, derived remaining capacity and per-runtime load `estimate_bytes` when exposed. A per-runtime estimate is labeled **Estimate**, not observed physical memory; unavailable observed runtime memory remains **Unavailable**. The existing budget/accounting owner now uses the canonical `ResourceBudget` visual semantics and lifecycle messages use `ActionFeedback` without changing server admission authority.
+
+Cold-model Load opens a feasibility surface showing estimated requirement, available capacity and deficit. When an idle non-default runtime is policy-evictable and has sufficient estimated capacity, the UI can offer explicit `Unload <runtime> & continue`. This is an intentional user action; hidden unload/automatic eviction remains forbidden.
+
+Model detail remains contextual beside the inventory but is now reachable through `/models/{opaque-model-id}` and survives refresh. Reload remains deliberately unavailable because the server does not expose a route-preserving reload contract.
 
 ### Endpoints and Playground
 
-The capability layer consumes server-owned descriptors rather than named-model heuristics. Chat, vision-language, structured-generation and transcription availability follow declared tasks/modalities/features; only resident runtimes are presented as immediately executable. Transcription remains a distinct audio -> text workflow over `/v1/audio/transcriptions`. Capability-source loss restores the legacy controls instead of leaving stale disabled UI.
+Capability truth remains server-owned and model-name heuristics remain forbidden. Playground starts with four peer task surfaces: Chat, Structured output, Vision-language and Transcription. The user chooses task before model; compatible resident runtimes execute immediately and compatible cold runtimes expose explicit **Load & use**.
+
+Chat, Structured output and Vision-language reuse the proven composer execution path. Unsupported task/model combinations remain disabled/fail closed. Transcription remains a first-class task over `/v1/audio/transcriptions`. If capability sources disappear, the capability layer restores legacy controls instead of leaving stale inferred state.
 
 ### Benchmark & Evaluation
 
-The evaluation screen supports resident-model selection, versioned built-in/custom test sets, deterministic seed/sample counts, validated JSON import, explicit test-set version propagation, duplicate-conflict feedback, expandable per-sample prompt/expected/output/check/metric details, persisted history and compatibility-aware comparison. Private local history keeps generated output by default with a per-run opt-out; prompt and expected value stay available through the matching immutable test set. Legacy runs are enriched only after dataset-identity verification. Open run/sample inspectors, focus and scroll orientation survive the ten-second history refresh. It does not auto-declare a better/worse model.
+Evaluation keeps the existing server-owned run, test-set, scorer, history and comparison contracts. The first scan is now explicitly bounded to **Model → Test set → Samples → Run evaluation**.
+
+Reproducibility and management controls remain available without dominating that path:
+
+- seed, retained-content policy and scorer note live under **Advanced run settings**;
+- custom dataset import/library is a separate closed disclosure;
+- evidence-grade/exploratory definitions are a separate closed disclosure;
+- full fingerprint/config/test-set identity appears under **Run identity & reproducibility** after a result or history selection.
+
+Result quality/success/time/token metrics reuse canonical `EvidenceValue` semantics with visible evidence-kind text. Persisted history, comparison, per-sample detail and `/evaluations/{opaque-run-id}` deep links remain unchanged in ownership and behavior.
+
+The deterministic 1440×1000 dark/reduced-motion Evaluation setup form now has the same blocking in-memory perceptual geometry/hierarchy contract. It deliberately excludes run/history state that is not stable setup geometry. Richer experiment controls such as explicit warm/cold mode or user-configurable quality/performance weighting remain out of scope until a real server-owned contract exists.
 
 ### System / Diagnostics
 
@@ -66,21 +124,23 @@ Settings remains source-backed/read-only. It shows canonical request policy, rem
 
 ## Integrated deterministic accessibility/responsive foundation
 
-The shell now provides:
+The product surface provides:
 
-- a dedicated ARIA `tablist` containing only the seven control-plane destinations; auxiliary controls such as the guided tour remain outside tab semantics;
-- `tab`/`tabpanel` relationships through `aria-controls`, `aria-labelledby` and `aria-selected`;
-- roving tabindex and ArrowUp/Down/Left/Right plus Home/End navigation;
-- inactive panels hidden from the accessibility tree;
+- native route links for the seven primary destinations with `aria-current` on the current page;
+- refresh/back/forward-stable primary navigation and opaque detail routes;
 - a keyboard skip link to the main workspace;
-- decorative navigation icons marked assistive-technology hidden/non-focusable;
-- visible focus outlines for design-system and retained native/legacy buttons, links, inputs, selects and textareas;
-- status text in addition to the color indicator;
-- broader reduced-motion handling;
-- `min-width: 0`, content wrapping and one-column responsive breakpoints for high-zoom/narrow effective viewports;
-- preserved horizontal table access instead of clipping columns.
+- inactive legacy-backed panels hidden from the accessibility tree;
+- decorative navigation icons hidden from assistive technology;
+- visible focus outlines for design-system and retained native/legacy controls;
+- status and evidence-kind text in addition to color/style;
+- native keyboard-operable details/summary for advanced Evaluation disclosure;
+- reduced-motion handling;
+- `min-width: 0`, content wrapping and one-column responsive breakpoints;
+- preserved horizontal table access instead of clipped columns;
+- a local task selector with tab semantics and Arrow/Home/End navigation;
+- resource and runtime states expressed in text, not only through color.
 
-These contracts pass deterministic CI and Node syntax checks. They are **not** the final manual accessibility certification.
+These deterministic contracts are not the final manual accessibility certification.
 
 ## Immediate UX validation wave
 
@@ -88,51 +148,47 @@ These contracts pass deterministic CI and Node syntax checks. They are **not** t
 
 Verify on the real integrated UI:
 
-- keyboard-only traversal across shell, forms, tables, upload controls and lifecycle actions;
-- sensible focus order after async source refreshes and action completion;
-- semantic names for remaining icon-only controls outside the control-plane shell;
-- light/dark contrast for text, focus, status badges and disabled states;
+- keyboard-only traversal across route navigation, task selector, model inventory/detail, Evaluation disclosures, forms, upload controls and lifecycle actions;
+- sensible focus order after page navigation, disclosure changes, async source refreshes and action completion;
+- semantic names for remaining icon-only controls;
+- light/dark contrast for text, focus, status badges, evidence kinds and disabled states;
 - no critical action/data loss at 200% browser zoom;
-- screen-reader spot checks for tab/panel selection and dynamic status feedback.
+- screen-reader spot checks for current-route state, task selection and dynamic status feedback.
 
 ### H2b — Responsive and visual regression
 
-Create deterministic source-state fixtures for:
+The first targeted perceptual visual contracts are integrated for stable Overview and Evaluation setup fixture surfaces. Extend visual coverage only when a state is stable and high-risk enough to justify a blocking geometry/hierarchy contract. Candidate future states remain loading, empty/cold, unavailable source, warning/accounting constraint, error/action failure, success/resident/evidence-grade and insufficient-capacity/load-feasibility across representative widths.
 
-- loading;
-- empty/cold;
-- unavailable source;
-- warning/pressure/exploratory;
-- error/action failure;
-- success/resident/evidence-grade.
-
-Capture stable phone/tablet/desktop reference widths and separate fixture screenshots from real runtime screenshots. Visual regression should detect layout/state regressions without presenting synthetic fixtures as product performance evidence.
+Real runtime screenshots remain separate from deterministic fixture visual evidence and must not be promoted from hosted CI.
 
 ### H3 — Representative runtime evidence
 
-Use `local-llm evidence-reclamation` plus compatible text/vision/transcription runtimes to collect real hardware states. The worker runner can record live child RSS during READY/PEAK and host memory before/after stop while keeping prompt/output/path data out of the JSON report. Real runtime screenshots and hardware-dependent claims remain blocked until these runs exist.
+Use the canonical representative-device evidence workflow plus compatible text/vision/transcription runtimes to collect real hardware states. Real runtime screenshots and hardware-dependent memory/performance claims remain blocked until these runs exist.
 
-### H4 — Legacy/internal and release cleanup
+### H4 — Remaining structural cleanup
 
-After acceptance coverage stabilizes:
+After the P2 surface acceptance stabilizes:
 
-- remove obsolete internal/placeholder markup superseded by source-backed overlays;
-- retain real Chat, Logs and lifecycle behavior until modular replacements prove parity;
-- align README/API examples with the current product entrypoints and hardware evidence workflow;
+- remove legacy model lifecycle markup that is no longer a product entrypoint;
+- keep the proven Chat execution implementation until the task-first wrapper has complete parity evidence;
+- fold the product-semantic presentation adapter into owning renderers when legacy/static convergence makes that lower-complexity than the adapter;
+- align README/API examples with current product entrypoints;
 - update public screenshots only from implemented real states.
 
 ## Evidence UX rules
 
-- `0` is valid only when a source measured zero; missing data is `Unavailable`.
+- `0` is valid only when a source measured or accounted zero; missing data is `Unavailable`.
 - resource estimate and observed footprint remain distinguishable.
+- global resource-policy accounting is not relabeled as physical runtime RSS or memory pressure.
 - child RSS is shown only while the child PID is actually observable; after stop it is not fabricated as measured zero.
 - chunk throughput is never token throughput.
 - exploratory benchmark runs may execute but are not presented as evidence-grade comparisons.
-- reclamation evidence is not PASS merely because a subprocess exits or one memory delta is positive.
+- memory/resource admission remains a server-owned decision even when the UI can preview current estimates.
 - capability truth is server-owned; JavaScript presents/filters it but does not invent support.
 - custom test-set files are data, not executable scorer/plugin definitions.
-- explicit eviction success is not presented as a host-memory reclamation guarantee.
-- deterministic accessibility/fixture tests are not a substitute for manual contrast/zoom or real hardware evidence.
+- explicit eviction/unload success is not presented as a host-memory reclamation guarantee.
+- deterministic accessibility/fixture-visual tests are not a substitute for manual contrast/zoom or real hardware evidence.
+- a changed perceptual visual fingerprint requires intentional review of the rendered fixture; it must not be mechanically updated just to make CI green.
 
 ## Acceptance still pending
 
@@ -141,12 +197,12 @@ Before primary UX surfaces can be marked DONE:
 - complete keyboard/focus/semantic-label workflow audit;
 - contrast verification in supported light/dark modes;
 - real 200% zoom and representative width usability;
-- stable source-state visual regression suite;
+- extend visual contracts to additional stable high-risk states/widths where justified;
 - action confirmation/feedback review for destructive lifecycle operations;
-- screen-reader spot checks for tab/dynamic-state semantics;
+- screen-reader spot checks for route/task/disclosure/dynamic-state semantics;
 - real runtime screenshots for public documentation;
 - representative hardware evidence for resource/performance claims.
 
 ## Update rule
 
-Update this file in the same integration cycle whenever a UX workstream status or blocker changes. Keep detailed acceptance criteria in the target specification.
+Update this file in the same integration cycle whenever a UX workstream status or blocker changes. Keep detailed acceptance criteria in the target specification and durable behavior in `design/ux-contract.json`.

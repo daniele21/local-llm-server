@@ -11,12 +11,6 @@ from .runtime import ModelRuntime, ModelRuntimeManager, RuntimeState
 from .stream_contract import ensure_stream_contract
 
 
-def _close_engine(engine: Any) -> None:
-    close = getattr(engine, "close", None) or getattr(engine, "shutdown", None)
-    if close is not None:
-        close()
-
-
 class ProductRuntimeManager(ModelRuntimeManager):
     """Runtime manager that permits a healthy zero-resident product state.
 
@@ -169,38 +163,26 @@ class ProductRuntimeManager(ModelRuntimeManager):
 
     def unload(self, model: str) -> ModelRuntime:
         """Unload any idle runtime, including the last resident runtime."""
-        runtime = self.resolve(model)
+        runtime = super()._unload(model, allow_last=True)
         with self._manager_lock:
-            if self._runtimes.get(runtime.key) is not runtime:
-                raise LookupError(f"Model '{model}' is no longer loaded.")
-            if runtime.state is not RuntimeState.READY:
-                raise RuntimeError(f"Model '{runtime.key}' is not ready.")
-            if runtime.active_requests:
-                raise RuntimeError(
-                    f"Model '{runtime.key}' has an active request."
-                )
-
-            runtime.state = RuntimeState.DRAINING
-            self._runtimes.pop(runtime.key, None)
             self._pinned_runtime_keys.discard(runtime.key)
             self._last_used_at_monotonic.pop(runtime.key, None)
-            for alias, key in list(self._aliases.items()):
-                if key == runtime.key:
-                    self._aliases.pop(alias, None)
-
-            if self.default_model == runtime.key:
-                self.default_model = next(iter(self._runtimes), None)
-
-        _close_engine(runtime.engine)
-        self._release_runtime_load(runtime.resource_reservation_id)
-        runtime.state = RuntimeState.STOPPED
         return runtime
 
-    def shutdown(self) -> None:
-        """Stop all resident runtimes while retaining configured identity."""
+    def shutdown(self, *, timeout_seconds: float = 30.0) -> None:
+        """Stop resident runtimes while retaining configured product identity."""
         configured = self.configured_default_model
-        super().shutdown()
-        with self._manager_lock:
-            self._pinned_runtime_keys.clear()
-            self._last_used_at_monotonic.clear()
-        self.configured_default_model = configured
+        try:
+            super().shutdown(timeout_seconds=timeout_seconds)
+        finally:
+            # Keep policy bookkeeping only for runtimes whose teardown failed and
+            # therefore remain canonically owned/accounted by the base manager.
+            with self._manager_lock:
+                resident = set(self._runtimes)
+                self._pinned_runtime_keys.intersection_update(resident)
+                self._last_used_at_monotonic = {
+                    key: value
+                    for key, value in self._last_used_at_monotonic.items()
+                    if key in resident
+                }
+            self.configured_default_model = configured

@@ -10,18 +10,36 @@ import pytest
 STATIC = Path(__file__).resolve().parents[1] / "src" / "local_llm_server" / "static"
 
 
-def test_shell_implements_roving_tab_keyboard_semantics():
+def test_shell_uses_route_navigation_and_reserves_tab_semantics_for_local_controls():
     script = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
 
-    assert "setAttribute('role', 'tablist')" in script
-    assert "setAttribute('role', 'tab')" in script
-    assert "setAttribute('role', 'tabpanel')" in script
-    assert "aria-controls" in script
-    assert "aria-selected" in script
-    assert "aria-labelledby" in script
-    assert "button.tabIndex = active ? 0 : -1" in script
-    for key in ("ArrowDown", "ArrowRight", "ArrowUp", "ArrowLeft", "Home", "End"):
-        assert key in script
+    assert "document.createElement('a')" in script
+    assert "aria-current" in script
+    assert "control-plane-navigation" in script
+    assert "setAttribute('role', 'tablist')" not in script
+    assert "setAttribute('role', 'tab')" not in script
+    assert "setAttribute('role', 'tabpanel')" not in script
+    for route in (
+        "/overview",
+        "/models",
+        "/endpoints",
+        "/playground",
+        "/evaluations",
+        "/system",
+        "/settings",
+    ):
+        assert route in script
+
+
+def test_shell_supports_refresh_stable_opaque_model_and_evaluation_detail_routes():
+    script = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
+
+    assert "/models/${encodeOpaque(modelControl.dataset.openModel)}" in script
+    assert "/evaluations/${encodeOpaque(evaluationControl.dataset.evaluationInspect)}" in script
+    assert "TextEncoder" in script
+    assert "TextDecoder" in script
+    assert "data-route-recovery" in script
+    assert "event.persisted" in script
 
 
 def test_shell_has_keyboard_skip_navigation_and_hidden_panel_state():
@@ -56,12 +74,56 @@ def test_status_component_has_visible_text_plus_non_textual_indicator_contract()
     css = (STATIC / "design-system.css").read_text(encoding="utf-8")
 
     assert ".ds-status::before" in css
-    assert ".ds-status[data-status=\"ready\"]" in css
+    assert '.ds-status[data-status="ready"]' in css
+    assert '.ds-status[data-status="warning"]' in css
     assert "color: var(--ds-text)" in css
-    # The pseudo-element is supplementary; status labels stay in DOM text in
-    # source-backed renderers rather than relying on a color-only class.
     shell = (STATIC / "control-plane-shell.js").read_text(encoding="utf-8")
     assert 'data-status="loading">Loading sources</span>' in shell
+
+
+def test_product_semantic_components_are_canonical_and_keep_evidence_kind_visible():
+    css = (STATIC / "design-system.css").read_text(encoding="utf-8")
+    semantics = (STATIC / "control-plane-product-semantics.js").read_text(encoding="utf-8")
+    loader = (STATIC / "config.js").read_text(encoding="utf-8")
+
+    for component in (
+        ".ds-evidence-value",
+        ".ds-resource-budget",
+        ".ds-action-feedback",
+        ".ds-disclosure",
+    ):
+        assert component in css
+    assert ".ds-evidence-value__kind" in css
+    assert 'data-kind="estimated"' in css
+    assert 'data-kind="configured"' in css
+    assert 'data-kind="unavailable"' in css
+    assert "kindLabel.textContent = kind" in semantics
+    assert "control-plane-product-semantics.css" in loader
+    assert "control-plane-product-semantics.js" in loader
+
+
+def test_evaluation_progressive_disclosure_keeps_primary_run_path_visible():
+    semantics = (STATIC / "control-plane-product-semantics.js").read_text(encoding="utf-8")
+
+    assert "Advanced run settings" in semantics
+    assert "Dataset library" in semantics
+    assert "How evaluation evidence works" in semantics
+    assert "Run identity & reproducibility" in semantics
+    assert "startButton.setAttribute('data-variant', 'primary')" in semantics
+    assert "form.insertBefore(details, startButton)" in semantics
+    assert "data-evaluation-form" in semantics
+
+
+def test_resource_semantics_reuse_existing_models_owner_without_claiming_physical_pressure():
+    semantics = (STATIC / "control-plane-product-semantics.js").read_text(encoding="utf-8")
+    css = (STATIC / "design-system.css").read_text(encoding="utf-8")
+
+    assert "control-plane-models__budget" in semantics
+    assert "ds-resource-budget__track" in semantics
+    assert "ds-resource-budget__legend" in semantics
+    assert "data-model-action-status" in semantics
+    assert "Product-semantic resource accounting component" in css
+    assert "must not imply physical-memory observation" in css
 
 
 def test_control_plane_layouts_collapse_and_preserve_horizontal_table_access():
@@ -86,12 +148,16 @@ def test_reduced_motion_contract_is_global_for_control_plane_motion():
     assert "transition: none" in css
 
 
-def test_control_plane_shell_javascript_is_syntactically_valid_when_node_is_available():
+@pytest.mark.parametrize(
+    "asset",
+    ["control-plane-shell.js", "control-plane-product-semantics.js"],
+)
+def test_control_plane_javascript_is_syntactically_valid_when_node_is_available(asset: str):
     node = shutil.which("node")
     if node is None:
         pytest.skip("node is not installed in this test environment")
     completed = subprocess.run(
-        [node, "--check", str(STATIC / "control-plane-shell.js")],
+        [node, "--check", str(STATIC / asset)],
         capture_output=True,
         text=True,
         check=False,

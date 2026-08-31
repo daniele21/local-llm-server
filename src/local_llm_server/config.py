@@ -44,6 +44,17 @@ _FALLBACKS: dict[str, Any] = {
     "mmproj_path": None,
     "llama_server_port": 8091,
     "llama_server_bin": None,
+    "llama_server_allow_unvalidated": False,
+    "llama_server_cont_batching": True,
+    "llama_server_kv_unified": True,
+    "llama_server_gpu_layers": "auto",
+    "llama_server_load_mode": "auto",
+    "llama_server_fit": True,
+    "llama_server_fit_target_mib": None,
+    "llama_server_fit_ctx": None,
+    "llama_server_cache_type_k": None,
+    "llama_server_cache_type_v": None,
+    "llama_server_cache_ram_mib": None,
     "mlx_vlm_server_port": 8092,
     "multimodal": False,
     "modalities": ["text"],
@@ -72,6 +83,17 @@ _ENV_MAP: dict[str, str] = {
     "backend": "LOCAL_LLM_BACKEND",
     "llama_server_port": "LOCAL_LLM_SERVER_PORT",
     "llama_server_bin": "LOCAL_LLM_SERVER_BIN",
+    "llama_server_allow_unvalidated": "LOCAL_LLM_SERVER_ALLOW_UNVALIDATED",
+    "llama_server_cont_batching": "LOCAL_LLM_SERVER_CONT_BATCHING",
+    "llama_server_kv_unified": "LOCAL_LLM_SERVER_KV_UNIFIED",
+    "llama_server_gpu_layers": "LOCAL_LLM_SERVER_GPU_LAYERS",
+    "llama_server_load_mode": "LOCAL_LLM_SERVER_LOAD_MODE",
+    "llama_server_fit": "LOCAL_LLM_SERVER_FIT",
+    "llama_server_fit_target_mib": "LOCAL_LLM_SERVER_FIT_TARGET_MIB",
+    "llama_server_fit_ctx": "LOCAL_LLM_SERVER_FIT_CTX",
+    "llama_server_cache_type_k": "LOCAL_LLM_SERVER_CACHE_TYPE_K",
+    "llama_server_cache_type_v": "LOCAL_LLM_SERVER_CACHE_TYPE_V",
+    "llama_server_cache_ram_mib": "LOCAL_LLM_SERVER_CACHE_RAM_MIB",
     "mlx_vlm_server_port": "LOCAL_LLM_MLX_VLM_SERVER_PORT",
     "startup_timeout": "LOCAL_LLM_STARTUP_TIMEOUT",
     "max_concurrent_requests": "LOCAL_LLM_MAX_CONCURRENT_REQUESTS",
@@ -88,15 +110,32 @@ _ENV_MAP: dict[str, str] = {
 _BOOL_ENV = {
     "force_json", "enable_thinking", "show_thinking", "verbose", "offload_kqv",
     "flash_attn", "use_mmap", "multimodal", "trust_remote_code", "allow_remote_media",
+    "llama_server_allow_unvalidated", "llama_server_cont_batching",
+    "llama_server_kv_unified", "llama_server_fit",
 }
 _INT_ENV = {
     "port", "ctx_size", "n_gpu_layers", "n_threads", "n_batch", "n_ubatch", "timeout",
     "llama_server_port", "mlx_vlm_server_port", "startup_timeout", "default_top_k",
-    "max_concurrent_requests", "max_kv_size",
+    "max_concurrent_requests", "max_kv_size", "llama_server_fit_target_mib",
+    "llama_server_fit_ctx", "llama_server_cache_ram_mib",
 }
 _FLOAT_ENV = {
     "default_temperature", "default_top_p", "default_min_p",
     "default_repeat_penalty",
+}
+_RESOURCE_MEMORY_INT_ENV: dict[str, str] = {
+    "resource_estimate_bytes": "LOCAL_LLM_RESOURCE_ESTIMATE_BYTES",
+    "resource_model_weights_bytes": "LOCAL_LLM_RESOURCE_MODEL_WEIGHTS_BYTES",
+    "resource_backend_overhead_bytes": "LOCAL_LLM_RESOURCE_BACKEND_OVERHEAD_BYTES",
+    "resource_context_cache_bytes": "LOCAL_LLM_RESOURCE_CONTEXT_CACHE_BYTES",
+    "resource_prompt_cache_bytes": "LOCAL_LLM_RESOURCE_PROMPT_CACHE_BYTES",
+    "resource_projector_bytes": "LOCAL_LLM_RESOURCE_PROJECTOR_BYTES",
+    "resource_safety_margin_bytes": "LOCAL_LLM_RESOURCE_SAFETY_MARGIN_BYTES",
+    "resource_request_estimate_bytes": "LOCAL_LLM_RESOURCE_REQUEST_ESTIMATE_BYTES",
+    "resource_request_base_bytes": "LOCAL_LLM_RESOURCE_REQUEST_BASE_BYTES",
+    "resource_request_output_token_bytes": "LOCAL_LLM_RESOURCE_REQUEST_OUTPUT_TOKEN_BYTES",
+    "resource_request_input_byte_multiplier": "LOCAL_LLM_RESOURCE_REQUEST_INPUT_BYTE_MULTIPLIER",
+    "resource_request_safety_margin_bytes": "LOCAL_LLM_RESOURCE_REQUEST_SAFETY_MARGIN_BYTES",
 }
 
 
@@ -157,6 +196,14 @@ def build_config(
         else:
             cfg[key] = fallback
 
+    for key, env_name in _RESOURCE_MEMORY_INT_ENV.items():
+        cfg[key] = _resolve_non_negative_int_setting(
+            key,
+            explicit=explicit,
+            environment_name=env_name,
+            registry_params=reg_params,
+        )
+
     cfg["model"] = model
     cfg["model_id"] = model_id
     cfg["download_url"] = download_url
@@ -167,7 +214,6 @@ def build_config(
     cfg["mmproj_url"] = entry.get("mmproj_url", "")
     cfg["lmstudio_path"] = entry.get("lmstudio_path")
     cfg["size_gb"] = entry.get("size_gb")
-    cfg["resource_estimate_bytes"] = explicit.get("resource_estimate_bytes")
     # Immutable identity metadata is optional. Absence means the runtime can
     # still execute, but automatic evidence-grade identity is intentionally not
     # claimed. Explicit kwargs allow controlled direct-path deployments to pin
@@ -227,3 +273,31 @@ def build_config(
             cfg[capability_key] = list(entry.get(capability_key) or [])
 
     return cfg
+
+
+def _resolve_non_negative_int_setting(
+    key: str,
+    *,
+    explicit: dict[str, Any],
+    environment_name: str,
+    registry_params: dict[str, Any],
+) -> int | None:
+    if key in explicit and explicit[key] is not None:
+        value = explicit[key]
+    else:
+        environment_value = os.getenv(environment_name, "")
+        if environment_value:
+            value = environment_value
+        else:
+            value = registry_params.get(key)
+    if value is None or value == "":
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{key} must be a non-negative integer")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be a non-negative integer") from exc
+    if parsed < 0:
+        raise ValueError(f"{key} must be a non-negative integer")
+    return parsed

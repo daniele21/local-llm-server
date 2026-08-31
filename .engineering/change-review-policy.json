@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "meaningful_scopes": [
+    "dependency_or_toolchain",
+    "architecture_or_ownership_boundary",
+    "persisted_schema_or_public_contract",
+    "concurrency_or_resource_lifecycle",
+    "network_or_trust_boundary",
+    "build_release_or_evidence_pipeline"
+  ],
+  "questions": [
+    {"id": "problem", "marker": "complexity-review:problem", "text": "Which concrete problem does this solve?"},
+    {"id": "boundary", "marker": "complexity-review:boundary", "text": "Why is the existing owner or boundary insufficient?"},
+    {"id": "surface", "marker": "complexity-review:surface", "text": "What new failure, resource or upgrade surface is introduced?"},
+    {"id": "simpler", "marker": "complexity-review:simpler", "text": "Can a simpler local solution preserve the same invariants?"},
+    {"id": "sunset", "marker": "complexity-review:sunset", "text": "How will we know later whether this complexity is still justified?"}
+  ],
+  "template_path": ".github/pull_request_template.md",
+  "rule": "For meaningful scopes answer each question with a concrete sentence; otherwise state N/A with the reason."
+}

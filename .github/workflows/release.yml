@@ -6,14 +6,19 @@ on:
       - "v*.*.*"
 
 permissions:
-  contents: write   # needed to create GitHub Releases
+  contents: write
+
+env:
+  UV_VERSION: "0.8.13"
 
 jobs:
   build:
-    name: Build distribution
+    name: Build and verify immutable distribution
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -25,32 +30,67 @@ jobs:
           project_version="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
           test "$tag_version" = "$file_version"
           test "$tag_version" = "$project_version"
-      - name: Install build frontend
-        run: pip install build
-      - name: Build wheel and sdist
-        run: python -m build --outdir dist/
-      - name: Generate release checksums
-        run: sha256sum dist/* > dist/SHA256SUMS
-      - name: Upload artifacts
+      - name: Install pinned uv bootstrap
+        run: python -m pip install "uv==${UV_VERSION}"
+      - name: Sync locked release build toolchain
+        # Release packaging is backend-neutral; the native llama.cpp runtime does
+        # not need to be compiled merely to build the Python distributables.
+        run: uv sync --frozen --extra dev --no-install-package llama-cpp-python
+      - name: Build staged identified bundle from locked toolchain
+        env:
+          LOCAL_LLM_BUILD_CHANNEL: release
+          LOCAL_LLM_BUILD_VARIANT: wheel-sdist
+        run: uv run --no-sync python scripts/build_artifacts.py --output-root dist --channel release --variant wheel-sdist
+      - name: Fresh-install smoke the built wheel
+        shell: bash
+        run: |
+          build_dir="$(find dist/builds -mindepth 2 -maxdepth 2 -type d | head -n 1)"
+          test -n "$build_dir"
+          wheel="$(find "$build_dir/package" -maxdepth 1 -type f -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          uv run --no-sync python scripts/smoke_installed_artifact.py \
+            --wheel "$wheel" \
+            --expected-version "${GITHUB_REF_NAME#v}"
+      - name: Collect release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          build_dir="$(find dist/builds -mindepth 2 -maxdepth 2 -type d | head -n 1)"
+          test -n "$build_dir"
+          cp "$build_dir"/*.tar.gz release-assets/
+          cp "$build_dir"/build-manifest.json release-assets/
+          cp "$build_dir"/BUILD_CHANGELOG.md release-assets/
+          cp "$build_dir"/SHA256SUMS release-assets/
+      - name: Upload short-lived CI handoff artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/
-          retention-days: 14
+          name: release-assets
+          path: release-assets/
+          retention-days: 7
 
   github-release:
-    name: Create GitHub Release
+    name: Create immutable GitHub Release
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: dist
-          path: dist/
-      - name: Create release and attach assets
+          name: release-assets
+          path: release-assets/
+      - name: Refuse to replace an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} already exists; release assets are immutable." >&2
+            exit 1
+          fi
+      - name: Create release and attach identified assets
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
-          files: dist/*
+          files: release-assets/*
           generate_release_notes: true
+          fail_on_unmatched_files: true

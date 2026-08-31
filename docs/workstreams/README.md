@@ -7,11 +7,11 @@ Use the `repo-template-sw` lifecycle:
 - one workstream file owns both plan and progress;
 - use only `READY`, `ACTIVE`, `BLOCKED`, `DONE` for executable slices;
 - parallel work must have explicit non-conflicting write boundaries or a defined integration point;
-- durable architecture/feature behavior belongs in its owning documentation and executable tests, not permanently in the workstream plan;
-- when all acceptance criteria are satisfied, transfer durable truth, update `docs/current-state.md`, and delete the completed workstream by default.
+- durable behavior belongs in owning docs/tests, not permanently in workstream plans;
+- when acceptance is satisfied, transfer durable truth, update `docs/current-state.md`, and delete the completed workstream by default.
 
 Do not create separate plan/progress/status files for the same workstream. Git history owns implementation history.
 
 ## Active
 
-- [`runtime-correctness-evidence-hardening.md`](runtime-correctness-evidence-hardening.md) — thinking/structured-output correctness, evaluation canonicalization, verified artifact identity, resource-policy validation and representative hardware evidence.
+No active workstreams. Full L2 repository, representative-hardware and bounded human product-experience evidence are accepted for the current candidate; future workstreams should be opened only for new bounded capability or evidence objectives.

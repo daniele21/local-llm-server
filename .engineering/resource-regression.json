@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "owner": "resource_manager",
+  "evidence_class": "hosted-deterministic-python",
+  "claims": [
+    {
+      "id": "ledger-returns-empty",
+      "test": "tests/test_resource_regression.py::test_repeated_resource_lifecycle_returns_to_empty_ledger",
+      "iterations": 5000
+    },
+    {
+      "id": "rejected-admission-does-not-grow-ledger",
+      "test": "tests/test_resource_regression.py::test_rejected_admission_does_not_accumulate_state",
+      "iterations": 5000
+    },
+    {
+      "id": "python-heap-retention-bounded",
+      "test": "tests/test_resource_regression.py::test_resource_manager_python_heap_does_not_grow_with_completed_cycles",
+      "warmup_iterations": 1000,
+      "measured_iterations": 10000,
+      "max_retained_growth_bytes": 524288
+    },
+    {
+      "id": "resident-transient-shared-budget",
+      "test": "tests/test_resource_manager_reservation_kinds.py::test_resident_and_transient_reservations_share_one_budget"
+    },
+    {
+      "id": "transient-stream-reservation-release",
+      "test": "tests/test_request_resource_admission.py::test_stream_wrapper_holds_transient_reservation_until_iterator_finishes"
+    },
+    {
+      "id": "multimodel-device-campaign-ownership",
+      "test": "tests/test_multi_model_device_evidence.py::test_campaign_exercises_two_models_concurrent_accounting_and_shutdown_retry"
+    },
+    {
+      "id": "multimodel-review-does-not-authorize-eviction",
+      "test": "tests/test_multi_model_evidence_review.py::test_two_compatible_complete_reports_form_sufficient_observation_set"
+    }
+  ],
+  "non_claims": [
+    "native backend memory reclamation",
+    "Apple unified-memory reclamation",
+    "accelerator memory reclamation",
+    "RSS return-to-baseline",
+    "automatic pressure eviction safety"
+  ]
+}

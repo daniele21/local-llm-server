@@ -1,14 +1,17 @@
-"""Product HTTP request admission before runtime leases.
+"""Product HTTP admission before transient memory and runtime leases.
 
-The middleware consumes the canonical request prepared by request policy, then
-queues per resident runtime. It does not replace backend batching or the final
-runtime semaphore. Streaming requests keep their scheduler slot until the body
-iterator finishes.
+Canonical request policy prepares the request first. Optional per-runtime FIFO
+admission preserves existing local queue semantics, then the optional global
+execution governor bounds aggregate work fairly across runtimes. Neither layer
+replaces backend batching, transient-memory accounting or the final runtime
+semaphore. Streaming requests retain every acquired execution slot until their
+body iterator finishes.
 """
 from __future__ import annotations
 
 import asyncio
 import threading
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -18,6 +21,11 @@ from fastapi.responses import JSONResponse
 
 from .async_scheduler import AsyncRuntimeGate
 from .core.contracts import ErrorCode, InferenceError
+from .global_execution_governor import (
+    GlobalExecutionGovernor,
+    GlobalExecutionPermit,
+    attach_global_execution_governor,
+)
 from .live_evidence import record_runtime_metrics
 from .metrics import DurationMetrics, InferenceMetrics
 from .request_pipeline import public_error_detail
@@ -25,6 +33,7 @@ from .scheduler_policy import RequestSchedulerSettings, scheduler_settings_from_
 
 _INFERENCE_PATHS = frozenset({"/v1/chat/completions", "/api/v1/chat"})
 _QUEUE_WAIT_HEADER = "x-local-llm-queue-wait-ms"
+_GLOBAL_WAIT_HEADER = "x-local-llm-global-wait-ms"
 
 
 @dataclass(slots=True)
@@ -34,11 +43,11 @@ class _GateEntry:
 
 
 class RuntimeGateRegistry:
-    """Own one admission gate per current runtime residency."""
+    """Own one optional FIFO admission gate per current runtime residency."""
 
     def __init__(self, settings: RequestSchedulerSettings) -> None:
-        if not settings.enabled or settings.queue_capacity is None:
-            raise ValueError("runtime gate registry requires enabled queue settings")
+        if not settings.runtime_queue_enabled or settings.queue_capacity is None:
+            raise ValueError("runtime gate registry requires runtime queue settings")
         self.settings = settings
         self._entries: dict[str, _GateEntry] = {}
         self._lock = threading.RLock()
@@ -72,19 +81,30 @@ def install_request_scheduler(
     *,
     settings: RequestSchedulerSettings | None = None,
 ) -> FastAPI:
-    """Install opt-in queue admission exactly once."""
+    """Install optional per-runtime queueing and global execution admission once."""
     if getattr(application.state, "request_scheduler_installed", False):
         return application
     application.state.request_scheduler_installed = True
 
     resolved = settings or scheduler_settings_from_env()
     application.state.request_scheduler_settings = resolved
-    if not resolved.enabled:
-        application.state.runtime_gate_registry = None
-        return application
-
-    registry = RuntimeGateRegistry(resolved)
+    registry = RuntimeGateRegistry(resolved) if resolved.runtime_queue_enabled else None
+    governor = (
+        GlobalExecutionGovernor(
+            max_running=int(resolved.global_max_running),
+            queue_capacity=int(resolved.global_queue_capacity),
+        )
+        if resolved.global_governor_enabled
+        else None
+    )
     application.state.runtime_gate_registry = registry
+    application.state.global_execution_governor = governor
+    manager = getattr(application.state, "runtime_manager", None)
+    if manager is not None:
+        attach_global_execution_governor(manager, governor)
+
+    if not resolved.enabled:
+        return application
 
     @application.middleware("http")
     async def request_scheduler(request: Request, call_next):
@@ -112,6 +132,12 @@ def install_request_scheduler(
                 },
             )
 
+        admission_started = time.monotonic()
+        deadline = (
+            admission_started + timeout_seconds
+            if timeout_seconds is not None
+            else None
+        )
         base_request_id = uuid.uuid4().hex
         for attempt in range(2):
             try:
@@ -119,77 +145,151 @@ def install_request_scheduler(
             except LookupError:
                 return await call_next(request)
 
-            gate = registry.gate_for(runtime)
-            request_id = f"{base_request_id}-{attempt}"
-            try:
-                scheduled = await gate.acquire(
-                    request_id,
-                    canonical,
-                    timeout_seconds=timeout_seconds,
+            gate = registry.gate_for(runtime) if registry is not None else None
+            gate_request_id = f"{base_request_id}-runtime-{attempt}"
+            global_request_id = f"{base_request_id}-global-{attempt}"
+            permit: GlobalExecutionPermit | None = None
+            local_acquired = False
+
+            if gate is not None:
+                remaining = _remaining_seconds(deadline)
+                if remaining is not None and remaining <= 0:
+                    return _scheduler_error_response(_admission_timeout_error())
+                try:
+                    await gate.acquire(
+                        gate_request_id,
+                        canonical,
+                        timeout_seconds=remaining,
+                    )
+                    local_acquired = True
+                except InferenceError as exc:
+                    await _safe_forget(gate, gate_request_id)
+                    return _scheduler_error_response(exc)
+                except asyncio.CancelledError:
+                    await _safe_forget(gate, gate_request_id)
+                    raise
+
+            if not _runtime_is_current(manager, canonical.model, runtime):
+                await _release_admission(
+                    gate=gate,
+                    gate_request_id=gate_request_id if local_acquired else None,
+                    governor=None,
+                    global_request_id=None,
+                    cancel_requested=True,
                 )
-            except InferenceError as exc:
-                await _safe_forget(gate, request_id)
-                return _scheduler_error_response(exc)
-            except asyncio.CancelledError:
-                await _safe_forget(gate, request_id)
-                raise
-
-            queue_wait_ms = max(
-                0.0,
-                ((scheduled.started_at or scheduled.admitted_at or scheduled.submitted_at) - scheduled.submitted_at)
-                * 1000.0,
-            )
-
-            try:
-                current_runtime = manager.resolve(canonical.model)
-            except LookupError:
-                current_runtime = None
-            if current_runtime is not runtime:
-                await gate.release(request_id, cancel_requested=True)
-                await _safe_forget(gate, request_id)
                 if attempt == 0:
                     continue
-                return JSONResponse(
-                    status_code=409,
-                    content={
-                        "detail": {
-                            "code": ErrorCode.MODEL_NOT_RESIDENT.value,
-                            "message": "runtime residency changed while request was queued; retry request",
-                            "retryable": True,
-                            "details": {"model": canonical.model},
-                        }
-                    },
-                )
+                return _residency_changed_response(canonical.model)
 
+            if governor is not None:
+                remaining = _remaining_seconds(deadline)
+                if remaining is not None and remaining <= 0:
+                    await _release_admission(
+                        gate=gate,
+                        gate_request_id=gate_request_id if local_acquired else None,
+                        governor=None,
+                        global_request_id=None,
+                        cancel_requested=True,
+                    )
+                    return _scheduler_error_response(_admission_timeout_error())
+                try:
+                    governor.submit(
+                        runtime.key,
+                        global_request_id,
+                        runtime_max_running=max(
+                            1,
+                            int(runtime.cfg.get("max_concurrent_requests") or 1),
+                        ),
+                        timeout_seconds=remaining,
+                    )
+                    permit = await asyncio.to_thread(governor.wait, global_request_id)
+                except InferenceError as exc:
+                    await _release_admission(
+                        gate=gate,
+                        gate_request_id=gate_request_id if local_acquired else None,
+                        governor=None,
+                        global_request_id=None,
+                        cancel_requested=True,
+                    )
+                    return _scheduler_error_response(exc)
+                except asyncio.CancelledError:
+                    governor.abandon(global_request_id)
+                    await _release_admission(
+                        gate=gate,
+                        gate_request_id=gate_request_id if local_acquired else None,
+                        governor=None,
+                        global_request_id=None,
+                        cancel_requested=True,
+                    )
+                    raise
+
+            if not _runtime_is_current(manager, canonical.model, runtime):
+                await _release_admission(
+                    gate=gate,
+                    gate_request_id=gate_request_id if local_acquired else None,
+                    governor=governor if permit is not None else None,
+                    global_request_id=global_request_id if permit is not None else None,
+                    cancel_requested=True,
+                )
+                if attempt == 0:
+                    continue
+                return _residency_changed_response(canonical.model)
+
+            queue_wait_ms = max(0.0, (time.monotonic() - admission_started) * 1000.0)
             request.state.queue_wait_ms = queue_wait_ms
-            request.state.scheduler_request_id = request_id
+            request.state.scheduler_request_id = (
+                gate_request_id if local_acquired else global_request_id
+            )
+            request.state.global_execution_wait_ms = (
+                permit.wait_ms if permit is not None else None
+            )
             try:
                 response = await call_next(request)
             except asyncio.CancelledError:
-                await gate.release(request_id, cancel_requested=True)
-                await _safe_forget(gate, request_id)
+                await _release_admission(
+                    gate=gate,
+                    gate_request_id=gate_request_id if local_acquired else None,
+                    governor=governor if permit is not None else None,
+                    global_request_id=global_request_id if permit is not None else None,
+                    cancel_requested=True,
+                )
                 raise
             except Exception:
-                await gate.release(request_id, cancel_requested=True)
-                await _safe_forget(gate, request_id)
+                await _release_admission(
+                    gate=gate,
+                    gate_request_id=gate_request_id if local_acquired else None,
+                    governor=governor if permit is not None else None,
+                    global_request_id=global_request_id if permit is not None else None,
+                    cancel_requested=True,
+                )
                 raise
 
             response.headers[_QUEUE_WAIT_HEADER] = f"{queue_wait_ms:.3f}"
+            if permit is not None:
+                response.headers[_GLOBAL_WAIT_HEADER] = f"{permit.wait_ms:.3f}"
             if canonical.stream is True and hasattr(response, "body_iterator"):
                 response.body_iterator = _hold_gate_for_stream(
                     response.body_iterator,
                     gate=gate,
-                    request_id=request_id,
+                    request_id=gate_request_id if local_acquired else None,
+                    governor=governor if permit is not None else None,
+                    global_request_id=global_request_id if permit is not None else None,
                 )
                 return response
 
-            await gate.release(request_id)
-            await _safe_forget(gate, request_id)
+            await _release_admission(
+                gate=gate,
+                gate_request_id=gate_request_id if local_acquired else None,
+                governor=governor if permit is not None else None,
+                global_request_id=global_request_id if permit is not None else None,
+            )
             record_runtime_metrics(
                 runtime,
                 InferenceMetrics(
                     durations=DurationMetrics(queue_wait_ms=queue_wait_ms),
-                    sources={"queue_wait_ms": "request_scheduler.admission_wall_clock"},
+                    sources={
+                        "queue_wait_ms": "request_scheduler.pre_execution_admission_wall_clock"
+                    },
                 ),
             )
             return response
@@ -199,11 +299,69 @@ def install_request_scheduler(
     return application
 
 
+def _remaining_seconds(deadline: float | None) -> float | None:
+    if deadline is None:
+        return None
+    return deadline - time.monotonic()
+
+
+def _runtime_is_current(manager: Any, model: str | None, runtime: Any) -> bool:
+    try:
+        return manager.resolve(model) is runtime
+    except LookupError:
+        return False
+
+
+def _admission_timeout_error() -> InferenceError:
+    return InferenceError(
+        ErrorCode.TIMEOUT,
+        "request deadline expired while waiting for execution admission",
+        retryable=True,
+        details={},
+    )
+
+
+def _residency_changed_response(model: str | None) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={
+            "detail": {
+                "code": ErrorCode.MODEL_NOT_RESIDENT.value,
+                "message": "runtime residency changed while request was queued; retry request",
+                "retryable": True,
+                "details": {"model": model},
+            }
+        },
+    )
+
+
+async def _release_admission(
+    *,
+    gate: AsyncRuntimeGate | None,
+    gate_request_id: str | None,
+    governor: GlobalExecutionGovernor | None,
+    global_request_id: str | None,
+    cancel_requested: bool = False,
+) -> None:
+    if governor is not None and global_request_id is not None:
+        try:
+            governor.release(global_request_id)
+        except (KeyError, RuntimeError):
+            governor.abandon(global_request_id)
+    if gate is not None and gate_request_id is not None:
+        try:
+            await gate.release(gate_request_id, cancel_requested=cancel_requested)
+        finally:
+            await _safe_forget(gate, gate_request_id)
+
+
 async def _hold_gate_for_stream(
     iterator,
     *,
-    gate: AsyncRuntimeGate,
-    request_id: str,
+    gate: AsyncRuntimeGate | None,
+    request_id: str | None,
+    governor: GlobalExecutionGovernor | None = None,
+    global_request_id: str | None = None,
 ):
     cancelled = False
     try:
@@ -213,8 +371,13 @@ async def _hold_gate_for_stream(
         cancelled = True
         raise
     finally:
-        await gate.release(request_id, cancel_requested=cancelled)
-        await _safe_forget(gate, request_id)
+        await _release_admission(
+            gate=gate,
+            gate_request_id=request_id,
+            governor=governor,
+            global_request_id=global_request_id,
+            cancel_requested=cancelled,
+        )
 
 
 def _scheduler_error_response(error: InferenceError) -> JSONResponse:

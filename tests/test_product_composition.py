@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from local_llm_server.global_execution_governor import global_execution_governor_for
 from local_llm_server.product_composition import install_product_http_stack
 from local_llm_server.runtime import ModelRuntimeManager
 from local_llm_server.scheduler_policy import RequestSchedulerSettings
@@ -45,12 +46,15 @@ def test_product_http_stack_installs_scheduler_policy_completion_stream_metrics_
         scheduler_settings=settings,
     )
 
+    assert app.state.request_resource_admission_installed is True
     assert app.state.request_scheduler_installed is True
     assert app.state.request_scheduler_settings == settings
     assert app.state.runtime_gate_registry is not None
+    assert app.state.global_execution_governor is None
     assert app.state.canonical_request_policy_installed is True
     assert app.state.completion_metrics_installed is True
     assert app.state.streaming_metrics_installed is True
+    assert app.state.studio_ui_routes_installed is True
     assert app.state.product_api_installed is True
     route_paths = [
         path
@@ -58,18 +62,55 @@ def test_product_http_stack_installs_scheduler_policy_completion_stream_metrics_
         if (path := getattr(route, "path", None)) is not None
     ]
     assert route_paths.count("/v1/audio/transcriptions") == 1
+    for path in (
+        "/overview",
+        "/models",
+        "/models/{opaque_model_id}",
+        "/endpoints",
+        "/playground",
+        "/evaluations",
+        "/evaluations/{opaque_run_id}",
+        "/system",
+        "/settings",
+    ):
+        assert route_paths.count(path) == 1
 
 
-def test_product_http_stack_keeps_scheduler_disabled_when_queue_is_unconfigured(tmp_path):
+def test_product_http_stack_can_install_global_governor_without_runtime_queue(tmp_path):
+    app = _app()
+    settings = RequestSchedulerSettings(
+        global_max_running=2,
+        global_queue_capacity=4,
+    )
+
+    install_product_http_stack(
+        app,
+        evaluation_root=tmp_path / "evaluations",
+        scheduler_settings=settings,
+    )
+
+    assert app.state.request_scheduler_settings == settings
+    assert app.state.runtime_gate_registry is None
+    assert app.state.global_execution_governor is not None
+    assert global_execution_governor_for(app.state.runtime_manager) is app.state.global_execution_governor
+    snapshot = app.state.global_execution_governor.snapshot()
+    assert snapshot.max_running == 2
+    assert snapshot.queue_capacity == 4
+
+
+def test_product_http_stack_keeps_resource_admission_when_queue_is_unconfigured(tmp_path):
     app = _app()
     install_product_http_stack(
         app,
         evaluation_root=tmp_path / "evaluations",
         scheduler_settings=RequestSchedulerSettings(),
     )
+    assert app.state.request_resource_admission_installed is True
     assert app.state.request_scheduler_installed is True
     assert app.state.request_scheduler_settings.enabled is False
     assert app.state.runtime_gate_registry is None
+    assert app.state.global_execution_governor is None
+    assert global_execution_governor_for(app.state.runtime_manager) is None
     assert app.state.completion_metrics_installed is True
 
 

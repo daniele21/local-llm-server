@@ -22,6 +22,29 @@ def test_models_ui_consumes_live_resource_identity_and_residency_sources():
     assert "Unavailable until D3" not in script
 
 
+def test_models_ui_owns_lifecycle_actions_without_legacy_scroll_seam():
+    script = (STATIC / "control-plane-models.js").read_text(encoding="utf-8")
+    assert "/api/v1/models/load" in script
+    assert "/api/v1/models/activate" in script
+    assert "method: 'DELETE'" in script
+    assert "data-load-model" in script
+    assert "data-unload-model" in script
+    assert "data-set-default-model" in script
+    assert "data-scroll-legacy-model-controls" not in script
+    assert "Open lifecycle controls" not in script
+
+
+def test_models_ui_explains_resource_accounting_and_load_feasibility_truthfully():
+    script = (STATIC / "control-plane-models.js").read_text(encoding="utf-8")
+    assert "Memory & Residency" in script
+    assert "Configured accounting envelope" in script
+    assert "estimate_bytes" in script
+    assert "Estimated requirement" in script
+    assert "Additional capacity required" in script
+    assert "this is not a physical-memory observation" in script
+    assert "observed footprint" not in script.lower()
+
+
 def test_models_ui_pinning_is_server_backed_and_not_a_reclamation_claim():
     script = (STATIC / "control-plane-models.js").read_text(encoding="utf-8")
     assert "/api/v1/residency/pin" in script
@@ -46,6 +69,11 @@ def test_models_ui_exposes_verified_fingerprint_or_exploratory_state():
     assert "shortFingerprint" in script
     assert "Exploratory" in script
     assert "Evidence available" in script
+
+
+def test_models_ui_css_is_loaded_by_frontend_config():
+    config = (STATIC / "config.js").read_text(encoding="utf-8")
+    assert "/static/control-plane-models.css" in config
 
 
 def test_models_javascript_is_syntactically_valid_when_node_is_available():

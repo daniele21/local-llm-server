@@ -1,10 +1,23 @@
-"""Public-safe aggregate scheduler evidence for the control plane."""
+"""Public-safe aggregate scheduler and global-governor evidence."""
 from __future__ import annotations
 
 from collections import Counter
 from typing import Any
 
+from .global_execution_governor import global_execution_governor_for
 from .scheduler_policy import RequestSchedulerSettings
+
+
+def _disabled_global_payload() -> dict[str, object]:
+    return {
+        "enabled": False,
+        "max_running": None,
+        "queue_capacity": None,
+        "inflight": None,
+        "queued": None,
+        "fairness": None,
+        "runtimes": [],
+    }
 
 
 async def scheduler_evidence_payload(application: Any) -> dict[str, object]:
@@ -15,12 +28,19 @@ async def scheduler_evidence_payload(application: Any) -> dict[str, object]:
     )
     payload: dict[str, object] = {
         "policy": settings.to_public_dict(),
+        "global": _disabled_global_payload(),
         "runtimes": [],
     }
-    if not settings.enabled:
+    manager = getattr(application.state, "runtime_manager", None)
+    governor = getattr(application.state, "global_execution_governor", None)
+    if governor is None and manager is not None:
+        governor = global_execution_governor_for(manager)
+    if governor is not None:
+        payload["global"] = governor.snapshot().to_public_dict()
+
+    if not settings.runtime_queue_enabled:
         return payload
 
-    manager = getattr(application.state, "runtime_manager", None)
     registry = getattr(application.state, "runtime_gate_registry", None)
     if manager is None or registry is None:
         return payload

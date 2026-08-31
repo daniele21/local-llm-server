@@ -1,0 +1,269 @@
+.control-plane-models {
+    display: grid;
+    gap: var(--ds-space-4);
+    min-width: 0;
+}
+
+.control-plane-models__eyebrow {
+    display: block;
+    margin-bottom: var(--ds-space-1);
+    color: var(--ds-electric-blue);
+    font: 600 0.75rem/1.2 var(--ds-font-ui);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.control-plane-models__summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ds-space-3);
+}
+
+.control-plane-models__metric {
+    display: grid;
+    gap: var(--ds-space-2);
+    min-width: 0;
+}
+
+.control-plane-models__metric > strong {
+    font: 650 clamp(1.1rem, 2vw, 1.5rem)/1.15 var(--ds-font-data);
+    overflow-wrap: anywhere;
+}
+
+.control-plane-models__metric > small,
+.control-plane-models__section-header > small,
+.control-plane-models__evidence-note {
+    color: var(--ds-text-muted);
+}
+
+.control-plane-models__budget {
+    display: grid;
+    gap: var(--ds-space-3);
+}
+
+.control-plane-models__section-header,
+.control-plane-models__detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--ds-space-3);
+}
+
+.control-plane-models__section-header h3,
+.control-plane-models__detail-header h3 {
+    margin: 0;
+}
+
+.control-plane-models__budget-bar {
+    display: flex;
+    min-height: 48px;
+    overflow: hidden;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+}
+
+.control-plane-models__budget-segment {
+    display: grid;
+    place-items: center;
+    min-width: 3rem;
+    padding: var(--ds-space-2);
+    border-inline-end: 1px solid var(--ds-border);
+    font: 600 0.75rem/1.2 var(--ds-font-data);
+    text-align: center;
+}
+
+.control-plane-models__budget-segment--committed {
+    background: color-mix(in srgb, var(--ds-status-ready) 22%, var(--ds-surface-2));
+}
+
+.control-plane-models__budget-segment--reserved {
+    background: color-mix(in srgb, var(--ds-status-warning) 18%, var(--ds-surface-2));
+}
+
+.control-plane-models__budget-segment--remaining {
+    background: color-mix(in srgb, var(--ds-electric-blue) 18%, var(--ds-surface-2));
+}
+
+.control-plane-models__budget-legend {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--ds-space-2);
+}
+
+.control-plane-models__budget-legend span {
+    display: grid;
+    gap: 2px;
+}
+
+.control-plane-models__budget-legend em {
+    color: var(--ds-text-muted);
+    font: 500 0.72rem/1.2 var(--ds-font-data);
+    font-style: normal;
+    text-transform: uppercase;
+}
+
+.control-plane-models__workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 320px);
+    gap: var(--ds-space-4);
+    align-items: start;
+    min-width: 0;
+}
+
+.control-plane-models__inventory,
+.control-plane-models__detail {
+    min-width: 0;
+}
+
+.control-plane-models__inventory {
+    display: grid;
+    gap: var(--ds-space-3);
+}
+
+.control-plane-models__table th,
+.control-plane-models__table td {
+    vertical-align: top;
+}
+
+.control-plane-models__identity-button {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    min-height: var(--ds-control-min-height);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ds-text);
+    text-align: start;
+    cursor: pointer;
+}
+
+.control-plane-models__identity-button:hover strong {
+    color: var(--ds-electric-blue);
+}
+
+.control-plane-models__row--selected {
+    background: color-mix(in srgb, var(--ds-electric-blue) 8%, transparent);
+}
+
+.control-plane-models__row-actions,
+.control-plane-models__detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+}
+
+.control-plane-models__detail {
+    position: sticky;
+    top: var(--ds-space-4);
+    display: grid;
+    gap: var(--ds-space-4);
+    max-height: calc(100vh - 2 * var(--ds-space-4));
+    overflow: auto;
+}
+
+.control-plane-models__detail section {
+    display: grid;
+    gap: var(--ds-space-2);
+    padding-top: var(--ds-space-3);
+    border-top: 1px solid var(--ds-border-subtle);
+}
+
+.control-plane-models__detail section h4 {
+    margin: 0;
+}
+
+.control-plane-models__definition-list {
+    display: grid;
+    gap: var(--ds-space-2);
+    margin: 0;
+}
+
+.control-plane-models__definition-list > div {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.8fr) minmax(0, 1.2fr);
+    gap: var(--ds-space-2);
+    align-items: baseline;
+}
+
+.control-plane-models__definition-list dt {
+    color: var(--ds-text-muted);
+}
+
+.control-plane-models__definition-list dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.control-plane-models__modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: var(--ds-space-4);
+    background: rgb(0 0 0 / 58%);
+}
+
+.control-plane-models__modal {
+    display: grid;
+    gap: var(--ds-space-4);
+    width: min(560px, 100%);
+    max-height: calc(100vh - 2 * var(--ds-space-4));
+    overflow: auto;
+    box-shadow: var(--ds-shadow-panel);
+}
+
+.control-plane-models__action-status {
+    min-height: var(--ds-control-min-height);
+}
+
+@media (max-width: 1100px) {
+    .control-plane-models__summary,
+    .control-plane-models__budget-legend {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .control-plane-models__workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .control-plane-models__detail {
+        position: static;
+        max-height: none;
+    }
+}
+
+@media (max-width: 720px) {
+    .control-plane-models__summary,
+    .control-plane-models__budget-legend {
+        grid-template-columns: 1fr;
+    }
+
+    .control-plane-models__section-header,
+    .control-plane-models__detail-header {
+        flex-direction: column;
+    }
+
+    .control-plane-models__budget-bar {
+        flex-direction: column;
+    }
+
+    .control-plane-models__budget-segment {
+        flex-basis: auto !important;
+        border-inline-end: 0;
+        border-bottom: 1px solid var(--ds-border);
+    }
+
+    .control-plane-models__row-actions .ds-button,
+    .control-plane-models__detail-actions .ds-button {
+        flex: 1 1 10rem;
+    }
+}
+
+@media (max-width: 420px) {
+    .control-plane-models__definition-list > div {
+        grid-template-columns: 1fr;
+    }
+}

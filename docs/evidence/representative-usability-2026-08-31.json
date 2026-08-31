@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "representative_user_usability",
+  "source_revision": "a29e77c1ce4e65294440cfe4fc47e33c92173096",
+  "records": [
+    {
+      "study_id": "product-ui-final-usability-2026-08-31",
+      "journey_id": "control-plane-status-and-navigation",
+      "task_completed": true,
+      "needed_recovery": false,
+      "assistance_required": false,
+      "duration_bucket": "not-measured",
+      "severity": "none",
+      "sanitized_observation": "Representative review reported server and runtime state understandable and the primary navigation usable without a blocking issue."
+    },
+    {
+      "study_id": "product-ui-final-usability-2026-08-31",
+      "journey_id": "chat-inference-and-recovery",
+      "task_completed": true,
+      "needed_recovery": false,
+      "assistance_required": false,
+      "duration_bucket": "not-measured",
+      "severity": "none",
+      "sanitized_observation": "Representative review reported the primary inference flow and its recovery affordances acceptable on the exercised surface."
+    },
+    {
+      "study_id": "product-ui-final-usability-2026-08-31",
+      "journey_id": "advanced-control-discovery",
+      "task_completed": true,
+      "needed_recovery": false,
+      "assistance_required": false,
+      "duration_bucket": "not-measured",
+      "severity": "none",
+      "sanitized_observation": "Representative review reported advanced controls discoverable without dominating the normal workflow."
+    },
+    {
+      "study_id": "product-ui-final-usability-2026-08-31",
+      "journey_id": "evidence-interpretation",
+      "task_completed": true,
+      "needed_recovery": false,
+      "assistance_required": false,
+      "duration_bucket": "not-measured",
+      "severity": "none",
+      "sanitized_observation": "Representative review reported measured, estimated and unavailable evidence states understandable on the exercised surface."
+    }
+  ]
+}
