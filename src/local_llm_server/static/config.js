@@ -1,6 +1,42 @@
 /**
- * config.js — Frontend Configuration for Local LLM Studio
+ * config.js — Frontend Configuration for Korgis.
+ * Technical runtime/API identity remains Local LLM Server.
  */
+
+(function applyKorgisRuntimeBrand() {
+    if (typeof document === 'undefined') return;
+
+    document.title = 'Korgis';
+
+    const description = document.querySelector('meta[name="description"]');
+    if (description) {
+        description.setAttribute(
+            'content',
+            'Korgis — resource-aware local AI control plane for models, runtimes, endpoints and evaluation.'
+        );
+    }
+
+    let favicon = document.querySelector('link[rel~="icon"]');
+    if (!favicon) {
+        favicon = document.createElement('link');
+        favicon.rel = 'icon';
+        document.head.appendChild(favicon);
+    }
+    favicon.type = 'image/png';
+    favicon.href = '/static/korgis-app-icon.png';
+
+    const logo = document.querySelector('.sidebar-logo img');
+    if (logo) {
+        logo.src = '/static/korgis-mark.png';
+        logo.alt = 'Korgis';
+    }
+
+    const brandName = document.querySelector('.sidebar-brand-text h1');
+    if (brandName) brandName.textContent = 'Korgis';
+
+    const descriptor = document.querySelector('.sidebar-brand-text .subtext');
+    if (descriptor) descriptor.textContent = 'Local AI control plane';
+})();
 
 (function ensureControlPlaneAssets() {
     if (typeof document === 'undefined') return;
@@ -14,6 +50,7 @@
         ['data-local-llm-control-plane-evaluation', '/static/control-plane-evaluation.css'],
         ['data-local-llm-control-plane-evaluation-history', '/static/control-plane-evaluation-history.css'],
         ['data-local-llm-control-plane-product-semantics', '/static/control-plane-product-semantics.css'],
+        ['data-korgis-brand', '/static/brand.css'],
     ];
     stylesheets.forEach(([marker, href]) => {
         if (document.querySelector(`link[${marker}]`)) return;

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "contract_version": "0.6.1",
+  "contract_version": "0.7.0",
   "brand_name": "Korgis",
   "claim": "Your AI. Local. Ready to use.",
   "product_name": "Korgis",
@@ -26,10 +26,19 @@
   },
   "implementation": {
     "brand_source_status": "approved",
-    "runtime_rollout_status": "pending",
-    "current_runtime_logo": "src/local_llm_server/static/logo.svg",
-    "current_runtime_surface_name": "Local LLM Studio",
-    "note": "The Korgis assets under design/brand/logo are the canonical brand sources. Replacing runtime/UI assets and legacy user-facing names is a separate implementation change so documentation never claims a rollout that has not shipped yet."
+    "runtime_rollout_status": "implemented",
+    "runtime_brand_owner": "src/local_llm_server/static/config.js + src/local_llm_server/static/brand.css",
+    "current_runtime_logo": "src/local_llm_server/static/korgis-mark.png",
+    "current_runtime_favicon": "src/local_llm_server/static/korgis-app-icon.png",
+    "current_runtime_surface_name": "Korgis",
+    "runtime_static_assets": [
+      "src/local_llm_server/static/korgis-mark.png",
+      "src/local_llm_server/static/korgis-app-icon.png",
+      "src/local_llm_server/static/korgis-horizontal.png",
+      "src/local_llm_server/static/korgis-reversed-dark.png"
+    ],
+    "legacy_bootstrap_markup": "src/local_llm_server/static/index.html retains pre-rollout literals only as a non-canonical parser fallback. config.js synchronously applies Korgis name, mark, favicon and metadata before the application/i18n/control-plane boot sequence; i18n and routed page titles then preserve Korgis.",
+    "technical_identity_boundary": "Package names, CLI commands, environment variables, HTTP/API identifiers and repository identity remain Local LLM Server unless a separate technical rename is approved."
   },
   "themes": {
     "light": true,

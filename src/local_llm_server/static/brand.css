@@ -1,0 +1,152 @@
+/* Korgis runtime brand layer.
+ * Canonical source: design/brand-kit.json + docs/brand-guidelines.md.
+ * This file maps the legacy shell variables onto the shared design-system tokens
+ * without changing technical runtime/API identity.
+ */
+
+:root {
+    --font-sans: var(--ds-font-ui);
+    --font-mono: var(--ds-font-mono);
+
+    --bg-app: var(--ds-bg);
+    --bg-sidebar: var(--ds-surface-1);
+    --bg-card: var(--ds-surface-1);
+    --bg-card-hover: var(--ds-surface-2);
+    --bg-input: var(--ds-bg);
+    --border-card: var(--ds-border-subtle);
+    --border-focus: var(--ds-focus);
+
+    --text-primary: var(--ds-text);
+    --text-secondary: var(--ds-text-muted);
+    --text-muted: var(--ds-text-subtle);
+
+    --color-primary: var(--ds-electric-blue);
+    --color-primary-glow: color-mix(in srgb, var(--ds-electric-blue) 16%, transparent);
+    --color-primary-hover: color-mix(in srgb, var(--ds-electric-blue) 84%, black);
+    --color-accent: var(--ds-teal);
+    --color-accent-glow: color-mix(in srgb, var(--ds-teal) 14%, transparent);
+    --color-success: var(--ds-status-ready);
+    --color-warning: var(--ds-status-warning);
+    --color-danger: var(--ds-status-error);
+
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.16);
+    --shadow-md: var(--ds-shadow-panel);
+    --shadow-lg: var(--ds-shadow-panel);
+
+    --radius-sm: var(--ds-radius-sm);
+    --radius-md: var(--ds-radius-md);
+    --radius-lg: var(--ds-radius-lg);
+    --transition-fast: var(--ds-transition-fast);
+}
+
+[data-theme="light"] {
+    --bg-app: var(--ds-bg);
+    --bg-sidebar: var(--ds-surface-1);
+    --bg-card: var(--ds-surface-1);
+    --bg-card-hover: var(--ds-surface-2);
+    --bg-input: var(--ds-surface-1);
+    --border-card: var(--ds-border-subtle);
+    --border-focus: var(--ds-focus);
+    --text-primary: var(--ds-text);
+    --text-secondary: var(--ds-text-muted);
+    --text-muted: var(--ds-text-subtle);
+    --color-primary: var(--ds-electric-blue);
+    --color-primary-hover: color-mix(in srgb, var(--ds-electric-blue) 84%, black);
+    --color-accent: var(--ds-teal);
+    --color-success: var(--ds-status-ready);
+    --color-warning: var(--ds-status-warning);
+    --color-danger: var(--ds-status-error);
+}
+
+/* Korgis is operational, not decorative: retire the legacy cyber-glow layer. */
+.glow-bg {
+    display: none !important;
+}
+
+.app-sidebar {
+    background: var(--ds-surface-1);
+    border-right-color: var(--ds-border-subtle);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+.sidebar-brand {
+    align-items: center;
+    gap: var(--ds-space-3);
+    margin-bottom: var(--ds-space-6);
+}
+
+.sidebar-logo {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    padding: 4px;
+    background: var(--ds-surface-2);
+    border: 1px solid var(--ds-border-subtle);
+    border-radius: var(--ds-radius-md);
+    box-shadow: none;
+}
+
+.sidebar-logo img {
+    object-fit: contain;
+}
+
+.sidebar-brand-text {
+    min-width: 0;
+}
+
+.sidebar-brand-text h1,
+[data-theme="light"] .sidebar-brand-text h1 {
+    margin: 0;
+    background: none;
+    color: var(--ds-text);
+    -webkit-background-clip: initial;
+    -webkit-text-fill-color: currentColor;
+    font-family: var(--ds-font-ui);
+    font-size: 1.18rem;
+    font-weight: 750;
+    letter-spacing: -0.025em;
+}
+
+.sidebar-brand-text .subtext {
+    margin-top: 2px;
+    color: var(--ds-text-subtle);
+    font: 600 0.68rem/1.25 var(--ds-font-data);
+    letter-spacing: 0.02em;
+    text-transform: none;
+}
+
+.status-summary-card,
+.card {
+    box-shadow: none;
+}
+
+.nav-item--active {
+    background: color-mix(in srgb, var(--ds-electric-blue) 12%, var(--ds-surface-1));
+    border-color: color-mix(in srgb, var(--ds-electric-blue) 42%, var(--ds-border));
+    box-shadow: none;
+}
+
+.nav-item--active svg,
+.sidebar-footer-link:hover {
+    color: var(--ds-electric-blue);
+}
+
+/* Override the legacy inline tour treatment with restrained Korgis action styling. */
+.start-tour-btn {
+    border-color: var(--ds-electric-blue) !important;
+    background: var(--ds-electric-blue) !important;
+    box-shadow: none !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+}
+
+.start-tour-btn:hover {
+    background: color-mix(in srgb, var(--ds-electric-blue) 84%, black) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .glow-bg {
+        animation: none !important;
+    }
+}

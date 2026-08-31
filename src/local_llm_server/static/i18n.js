@@ -1,5 +1,6 @@
 /**
- * i18n.js — Internationalization System for Local LLM Studio
+ * i18n.js — Internationalization System for Korgis.
+ * Korgis remains untranslated; technical runtime terminology is localized where useful.
  */
 
 const I18N_RESOURCES = {
@@ -25,9 +26,9 @@ const I18N_RESOURCES = {
             terminalRunning: "In esecuzione..."
         },
         dom: {
-            "title": "Local LLM Studio",
-            ".sidebar-brand-text h1": "Local LLM Studio",
-            ".sidebar-brand-text .subtext": "Console Inferenza",
+            "title": "Korgis",
+            ".sidebar-brand-text h1": "Korgis",
+            ".sidebar-brand-text .subtext": "Local AI control plane",
             ".status-info-item:nth-child(1) .label": "Modello predefinito",
             ".status-info-item:nth-child(2) .label": "Backend predefinito",
             ".status-info-item:nth-child(3) .label": "Indirizzo Server",
@@ -98,7 +99,7 @@ const I18N_RESOURCES = {
             ".registry-card .card-header h2": "Modelli in memoria",
             ".registry-card .card-header p": "Carica più modelli e interrogali in parallelo dalla stessa porta.",
             ".models-grid__placeholder": "Caricamento modelli in corso...",
-            ".app-footer p": "Runtime locali con <strong>llama.cpp</strong>, <strong>MLX</strong> e routing OpenAI-compatible."
+            ".app-footer p": "<strong>Korgis</strong> · runtime locali con <strong>llama.cpp</strong>, <strong>MLX</strong> e routing OpenAI-compatible."
         }
     },
     en: {
@@ -123,9 +124,9 @@ const I18N_RESOURCES = {
             terminalRunning: "Running..."
         },
         dom: {
-            "title": "Local LLM Studio",
-            ".sidebar-brand-text h1": "Local LLM Studio",
-            ".sidebar-brand-text .subtext": "Inference Console",
+            "title": "Korgis",
+            ".sidebar-brand-text h1": "Korgis",
+            ".sidebar-brand-text .subtext": "Local AI control plane",
             ".status-info-item:nth-child(1) .label": "Default model",
             ".status-info-item:nth-child(2) .label": "Default backend",
             ".status-info-item:nth-child(3) .label": "Server Address",
@@ -196,7 +197,7 @@ const I18N_RESOURCES = {
             ".registry-card .card-header h2": "Models in memory",
             ".registry-card .card-header p": "Load multiple models and query them in parallel through the same port.",
             ".models-grid__placeholder": "Loading models...",
-            ".app-footer p": "Local runtimes with <strong>llama.cpp</strong>, <strong>MLX</strong>, and OpenAI-compatible routing."
+            ".app-footer p": "<strong>Korgis</strong> · local runtimes with <strong>llama.cpp</strong>, <strong>MLX</strong>, and OpenAI-compatible routing."
         }
     }
 };
