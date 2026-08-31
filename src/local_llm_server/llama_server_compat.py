@@ -19,8 +19,13 @@ LLAMA_CPP_VALIDATED_RELEASE = "v0.3.0"
 LLAMA_CPP_VALIDATED_MIN_BUILD = 10621
 LLAMA_CPP_VALIDATED_RELEASE_COMMIT = "c1d0e7a004015f23bc0233470b747b596f29b264"
 
-_VERSION_PATTERN = re.compile(
-    r"version:\s*(?P<build>\d+)\s*\(`?(?P<commit>[0-9a-fA-F]{7,40})`?\)"
+_VERSION_PATTERNS = (
+    re.compile(
+        r"version:\s*(?P<build>\d+)\s*\(`?(?P<commit>[0-9a-fA-F]{7,40})`?\)"
+    ),
+    re.compile(
+        r"version:\s*[^\r\n]*?\(build\s+(?P<build>\d+),\s*commit\s+`?(?P<commit>[0-9a-fA-F]{7,40})`?\)"
+    ),
 )
 _ALLOWED_LOAD_MODES = {"auto", "none", "mmap", "mlock", "mmap+mlock", "dio"}
 _ALLOWED_CACHE_TYPES = {
@@ -91,8 +96,11 @@ class LlamaServerCompatibility:
 
 
 def parse_llama_server_version(text: str) -> LlamaServerBuildIdentity | None:
-    """Parse the stable ``llama-server --version`` build/commit identity."""
-    match = _VERSION_PATTERN.search(text)
+    """Parse attributable ``llama-server --version`` build/commit identity."""
+    match = next(
+        (candidate.search(text) for candidate in _VERSION_PATTERNS if candidate.search(text)),
+        None,
+    )
     if match is None:
         return None
     build = int(match.group("build"))

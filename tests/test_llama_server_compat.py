@@ -39,12 +39,51 @@ def test_parse_version_captures_build_and_commit_only():
     assert identity.matches_validated_release is True
 
 
+def test_parse_modern_v030_version_format_keeps_validated_identity():
+    identity = parse_llama_server_version(
+        "version: 0.3.0-dev (build 10621, commit `c1d0e7a`)\n"
+        "built with AppleClang for Darwin arm64\n"
+    )
+
+    assert identity == LlamaServerBuildIdentity(build=10621, commit="c1d0e7a")
+    assert identity.matches_validated_release is True
+
+
+def test_parse_modern_forward_build_format_keeps_exact_identity():
+    identity = parse_llama_server_version(
+        "version: 0.3.0-dev (build 10665, commit `ca3d5a3`)\n"
+    )
+
+    assert identity == LlamaServerBuildIdentity(build=10665, commit="ca3d5a3")
+    assert identity.backend_version == "build-10665@ca3d5a3"
+    assert identity.matches_validated_release is False
+
+
+def test_parse_version_still_rejects_unattributable_semver_only_output():
+    assert parse_llama_server_version("version: 0.3.0\n") is None
+
+
 def test_exact_v030_release_uses_validated_profile():
     compatibility = validate_llama_server_binary(
         "/tmp/llama-server",
         run_command=lambda _path: (
             "version: 10621 "
             f"({LLAMA_CPP_VALIDATED_RELEASE_COMMIT[:9]})\n"
+        ),
+    )
+
+    assert compatibility.supported is True
+    assert compatibility.modern_runtime_options is True
+    assert compatibility.exact_validated_release is True
+    assert compatibility.profile == "validated-v0.3.0"
+
+
+def test_modern_v030_release_uses_validated_profile():
+    compatibility = validate_llama_server_binary(
+        "/tmp/llama-server",
+        run_command=lambda _path: (
+            "version: 0.3.0-dev (build 10621, commit "
+            f"`{LLAMA_CPP_VALIDATED_RELEASE_COMMIT[:9]}`)\n"
         ),
     )
 
