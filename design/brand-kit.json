@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "contract_version": "0.6.0",
+  "contract_version": "0.6.1",
   "brand_name": "Korgis",
   "claim": "Your AI. Local. Ready to use.",
   "product_name": "Korgis",
@@ -14,11 +14,14 @@
     "source_root": "design/brand/logo",
     "logo_mark": "design/brand/logo/korgis-mark.png",
     "logo_primary": "design/brand/logo/korgis-horizontal.png",
+    "logo_compact": "design/brand/logo/korgis-mark.png",
     "logo_light_background": "design/brand/logo/korgis-horizontal-light.png",
     "logo_with_claim_light": "design/brand/logo/korgis-horizontal-claim-light.png",
+    "logo_monochrome": "design/brand/logo/korgis-monochrome-dark.png",
     "logo_monochrome_dark": "design/brand/logo/korgis-monochrome-dark.png",
     "logo_dark_background": "design/brand/logo/korgis-reversed-dark.png",
     "app_icon": "design/brand/logo/korgis-app-icon.png",
+    "favicon": "design/brand/logo/korgis-app-icon.png",
     "favicon_source": "design/brand/logo/korgis-app-icon.png"
   },
   "implementation": {
