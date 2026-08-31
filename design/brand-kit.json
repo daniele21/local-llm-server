@@ -1,13 +1,44 @@
 {
   "schema_version": 1,
-  "contract_version": "0.5.0",
-  "product_name": "Local LLM Studio",
+  "contract_version": "0.7.0",
+  "brand_name": "Korgis",
+  "claim": "Your AI. Local. Ready to use.",
+  "product_name": "Korgis",
+  "positioning": {
+    "category": "Local AI control plane",
+    "descriptor": "Local AI runtime platform",
+    "technical_repository_name": "Local LLM Server",
+    "legacy_ui_name": "Local LLM Studio"
+  },
   "assets": {
-    "logo_primary": "src/local_llm_server/static/logo.svg",
-    "logo_compact": "src/local_llm_server/static/logo.svg",
-    "logo_monochrome": "n/a — no separate monochrome asset is currently shipped; docs/brand-guidelines.md owns the future variant requirement",
-    "app_icon": "n/a — the current product surface is browser-based and ships no native application icon",
-    "favicon": "src/local_llm_server/static/logo.svg"
+    "source_root": "design/brand/logo",
+    "logo_mark": "design/brand/logo/korgis-mark.png",
+    "logo_primary": "design/brand/logo/korgis-horizontal.png",
+    "logo_compact": "design/brand/logo/korgis-mark.png",
+    "logo_light_background": "design/brand/logo/korgis-horizontal-light.png",
+    "logo_with_claim_light": "design/brand/logo/korgis-horizontal-claim-light.png",
+    "logo_monochrome": "design/brand/logo/korgis-monochrome-dark.png",
+    "logo_monochrome_dark": "design/brand/logo/korgis-monochrome-dark.png",
+    "logo_dark_background": "design/brand/logo/korgis-reversed-dark.png",
+    "app_icon": "design/brand/logo/korgis-app-icon.png",
+    "favicon": "design/brand/logo/korgis-app-icon.png",
+    "favicon_source": "design/brand/logo/korgis-app-icon.png"
+  },
+  "implementation": {
+    "brand_source_status": "approved",
+    "runtime_rollout_status": "implemented",
+    "runtime_brand_owner": "src/local_llm_server/static/config.js + src/local_llm_server/static/brand.css",
+    "current_runtime_logo": "src/local_llm_server/static/korgis-mark.png",
+    "current_runtime_favicon": "src/local_llm_server/static/korgis-app-icon.png",
+    "current_runtime_surface_name": "Korgis",
+    "runtime_static_assets": [
+      "src/local_llm_server/static/korgis-mark.png",
+      "src/local_llm_server/static/korgis-app-icon.png",
+      "src/local_llm_server/static/korgis-horizontal.png",
+      "src/local_llm_server/static/korgis-reversed-dark.png"
+    ],
+    "legacy_bootstrap_markup": "src/local_llm_server/static/index.html retains pre-rollout literals only as a non-canonical parser fallback. config.js synchronously applies Korgis name, mark, favicon and metadata before the application/i18n/control-plane boot sequence; i18n and routed page titles then preserve Korgis.",
+    "technical_identity_boundary": "Package names, CLI commands, environment variables, HTTP/API identifiers and repository identity remain Local LLM Server unless a separate technical rename is approved."
   },
   "themes": {
     "light": true,
@@ -32,6 +63,7 @@
     "elevation": "--ds-shadow-panel; elevation is intentionally restrained"
   },
   "style": {
+    "logo_concept": "Runtime Layers — three modular stacked layers representing the local runtime stack, orchestration and readiness for application use",
     "iconography": "Monoline/geometric inline SVG with consistent stroke treatment; vendor-neutral for core task concepts",
     "motion": "Short functional transitions only; non-essential motion honors prefers-reduced-motion and must not compensate for unclear structure",
     "imagery": "Operational product UI first; screenshots must be real implemented surfaces and concept mockups are reference-only",

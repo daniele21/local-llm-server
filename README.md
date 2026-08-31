@@ -1,19 +1,24 @@
 <p align="center">
-  <img src="src/local_llm_server/static/logo.png" alt="Local LLM Server logo" width="180">
+  <img src="design/brand/logo/korgis-horizontal.png" alt="Korgis logo" width="420">
 </p>
 
-<h1 align="center">Local LLM Server</h1>
+<h1 align="center">Korgis</h1>
 
 <p align="center">
-  <strong>Resource-aware local AI control plane and evaluation harness.</strong>
-</p>
-
-<p align="center">
-  Run local text, vision and transcription models behind one application-facing API, while Local LLM Server owns runtime lifecycle, multi-model residency, resource admission, scheduling, privacy, observability and reproducible evaluation.
+  <strong>Your AI. Local. Ready to use.</strong>
 </p>
 
 <p align="center">
-  <a href="#try-it-in-3-minutes">Quick start</a>
+  Runtime control plane for reliable multi-model local AI applications.
+</p>
+
+<p align="center">
+  One device. Many specialist models. Predictable resources. The Local LLM Server implementation gives applications one stable local execution boundary while it owns runtime lifecycle, multi-model residency, resource admission, scheduling, privacy, observability and reproducible execution identity.
+</p>
+
+<p align="center">
+  <a href="#why-this-project">Why this project</a>
+  · <a href="#try-it-in-3-minutes">Quick start</a>
   · <a href="#use-your-own-local-gguf">Use your own model</a>
   · <a href="#run-multiple-models-at-once">Multi-model</a>
   · <a href="#test-the-product">Test the product</a>
@@ -21,11 +26,32 @@
   · <a href="docs/README.md">Architecture & docs</a>
 </p>
 
-Local LLM Server is the infrastructure layer. **Local LLM Studio** is the bundled browser control plane for loading and inspecting runtimes, trying supported tasks, reviewing resource state and running reproducible evaluations.
+**Korgis** is the product and bundled browser control-plane identity. **Local LLM Server** remains the repository/package and technical implementation identity; CLI commands, environment variables and HTTP/API contracts are intentionally unchanged.
 
-The project orchestrates specialist inference engines; it does not replace them. `llama.cpp`, `llama-cpp-python`, MLX and task-specific runtimes execute models. Local LLM Server owns the control-plane concerns around them.
+## Why this project
 
-> **Current evidence boundary:** the representative Apple Silicon campaign has accepted the target-Mac TH-E1, EV-3, HE-2 and RES-2 minimum-L2 hardware bundle, plus repeated RRG-5 multi-model residency/concurrency/lifecycle evidence. Those observations are claim-scoped to the exercised hardware/models/procedure. They do **not** authorize automatic pressure eviction or a general reclamation/production-safety claim. Automatic pressure-triggered eviction remains disabled; manual accessibility and representative-user usability evidence remain pending.
+Korgis / Local LLM Server is for developers building **local-first AI products**, not just for running a single model manually. A real application may need a text model, a vision-language model and a transcription runtime at the same time, all competing for the same device resources and all with different lifecycle and latency requirements.
+
+The project focuses on the control-plane problems that appear once local inference becomes application infrastructure:
+
+| Application problem | Local LLM Server responsibility |
+| --- | --- |
+| Several specialist models share one device | explicit multi-runtime residency and one application-facing boundary |
+| Models and requests compete for limited memory | configured resource budgets, admission and resident/transient accounting |
+| In-flight work must survive lifecycle changes safely | leases, bounded scheduling and fail-conservative unload/shutdown |
+| Backends expose different tasks and features | explicit capability/task contracts that fail closed before backend work |
+| Bugs and benchmarks must be reproducible | path-free model/runtime/config/hardware execution identity and evidence |
+| Sensitive workloads should stay local by default | loopback defaults, explicit remote trust and no silent cloud fallback |
+
+Local LLM Server is therefore **application-first rather than model-runner-first**. It does not try to replace specialist inference engines. `llama.cpp`, `llama-cpp-python`, MLX and task-specific runtimes execute models; Local LLM Server owns the policy, lifecycle, resource and evidence boundary around them.
+
+**Apple Silicon is the first reference environment for resource and lifecycle evidence**, because unified memory makes multi-model local applications especially dependent on predictable resource ownership. The architecture remains backend- and platform-oriented rather than macOS-only; support claims are made only for environments that have the required evidence.
+
+The next product layer is a declarative **application/workload profile**: an application should be able to describe roles such as transcription, reasoning and vision together with their exact model, residency intent, priority and resource envelope, then let the control plane plan and enforce that configuration without silent model substitution. This is the target direction, not a claim that the full profile contract is already implemented. See [`docs/implementation-plan.md`](docs/implementation-plan.md) and [`docs/roadmap.md`](docs/roadmap.md).
+
+**Korgis** is the bundled browser control plane for loading and inspecting runtimes, trying supported tasks, reviewing resource state and running reproducible evaluations.
+
+> **Current evidence boundary:** the representative Apple Silicon campaign has accepted the target-Mac TH-E1, EV-3, HE-2 and RES-2 minimum-L2 hardware bundle plus repeated RRG-5 multi-model residency/concurrency/lifecycle evidence. Bounded manual accessibility and representative-user usability evidence is also accepted for the tested product revision. These observations remain claim-scoped to the exercised revisions, hardware, models and procedures. They do **not** authorize automatic pressure eviction or a general cross-device reclamation/thermal/production-safety claim; automatic pressure-triggered eviction remains disabled.
 
 ## Try it in 3 minutes
 
@@ -65,7 +91,7 @@ Useful local surfaces:
 
 | Surface | URL | What it is for |
 | --- | --- | --- |
-| Local LLM Studio | `http://127.0.0.1:1235/` | Use and inspect the product |
+| Korgis | `http://127.0.0.1:1235/` | Use and inspect the local AI control plane |
 | Integration examples | `http://127.0.0.1:1235/example` | Copy-ready API examples |
 | Swagger | `http://127.0.0.1:1235/docs` | Explore the HTTP contract |
 | Health | `http://127.0.0.1:1235/health` | Basic readiness |
@@ -74,7 +100,7 @@ Useful local surfaces:
 
 ### 3. Try the main product loop
 
-Inside Studio:
+Inside Korgis:
 
 1. **Overview** — confirm the server is healthy and see current capacity/residency.
 2. **Models & Runtimes** — inspect configured vs resident models and lifecycle state.
@@ -227,7 +253,7 @@ There are three different test levels. Do not confuse them.
 
 ### A. Manual product smoke
 
-Start the server with `--enable-admin-api`, open Studio and check:
+Start the server with `--enable-admin-api`, open Korgis and check:
 
 - Overview reports healthy/capacity state;
 - Playground returns a real completion;
@@ -269,7 +295,7 @@ The accepted target-Mac campaign includes repeated load/infer/unload evidence an
 
 ### Control plane
 
-- Local LLM Studio with Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System / Diagnostics and Settings;
+- Korgis with Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System / Diagnostics and Settings;
 - explicit configured/resident/default-route state;
 - runtime pin/unpin and explicit LRU/TTL administrative eviction paths;
 - capability-driven text, image, structured-generation and transcription controls;
@@ -316,11 +342,11 @@ Public surface:
 | `GET` | `/v1/models` | resident models |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible chat/SSE |
 | `POST` | `/v1/audio/transcriptions` | audio → text |
-| `GET` | `/` | Local LLM Studio |
+| `GET` | `/` | Korgis browser control plane |
 | `GET` | `/example` | integration examples |
 | `GET` | `/docs` | Swagger |
 
-With `--enable-admin-api`, Studio additionally uses control-plane routes for registry/runtime lifecycle, resources, evidence, scheduler/policy state, residency and evaluation.
+With `--enable-admin-api`, Korgis additionally uses control-plane routes for registry/runtime lifecycle, resources, evidence, scheduler/policy state, residency and evaluation.
 
 Swagger is the executable schema for the checked-out revision.
 
@@ -341,7 +367,7 @@ Binding outside loopback broadens the trust boundary. The server does not curren
 ## How the pieces fit
 
 ```text
-application / Local LLM Studio / evaluator
+application / Korgis / evaluator
                   |
                   v
        supported product HTTP stack
@@ -368,6 +394,7 @@ Start here when you need more detail:
 - [`docs/http-api-reference.md`](docs/http-api-reference.md) — HTTP semantics;
 - [`docs/runtime-status-reference.md`](docs/runtime-status-reference.md) — mutable runtime telemetry;
 - [`docs/runtime-identity-api.md`](docs/runtime-identity-api.md) — `local-llm-identity-v1`;
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — product positioning and target application-runtime contract;
 - [`docs/architecture.md`](docs/architecture.md) — current architecture and ownership;
 - [`docs/current-state.md`](docs/current-state.md) — current integrated/evidence state;
 - [`docs/roadmap.md`](docs/roadmap.md) — remaining milestones;

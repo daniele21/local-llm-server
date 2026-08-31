@@ -51,7 +51,7 @@ async function sendMessage(page, text = 'What is 17 + 25?') {
   return request.postDataJSON();
 }
 
-test('control-plane routes survive refresh and browser history', async ({ page }) => {
+test('control-plane routes stay in-document and survive refresh and browser history', async ({ page }) => {
   await openStudio(page);
   const navigation = page.locator('.control-plane-navigation');
   const links = navigation.getByRole('link');
@@ -61,21 +61,29 @@ test('control-plane routes survive refresh and browser history', async ({ page }
   const models = navigation.getByRole('link', { name: 'Models & Runtimes' });
   await expect(overview).toHaveAttribute('aria-current', 'page');
 
+  await page.evaluate(() => {
+    window.__korgisNavigationDocumentToken = 'same-document';
+  });
+
   await models.focus();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/models$/);
   await expect(models).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('#registry-tab')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__korgisNavigationDocumentToken)).toBe('same-document');
 
+  await page.goBack();
+  await expect(page).toHaveURL(/\/overview$/);
+  await expect(overview).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#overview-tab')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__korgisNavigationDocumentToken)).toBe('same-document');
+
+  await models.click();
+  await expect(page).toHaveURL(/\/models$/);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page).toHaveURL(/\/models$/);
   await expect(page.getByRole('link', { name: 'Models & Runtimes' })).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('#registry-tab')).toBeVisible();
-
-  await page.goBack({ waitUntil: 'domcontentloaded' });
-  await expect(page).toHaveURL(/\/overview$/);
-  await expect(page.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
-  await expect(page.locator('#overview-tab')).toBeVisible();
 });
 
 test('switchable thinking sends an explicit OFF request', async ({ page }) => {

@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 PROFILES = ("lean", "scoped", "strong", "full")
+PROMOTION_BASES = {"main", "master"}
 FULL_PREFIXES = (".github/workflows/",)
 FULL_PATHS = {
     ".engineering/commands.json",
@@ -59,6 +60,14 @@ def changed_paths(base_ref: str, head_ref: str) -> list[str]:
     merge_base = git("merge-base", base_ref, head_ref)
     output = git("diff", "--name-only", f"{merge_base}...{head_ref}")
     return sorted({line.strip() for line in output.splitlines() if line.strip()})
+
+
+def promotion_validation_required() -> bool:
+    """Return whether GitHub is validating a pull request into a promotion branch."""
+    return (
+        os.getenv("GITHUB_EVENT_NAME") == "pull_request"
+        and os.getenv("GITHUB_BASE_REF") in PROMOTION_BASES
+    )
 
 
 def select(paths: list[str]) -> tuple[str, str]:
@@ -121,6 +130,11 @@ def main() -> int:
         return 0
 
     automatic, reason = select(paths)
+    if promotion_validation_required():
+        promotion_base = os.getenv("GITHUB_BASE_REF")
+        automatic = "full"
+        reason = f"promotion/release boundary targets {promotion_base}; full validation required"
+
     selected = automatic
     if args.profile != "auto":
         requested_rank = PROFILES.index(args.profile)

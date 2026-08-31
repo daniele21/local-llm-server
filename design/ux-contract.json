@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "contract_version": "0.6.0",
+  "contract_version": "0.6.1",
   "applicable": true,
   "design_source_of_truth": {
     "type": "code-first",
-    "location": "src/local_llm_server/static/design-system.css + src/local_llm_server/static/control-plane-*.{css,js}; durable visual/product-language intent in docs/brand-guidelines.md"
+    "location": "src/local_llm_server/static/design-system.css + src/local_llm_server/static/brand.css + src/local_llm_server/static/control-plane-*.{css,js}; durable visual/product-language intent in docs/brand-guidelines.md"
   },
   "experience_context": {
     "primary_users": [
@@ -19,7 +19,7 @@
       "recover safely from unsupported configurations runtime failures resource pressure and insufficient capacity"
     ],
     "primary_surfaces": [
-      "Local LLM Studio browser control plane",
+      "Korgis browser control plane",
       "overview and operational readiness surfaces",
       "model and runtime lifecycle management surfaces",
       "task-first playground and endpoint integration surfaces",
@@ -335,7 +335,7 @@
     "small_viewport_does_not_need_to_expose_all_dense_diagnostics_simultaneously": true
   },
   "design_system": {
-    "component_source": "src/local_llm_server/static/design-system.css with source-backed renderers under src/local_llm_server/static/control-plane-*.js and components.js",
+    "component_source": "src/local_llm_server/static/design-system.css + src/local_llm_server/static/brand.css with source-backed renderers under src/local_llm_server/static/control-plane-*.js and components.js",
     "brand_tokens": "design/brand-kit.json",
     "reuse_existing_semantic_component_first": true,
     "preferred_product_semantics": [
@@ -415,7 +415,7 @@
   ],
   "reference_views": [
     "implemented control-plane shell and overview sources under src/local_llm_server/static/control-plane-*",
-    "implemented Local LLM Studio task execution and configuration sources in src/local_llm_server/static/index.html and control-plane capability renderers",
+    "implemented Korgis task execution and configuration sources in src/local_llm_server/static/index.html with runtime brand bootstrap in config.js/brand.css and control-plane capability renderers",
     "Models & Runtimes is the canonical lifecycle and multi-model resource-decision surface; legacy lifecycle controls are transitional and must not remain a second coherent product flow",
     "critical loading empty error disabled warning resource-pressure and status source states covered by tests/e2e and tests/test_accessibility_ui_assets.py"
   ],
