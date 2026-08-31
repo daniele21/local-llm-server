@@ -5,7 +5,7 @@ Document type: architecture
 Owner: runtime-and-platform
 Canonical scope: current.architecture
 Read when: changing runtime boundaries, composition roots, resource ownership, trust/data flow or backend integration
-Last reviewed: 2026-08-30
+Last reviewed: 2026-08-31
 
 This document owns the **current integrated architecture** of Local LLM Server. [`architecture-evolution-plan.md`](architecture-evolution-plan.md) remains the target/migration document; [`current-state.md`](current-state.md) owns operational progress and evidence blockers.
 
@@ -80,6 +80,8 @@ lease-safe unload / cold state
 
 Configured, downloaded, resident, pinned and default-route states remain distinct. Zero resident runtimes is a valid healthy control-plane state when the surrounding product contract permits it.
 
+Managed subprocess runtimes receive a concrete positive loopback port selected from the configured base while excluding both ports reserved by known runtimes and listeners already bound on the host. A configured port is an allocation base, not proof that Local LLM Server owns that listener. Load/reload reserve the selected endpoint while backend construction is in flight so concurrent lifecycle operations cannot publish conflicting owners.
+
 The in-process engine path and process-isolated worker/evidence path have different reclamation guarantees. Worker exit can be an ownership boundary; in-process cleanup must not be described as proven memory reclamation without representative evidence.
 
 ## Resource and scheduling boundary
@@ -93,13 +95,15 @@ The in-process engine path and process-isolated worker/evidence path have differ
 
 Global execution admission is explicit and opt-in; the control plane does not silently reduce server concurrency. Per-runtime queueing remains independently opt-in. When both are configured, one pre-execution timeout budget spans both waits. Requests waiting only for execution capacity do not reserve transient memory. Streaming requests retain acquired execution slots until their response body completes or is cancelled.
 
-Automatic pressure-triggered eviction remains disabled until its representative evidence gate is satisfied. Resource-policy code must never silently substitute a different model or evict an actively leased runtime as an admission side effect. Global execution admission does not imply that an already-running in-process backend can always be interrupted.
+Automatic pressure-triggered eviction remains disabled. The accepted representative-device evidence demonstrates repeated multi-model ownership/accounting and bounded shutdown behavior but deliberately does not provide an automatic-eviction recommendation or reclamation/production-safety claim. Any future pressure-triggered automatic action therefore requires a separate explicit evidence and policy decision. Resource-policy code must never silently substitute a different model or evict an actively leased runtime as an admission side effect. Global execution admission does not imply that an already-running in-process backend can always be interrupted.
 
 ## Backend boundary
 
 `engine.py` and worker adapters translate the backend-neutral request into specialist runtime calls. Current backend families include llama.cpp/`llama-cpp-python`, MLX text, managed `llama-server`, MLX VLM and explicit transcription runtimes.
 
 Backend-specific model objects, caches, chat templates and invocation details belong behind adapters. Public capability and output semantics must not depend on a caller knowing backend internals.
+
+Managed `llama-server` is selected explicitly or discovered under the attributable llama.cpp feature-floor contract. A positive build+commit identity may be reused for the exact same executable within one owning process, keyed by filesystem identity; replacement or upgrade of the executable invalidates that proof and requires revalidation. Failed or unattributable version probes are never cached as positive evidence. This avoids treating repeated native version initialization as part of every resident-model construction while preserving fail-closed binary attribution.
 
 Worker streaming and in-flight cancellation remain unsupported unless a true incremental/cancellable worker protocol is implemented and validated. Buffered output must not be relabelled streaming.
 
@@ -168,7 +172,7 @@ Successful artifacts must not be overwritten in place and published tags/release
 
 Deterministic unit/integration tests, browser E2E, real-runtime smoke and representative-device evidence are different evidence classes.
 
-Hosted CI proves deterministic contracts and assembled product journeys. It does **not** prove real model quality, Apple Silicon memory reclamation, throughput, thermal behavior or backend stability on target hardware. Those claims remain owned by the device evidence runbook and active runtime-correctness workstream.
+Hosted CI proves deterministic contracts and assembled product journeys. It does **not** prove real model quality, cross-device Apple Silicon memory behavior, throughput, thermal behavior or backend stability on untested target environments. The accepted 2026-08-31 representative Mac evidence covers only the minimum L2 runtime bundle and the repeated RRG-5 multi-model ownership/accounting procedure described in `docs/current-state.md`; `docs/device-evidence-runbook.md` owns reproduction/extension procedures. Human accessibility/usability evidence remains a separate product-experience class.
 
 ## Change routing
 

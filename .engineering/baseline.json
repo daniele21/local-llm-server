@@ -28,8 +28,8 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l2-repository-guardrails-aligned-to-template-0.8-real-hardware-and-human-evidence-pending",
-    "current_slice": "template-0.8-environment-aware-preflight",
+    "status": "l2-repository-and-representative-hardware-evidence-accepted-human-evidence-pending",
+    "current_slice": "product-ui-human-evidence",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
     "l2_repository_validation_revision": "d528b6c5b676e705e7ccf24800929da6d5534203",
@@ -102,10 +102,10 @@
       }
     },
     "pending_empirical_evidence": {
-      "thinking_on_off_target_mac": "pending-real-device-run",
-      "evaluation_repeat_target_mac": "pending-real-device-runs",
-      "apple_silicon_reclamation": "pending-two-real-device-reports",
-      "resource_policy_smoke": "pending-real-device-run",
+      "thinking_on_off_target_mac": "accepted-2026-08-31",
+      "evaluation_repeat_target_mac": "accepted-2026-08-31",
+      "apple_silicon_reclamation": "accepted-descriptive-2026-08-31",
+      "resource_policy_smoke": "accepted-2026-08-31",
       "product_ui_manual_accessibility": "pending-real-manual-review",
       "product_ui_representative_user_usability": "pending-real-representative-session"
     }

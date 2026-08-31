@@ -14,7 +14,5 @@ Do not create separate plan/progress/status files for the same workstream. Git h
 
 ## Active
 
-- [`runtime-resource-governor.md`](runtime-resource-governor.md) — deterministic backend ownership, llama.cpp modernization, memory envelopes, global multi-model admission and representative pressure/reclamation evidence.
-- [`runtime-correctness-evidence-hardening.md`](runtime-correctness-evidence-hardening.md) — thinking/structured-output correctness, evaluation canonicalization, verified artifact identity, resource-policy validation and representative hardware evidence.
-- [`l2-reference-grade.md`](l2-reference-grade.md) — repository-side L2 accepted; full engineering L2 remains gated by representative Apple Silicon/model/backend evidence.
+- [`l2-reference-grade.md`](l2-reference-grade.md) — repository-side and representative-hardware L2 evidence accepted; full L2 remains gated by the two real-human `product-ui` evidence tasks and final cumulative review.
 - [`v040-product-ui-l2.md`](v040-product-ui-l2.md) — `product-ui` L2 guardrails, design-system drift control and manual product-experience evidence boundary.
