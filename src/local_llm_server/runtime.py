@@ -350,13 +350,22 @@ class ModelRuntimeManager:
             current.state = RuntimeState.DRAINING
 
         reservation_id: str | None = None
+        reserved_port: int | None = None
         new_engine = None
         try:
             cfg = build_config(model=current.key, **explicit)
             with self._manager_lock:
                 self._assign_private_port(cfg)
+                field_name = self._PORT_FIELDS.get(str(cfg.get("backend")))
+                reserved_port = int(cfg[field_name]) if field_name else None
+                if reserved_port is not None:
+                    self._reserved_ports.add(reserved_port)
             reservation_id = self._reserve_runtime_load(current.key, cfg)
             new_engine = load_llm(cfg)
+            with self._manager_lock:
+                if reserved_port is not None:
+                    self._reserved_ports.discard(reserved_port)
+                    reserved_port = None
             self._commit_runtime_load(reservation_id, cfg)
             replacement = ModelRuntime(
                 current.key,
@@ -395,6 +404,10 @@ class ModelRuntimeManager:
                 if self._runtimes.get(current.key) is current:
                     current.state = RuntimeState.READY
             raise exc
+        finally:
+            if reserved_port is not None:
+                with self._manager_lock:
+                    self._reserved_ports.discard(reserved_port)
 
         try:
             _close_engine(current.engine)
