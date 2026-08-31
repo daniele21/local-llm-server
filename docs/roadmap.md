@@ -24,18 +24,13 @@ The product loop remains:
 | M2 Resource-aware runtime | DONE | bounded resource smoke and repeated two-resident lifecycle/accounting evidence accepted; automatic pressure eviction remains a separate future policy decision |
 | M3 Multi-task control plane | PARTIAL | broaden specialist backend/device evidence beyond current text/vision/audio contracts where product scope requires it |
 | M4 Evidence-grade observability | DONE | verified compatible representative hardware evidence accepted without promoting memory deltas into safety claims |
-| M5 Control-plane UX | EVIDENCE | complete manual accessibility and representative-user usability evidence |
+| M5 Control-plane UX | DONE | bounded manual accessibility and representative-user usability evidence accepted on the tested product revision |
 | M6 Evaluation harness | DONE | repeated compatible post-convergence 10-sample/seed-0 reasoning-OFF evidence accepted |
-| M7 Product-grade candidate | BLOCKED | M5 human evidence plus final cumulative documentation/CI/release review |
+| M7 Product-grade candidate | READY | final exact-head FULL publication preflight and promotion to `main` |
 
 ## Active workstreams
 
-The remaining executable plans are:
-
-- [`l2-reference-grade`](workstreams/l2-reference-grade.md) — final cumulative L2 gate;
-- [`v040-product-ui-l2`](workstreams/v040-product-ui-l2.md) — manual accessibility and representative-user usability evidence.
-
-The hardware/runtime evidence work is complete. `docs/device-evidence-runbook.md` remains the durable procedure for reproducing or extending representative-device evidence, not an active progress ledger.
+There are no active L2 completion workstreams. The hardware/runtime and human product-evidence tranches are complete; `docs/device-evidence-runbook.md` and `docs/product-experience-validation.md` remain the durable procedures for reproducing or extending those evidence classes.
 
 ## Accepted release dependencies
 
@@ -47,9 +42,12 @@ The 2026-08-31 representative Mac evidence accepted the following release depend
 - bounded resource-policy admit/account/release/reject behavior;
 - repeated two-model residency, concurrent execution accounting, cleanup and shutdown-under-load ownership.
 
-Those results remain target-device observations. They do **not** authorize automatic pressure eviction or establish cross-device thermal/performance/production-safety claims.
+The 2026-08-31 bounded product-experience evidence accepted:
 
-The remaining release dependency is human product evidence: manual accessibility plus representative-user usability, followed by cumulative exact-head review.
+- the six required manual accessibility checks with no blocking finding;
+- the four required representative-user usability journeys with no high/critical finding.
+
+Those results remain scoped to the tested source revision and exercised environment. They do **not** authorize automatic pressure eviction or establish cross-device thermal/performance/production-safety claims.
 
 ## Product-grade candidate gate
 
@@ -68,9 +66,11 @@ Promotion toward `main` requires all applicable items below to agree with the ex
 11. experimental/evidence-pending claims remain explicit;
 12. automatic pressure eviction remains disabled unless a later dedicated evidence/policy decision explicitly changes that boundary.
 
+All evidence-dependent items above are satisfied for the current candidate scope. Promotion still requires the final FULL deterministic preflight on the exact publication head/merge result.
+
 ## Later milestones outside the active workstream
 
-The following remain valid future work but should not distract from the final human-evidence tranche:
+The following remain valid future work:
 
 - decide whether worker subprocess isolation must support true incremental interactive streaming and cancellation; never emulate streaming with buffered completed output;
 - broaden ASR/VLM/backend/device evidence where supported-product scope requires it;
