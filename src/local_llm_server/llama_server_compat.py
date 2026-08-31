@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -42,6 +43,9 @@ _ALLOWED_CACHE_TYPES = {
 
 CommandRunner = Callable[[Path], str]
 WhichResolver = Callable[[str], str | None]
+_ExecutableCacheKey = tuple[str, int, int, int, int, int]
+_VERSION_IDENTITY_CACHE: dict[_ExecutableCacheKey, "LlamaServerBuildIdentity"] = {}
+_VERSION_IDENTITY_CACHE_LOCK = threading.RLock()
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,11 +121,23 @@ def probe_llama_server_version(
     *,
     run_command: CommandRunner | None = None,
 ) -> LlamaServerBuildIdentity | None:
-    """Return attributable build identity, or ``None`` when it cannot be proven."""
+    """Return attributable build identity, or ``None`` when it cannot be proven.
+
+    Production probing caches only a positive build+commit identity for the exact
+    executable file identity. Repeated resident loads therefore do not launch a
+    second ``llama-server --version`` process while another backend is active.
+    Replacing/upgrading the executable changes the cache key and forces a fresh
+    attribution probe. Failed or unattributable probes are never cached.
+
+    Injected runners intentionally bypass the process-wide cache so deterministic
+    tests and explicit diagnostic callers retain complete control over probing.
+    """
     path = Path(str(binary)).expanduser()
-    runner = run_command or _default_runner
+    if run_command is None:
+        return _probe_default_runner_cached(path)
+
     try:
-        output = runner(path)
+        output = run_command(path)
     except (OSError, subprocess.SubprocessError):
         return None
     return parse_llama_server_version(output)
@@ -351,6 +367,48 @@ def build_llama_server_command(
         cmd.extend(["--cache-ram", str(cache_ram)])
 
     return cmd
+
+
+def _probe_default_runner_cached(path: Path) -> LlamaServerBuildIdentity | None:
+    """Probe one executable at most once per unchanged file identity."""
+    try:
+        cache_key = _executable_cache_key(path)
+    except OSError:
+        return None
+
+    # Hold the lock through the bounded version subprocess so concurrent loads
+    # of the same executable cannot both initialize another native probe.
+    with _VERSION_IDENTITY_CACHE_LOCK:
+        cached = _VERSION_IDENTITY_CACHE.get(cache_key)
+        if cached is not None:
+            return cached
+        try:
+            output = _default_runner(path)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        identity = parse_llama_server_version(output)
+        if identity is None:
+            return None
+
+        resolved_path = cache_key[0]
+        for stale_key in tuple(_VERSION_IDENTITY_CACHE):
+            if stale_key[0] == resolved_path and stale_key != cache_key:
+                _VERSION_IDENTITY_CACHE.pop(stale_key, None)
+        _VERSION_IDENTITY_CACHE[cache_key] = identity
+        return identity
+
+
+def _executable_cache_key(path: Path) -> _ExecutableCacheKey:
+    resolved = path.resolve()
+    metadata = resolved.stat()
+    return (
+        str(resolved),
+        int(metadata.st_dev),
+        int(metadata.st_ino),
+        int(metadata.st_size),
+        int(metadata.st_mtime_ns),
+        int(metadata.st_ctime_ns),
+    )
 
 
 def _default_runner(binary: Path) -> str:
