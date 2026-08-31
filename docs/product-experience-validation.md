@@ -5,30 +5,21 @@ Document type: validation-contract
 Owner: web-product-and-docs
 Canonical scope: design.product-experience-validation
 Read when: changing critical UI journeys, accessibility, adaptive behavior, design-system ownership or product research evidence
-Last reviewed: 2026-08-30
+Last reviewed: 2026-08-31
 
 ## Purpose
 
 Local LLM Studio treats product experience as a correctness surface. Automated evidence protects deterministic interaction contracts; manual evidence is retained only when a human judgment is necessary. Neither class of evidence is allowed to weaken the local-first privacy boundary.
 
-This document specializes the `repo-template-sw 0.8.0` `product-ui` contract for this repository. It does not introduce a second design system: canonical visual/component implementation remains in `src/local_llm_server/static/design-system.css` and the source-backed control-plane renderers, with durable brand intent in `docs/brand-guidelines.md`.
+This document specializes the `repo-template-sw 0.8.0` `product-ui` contract for this repository. Canonical visual/component implementation remains in `src/local_llm_server/static/design-system.css` and the source-backed control-plane renderers, with durable brand intent in the repository design documentation.
 
 ## Automated evidence
 
 ### Accessibility
 
-`tests/test_accessibility_ui_assets.py` provides deterministic source-level coverage for:
+`tests/test_accessibility_ui_assets.py` provides deterministic source-level coverage for native route semantics, keyboard relationships, skip navigation, visible focus, non-color-only status meaning, reduced motion, adaptive layouts and canonical semantic-component ownership. Playwright covers complete browser journeys where source inspection cannot prove the user outcome.
 
-- native primary-route navigation and current-page semantics;
-- local task-selector tab relationships and keyboard behavior;
-- skip navigation;
-- visible focus styles;
-- status/evidence meaning that is not color-only;
-- reduced-motion behavior;
-- adaptive layouts and horizontally accessible dense tables;
-- canonical semantic-component ownership for evidence, resource and action feedback surfaces.
-
-Playwright covers complete browser journeys where source inspection cannot prove the user outcome. Automated checks are necessary but are not represented as a complete substitute for manual keyboard or assistive-technology review.
+Automated checks are necessary but are not represented as a complete substitute for manual keyboard or assistive-technology review.
 
 ### Critical journeys
 
@@ -50,87 +41,62 @@ The supported browser layout classes are:
 - narrow: 421–720 px;
 - small viewport: at most 420 px.
 
-The L2 product-ui validator checks the corresponding media-query boundaries in the canonical shell CSS. A change to those boundaries must update both behavior and the contract intentionally.
+The L2 product-ui validator checks the corresponding media-query boundaries in the canonical shell CSS. A change to those boundaries must update behavior and contract intentionally.
 
 ### Design-system drift
 
 The `--ds-*` token namespace and canonical `.ds-*` semantic component roots are owned by `src/local_llm_server/static/design-system.css`.
 
-Repository Health rejects:
-
-- removal of required semantic tokens/components;
-- reserved `--ds-*` token declarations in another CSS owner;
-- duplicate definitions of canonical semantic component roots outside the design-system owner;
-- missing critical-journey evidence files;
-- privacy-policy or PR-review drift.
-
-Legacy/local styles may reference canonical tokens or retain non-`ds` names while they are incrementally converged. The guardrail prevents creation of a second canonical design system without forcing a risky whole-UI rewrite.
+Repository Health rejects removal of required semantic tokens/components, reserved `--ds-*` definitions in another owner, duplicate canonical semantic component roots, missing critical-journey evidence and privacy/review-policy drift.
 
 ## Visual regression policy
 
-Repository-wide pixel-perfect visual regression is **not** a blocking mechanism. Freezing every control-plane pixel would create maintenance cost and false confidence while several secondary surfaces continue to converge, and raw PNG hashes proved sensitive to hosted-runner antialiasing/compositor differences even when the product geometry was unchanged.
-
-Targeted visual contracts are allowed when all of the following are true:
-
-- the surface is stable and high-risk enough that geometry/hierarchy is itself part of the user contract;
-- the fixture state, viewport, theme and motion preference are deterministic;
-- the visual evidence contains only synthetic fixture data and no prompt/output/private machine content;
-- a semantic/interaction test still proves the user outcome independently of the visual contract;
-- the comparison method tolerates insignificant rasterization differences but still reacts to meaningful layout/hierarchy changes;
-- a changed visual fingerprint is reviewed as a product change rather than mechanically accepted.
+Repository-wide pixel-perfect visual regression is not a blocking mechanism. Targeted visual contracts are allowed only for stable high-risk surfaces with deterministic fixture state, viewport, theme and motion preference; synthetic-only evidence; independent semantic assertions; tolerance for insignificant rasterization differences; and explicit review of meaningful fingerprint changes.
 
 The current blocking targeted set is intentionally small:
 
-- the `Overview` decision surface at the deterministic 1440×1000 dark/reduced-motion fixture;
-- the `Benchmark & Evaluation` setup form at the same deterministic fixture.
+- `Overview` at the deterministic 1440×1000 dark/reduced-motion fixture;
+- `Benchmark & Evaluation` setup at the same fixture.
 
-`tests/e2e/product_experience_p2.spec.js` captures each bounded surface in memory, waits for document fonts, downsamples the screenshot to a fixed 33×32 luminance grid and derives a 32×32 horizontal-edge perceptual fingerprint. A small luminance threshold suppresses insignificant antialiasing/compositor noise while preserving structural edge changes. The screenshot PNG is not retained or uploaded by the normal gate.
-
-This is deliberately a **perceptual geometry/hierarchy contract**, not a claim of exact pixel identity. It does not replace semantic assertions, accessibility checks or complete user-journey E2E tests. If the fingerprint itself proves unstable across equivalent hosted runners, the contract must be redesigned or removed rather than weakening thresholds merely to make CI green.
-
-These two fingerprints do **not** claim coverage for light mode, responsive widths, every loading/error state, real runtime data or representative hardware. Additional surfaces should gain visual contracts only after they become stable enough to justify them.
+`tests/e2e/product_experience_p2.spec.js` derives a bounded perceptual geometry/hierarchy fingerprint and does not retain the screenshot PNG in the normal gate. These fingerprints do not claim coverage for light mode, responsive widths, every state, real runtime data or representative hardware.
 
 ## Manual accessibility review
 
-Current status: **pending**.
+Current status: **complete for source revision `a29e77c1ce4e65294440cfe4fc47e33c92173096`**.
 
-A representative manual review should use the built product surface and record only bounded results. At minimum:
+The accepted 2026-08-31 bounded review covers all six required checks:
 
-1. navigate the primary shell and critical actions using keyboard only;
-2. verify focus order remains logical and visible through navigation, forms and recovery states;
-3. use a browser/OS accessibility tree or screen reader for the primary status/navigation and chat journey;
-4. verify zoom/text scaling does not hide the primary action or recovery path in supported layout classes;
-5. verify reduced-motion preference removes non-essential transitions/animation without removing feedback;
-6. inspect representative error/loading/empty/disabled states for understandable announcements and next actions.
+1. keyboard-only primary shell and critical actions;
+2. logical and visible focus order;
+3. accessibility tree or screen-reader inspection for primary status/navigation/chat;
+4. zoom and text scaling preserving primary actions/recovery;
+5. reduced-motion behavior preserving essential feedback;
+6. representative error/loading/empty/disabled states and recovery guidance.
 
-Negative or inconclusive findings are evidence and must be retained as such. Do not repeat a session merely until it produces a favorable result. A rerun is justified after a concrete product fix or a material change in the tested surface.
+The retained evidence is `docs/evidence/manual-accessibility-2026-08-31.json`. It reports no blocking finding for the exercised product surface. The evidence is scoped to the exact tested revision and does not create a permanent claim for future materially changed UI.
 
-The canonical non-evidence template is `docs/evidence-templates/manual-accessibility.example.json`. Copy it outside the repository evidence templates, replace the `example-*` identifier, bind it to the exact 40-character source revision and record one bounded result for every required check.
+Negative or inconclusive findings in future reviews remain evidence and must not be rerun merely until they become favorable. A rerun is justified after a concrete product fix or material tested-surface change.
+
+The canonical non-evidence template remains `docs/evidence-templates/manual-accessibility.example.json`. Future evidence must replace the example identifier, bind to an exact 40-character source revision and record one bounded result for every required check.
 
 ## Representative-user usability
 
-Current status: **pending**.
+Current status: **complete for source revision `a29e77c1ce4e65294440cfe4fc47e33c92173096`**.
 
-The purpose is to answer bounded experience questions for important/high-risk flows, not to build analytics surveillance. A session should use non-sensitive demo/test data and focus on these questions:
-
-- Can the user tell whether the server is available and whether a model is cold, resident or the default route?
-- Can the user complete the primary chat/inference journey without first understanding backend architecture?
-- When an operation fails, can the user identify what happened and the next recovery action?
-- Can the user find advanced controls when needed without those controls dominating normal use?
-- Can the user distinguish measured/available evidence from unavailable or estimated information?
-
-The minimum retained journey set is:
+The accepted 2026-08-31 representative review covers the minimum retained journey set:
 
 - `control-plane-status-and-navigation`;
 - `chat-inference-and-recovery`;
 - `advanced-control-discovery`;
 - `evidence-interpretation`.
 
-The canonical non-evidence template is `docs/evidence-templates/representative-usability.example.json`.
+The retained evidence is `docs/evidence/representative-usability-2026-08-31.json`. All four required journeys are recorded as completed with no high/critical finding. Duration was not measured, and no raw prompt/output/private machine content is retained.
+
+The purpose remains to answer bounded experience questions: whether users can understand server/runtime state, complete primary inference without backend-architecture knowledge, recover from failures, find advanced controls without normal-flow overload and distinguish measured/estimated/unavailable evidence.
 
 ### Allowed retained fields
 
-Only the following bounded fields may be retained per usability record by default:
+Only these bounded fields may be retained per usability record by default:
 
 - `study_id`;
 - `journey_id`;
@@ -141,25 +107,17 @@ Only the following bounded fields may be retained per usability record by defaul
 - `severity`;
 - `sanitized_observation`.
 
-`sanitized_observation` must describe interaction behavior rather than reproduce product content.
+`sanitized_observation` describes interaction behavior rather than product content.
 
 ### Forbidden retained data
 
-Do not retain by default:
+Do not retain by default raw prompts/model outputs, uploaded media/document content, local paths, hostnames/usernames/machine identifiers, credentials/secrets, private screen recordings or conversation content merely because it appeared during a session.
 
-- raw prompts or model outputs;
-- uploaded media or document content;
-- local file paths;
-- hostnames, usernames or machine identifiers;
-- access tokens, secrets or API credentials;
-- full screen recordings containing private local information;
-- model conversation content merely because it appeared during a usability session.
-
-Product telemetry remains **off by default**. A future telemetry mechanism requires a separate explicit privacy/product decision; this protocol is not authorization to add background analytics.
+Product telemetry remains off by default. This protocol does not authorize background analytics.
 
 ## Validate real human evidence
 
-After a real manual accessibility review and/or representative-user session has been recorded, run the packaged validator against the bounded JSON files:
+Use the packaged validator against bounded JSON files:
 
 ```bash
 python -m local_llm_server.l2_evidence_bridge validate-product-ui \
@@ -168,51 +126,26 @@ python -m local_llm_server.l2_evidence_bridge validate-product-ui \
   --output /path/to/product-ui-evidence-summary.json
 ```
 
-The validator:
+The validator rejects example identifiers, requires the exact accessibility check and usability journey sets, enforces the usability allow-list, rejects private-path/email/secret-like observations, preserves negative/inconclusive findings and reports evidence presence, blocking findings and acceptance readiness separately. It never silently mutates `.engineering/product-ui-l2.json` or `.engineering/baseline.json`.
 
-- rejects the example template identifiers as completion evidence;
-- requires the exact accessibility check set and usability journey set;
-- enforces the usability allow-list from `.engineering/product-ui-l2.json`;
-- rejects observations that appear to contain private paths, email addresses or secret-like values;
-- preserves negative/inconclusive findings instead of rewriting them;
-- reports evidence presence, blocking findings and acceptance readiness separately;
-- emits a bounded summary and **never mutates** `.engineering/product-ui-l2.json` or `.engineering/baseline.json`.
+For manual accessibility, a failed or inconclusive required check is blocking until resolved and justifiably re-reviewed. For usability, `high` or `critical` findings are blocking; lower-severity findings remain evidence requiring product judgment.
 
-For manual accessibility, a failed or inconclusive required check is blocking until the underlying issue is resolved and a justified follow-up review is performed. For representative-user usability, `high` or `critical` findings are surfaced as blocking; lower-severity findings remain evidence and still require product judgment rather than silent dismissal.
-
-A validator exit code of `2` means the evidence is validly incomplete/not acceptance-ready. It is not permission to edit observations or thresholds merely to obtain a green result.
+The accepted bounded summary for the current candidate is `docs/evidence/product-ui-evidence-summary-2026-08-31.json`.
 
 ## Significant UX change review
 
-A meaningful UI change must evaluate, where applicable:
-
-- user task model;
-- information/action hierarchy;
-- cognitive load and progressive disclosure;
-- failure prevention and recovery;
-- accessibility;
-- adaptive behavior;
-- reuse of the canonical design system;
-- regression/evidence impact.
-
-The pull-request template contains machine-checked markers for these questions. `N/A` is acceptable only with a concrete reason; silence is not.
+A meaningful UI change must evaluate, where applicable, user task model, information/action hierarchy, cognitive load/progressive disclosure, failure prevention/recovery, accessibility, adaptive behavior, canonical design-system reuse and regression/evidence impact. The pull-request template contains machine-checked markers for these questions.
 
 ## Evidence identity and cleanup
 
-UI/E2E evidence follows the repository's existing evidence contract:
+UI/E2E evidence follows the repository evidence contract: associate retained evidence with source/run identity, keep CI retention bounded, keep raw user/model content out of retained evidence, close owned browser/server/process/listener/temp state after runs and preserve the zero-residue gate independently from browser assertions.
 
-- associate retained evidence with source/run identity;
-- keep CI retention bounded;
-- keep raw user/model content out of default retained failure evidence;
-- close owned browser/server/process/listener/temp state after runs;
-- preserve the existing zero-residue gate independently from the success of browser assertions.
-
-Human-evidence summaries must use the exact tested source revision. The repository may retain only the bounded summary/observations required for the claim; source recordings or raw local content are not implied by this contract.
+Human-evidence summaries must use the exact tested source revision. Only bounded summary/observations required for the claim are retained; raw recordings or local product content are not implied by this contract.
 
 ## Completion semantics
 
-Repository-side `repo-template-sw 0.8.0` product-ui guardrails are accepted when deterministic contracts and workflows are green on the same integrated revision.
+Repository-side `repo-template-sw 0.8.0` product-ui guardrails are accepted when deterministic contracts/workflows are green on the same integrated revision.
 
-**Full product-ui L2 is not complete while manual accessibility and representative-user usability statuses remain `pending`.** A status may become `not-justified` only through an explicit documented product-risk decision; it must not be used simply to bypass evidence collection.
+For the current candidate, manual accessibility and representative-user usability evidence are both accepted and `.engineering/product-ui-l2.json` records both statuses as `complete`. Full product-ui L2 may therefore be claimed for the exact accepted scope once the final publication head passes the required deterministic preflight.
 
-The bridge validator provides evidence readiness; status promotion remains an explicit repository change reviewed against the retained bounded evidence. This product-ui completion boundary is independent from the separate full-engineering-L2 Apple Silicon/model/backend evidence gate.
+Any materially changed future UX invalidates only the evidence affected by that change; it must not inherit manual acceptance automatically. A status may become `not-justified` only through an explicit documented product-risk decision, never as a shortcut around evidence collection.
