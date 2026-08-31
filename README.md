@@ -1,15 +1,19 @@
 <p align="center">
-  <img src="src/local_llm_server/static/logo.png" alt="Local LLM Server logo" width="180">
+  <img src="design/brand/logo/korgis-horizontal.png" alt="Korgis logo" width="420">
 </p>
 
-<h1 align="center">Local LLM Server</h1>
+<h1 align="center">Korgis</h1>
 
 <p align="center">
-  <strong>Resource-aware local AI control plane and evaluation harness.</strong>
+  <strong>Your AI. Local. Ready to use.</strong>
 </p>
 
 <p align="center">
-  Run local text, vision and transcription models behind one application-facing API, while Local LLM Server owns runtime lifecycle, multi-model residency, resource admission, scheduling, privacy, observability and reproducible evaluation.
+  Resource-aware local AI control plane and evaluation harness.
+</p>
+
+<p align="center">
+  Run local text, vision and transcription models behind one application-facing API, while the Local LLM Server implementation owns runtime lifecycle, multi-model residency, resource admission, scheduling, privacy, observability and reproducible evaluation.
 </p>
 
 <p align="center">
@@ -21,7 +25,7 @@
   · <a href="docs/README.md">Architecture & docs</a>
 </p>
 
-Local LLM Server is the infrastructure layer. **Local LLM Studio** is the bundled browser control plane for loading and inspecting runtimes, trying supported tasks, reviewing resource state and running reproducible evaluations.
+**Korgis** is the product brand. **Local LLM Server** remains the repository/package and technical implementation identity during the brand rollout. **Local LLM Studio** is the current bundled browser control-plane name until that implemented surface is migrated to Korgis.
 
 The project orchestrates specialist inference engines; it does not replace them. `llama.cpp`, `llama-cpp-python`, MLX and task-specific runtimes execute models. Local LLM Server owns the control-plane concerns around them.
 
