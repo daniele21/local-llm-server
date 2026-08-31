@@ -29,6 +29,12 @@ def _runtime_cfg(*, sha256=None):
     }
 
 
+def _make_executable(path):
+    path.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
 def test_missing_artifact_sha_keeps_runtime_exploratory(monkeypatch):
     runtime = SimpleNamespace(
         key="demo",
@@ -130,12 +136,13 @@ def test_llama_server_engine_identity_is_used_without_reprobe(monkeypatch):
     assert "/private/bin" not in str(rendered)
 
 
-def test_llama_server_version_probe_uses_build_and_commit_only(monkeypatch):
+def test_llama_server_version_probe_uses_build_and_commit_only(monkeypatch, tmp_path):
     cfg = _runtime_cfg(sha256="d" * 64)
     cfg["backend"] = "llama_server"
+    binary = _make_executable(tmp_path / "llama-server")
     engine = SimpleNamespace(
         backend="llama_server",
-        binary="/private/bin/llama-server",
+        binary=str(binary),
     )
     runtime = SimpleNamespace(key="demo", cfg=cfg, engine=engine)
 
@@ -153,16 +160,17 @@ def test_llama_server_version_probe_uses_build_and_commit_only(monkeypatch):
     assert snapshot is not None
     rendered = snapshot.to_public_dict()
     assert rendered["identity"]["backend"]["version"] == "build-10621@c1d0e7a"
-    assert "/private/bin" not in str(rendered)
+    assert str(tmp_path) not in str(rendered)
 
 
-def test_unparseable_llama_server_version_keeps_runtime_exploratory(monkeypatch):
+def test_unparseable_llama_server_version_keeps_runtime_exploratory(monkeypatch, tmp_path):
     cfg = _runtime_cfg(sha256="e" * 64)
     cfg["backend"] = "llama_server"
+    binary = _make_executable(tmp_path / "llama-server")
     runtime = SimpleNamespace(
         key="demo",
         cfg=cfg,
-        engine=SimpleNamespace(backend="llama_server", binary="/tmp/llama-server"),
+        engine=SimpleNamespace(backend="llama_server", binary=str(binary)),
     )
     monkeypatch.setattr(
         "local_llm_server.llama_server_compat.subprocess.run",
