@@ -1,5 +1,6 @@
 /**
- * config.js — Frontend Configuration for Local LLM Studio
+ * config.js — Frontend Configuration for Korgis.
+ * Technical runtime/API identity remains Local LLM Server.
  */
 
 (function ensureControlPlaneAssets() {
@@ -14,6 +15,7 @@
         ['data-local-llm-control-plane-evaluation', '/static/control-plane-evaluation.css'],
         ['data-local-llm-control-plane-evaluation-history', '/static/control-plane-evaluation-history.css'],
         ['data-local-llm-control-plane-product-semantics', '/static/control-plane-product-semantics.css'],
+        ['data-korgis-brand', '/static/brand.css'],
     ];
     stylesheets.forEach(([marker, href]) => {
         if (document.querySelector(`link[${marker}]`)) return;
