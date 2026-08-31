@@ -162,6 +162,10 @@ def test_private_ports_are_unique(monkeypatch):
     manager.add(_cfg("one", backend="llama_server", port=8091), _Engine("llama_server"))
     captured = {}
 
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda _port: True,
+    )
     monkeypatch.setattr("local_llm_server.config.build_config", lambda **_kwargs: _cfg("two", backend="llama_server", port=8091))
     monkeypatch.setattr("local_llm_server.engine.load_llm", lambda cfg: captured.update(cfg) or _Engine("llama_server"))
 
