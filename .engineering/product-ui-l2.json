@@ -93,8 +93,10 @@
     ]
   },
   "manual_evidence": {
-    "manual_accessibility_status": "pending",
-    "representative_user_usability_status": "pending",
-    "completion_rule": "pending manual evidence is explicit and blocks a full product-ui L2 claim; repository-side guardrails may still be accepted"
+    "manual_accessibility_status": "complete",
+    "representative_user_usability_status": "complete",
+    "accepted_source_revision": "a29e77c1ce4e65294440cfe4fc47e33c92173096",
+    "evidence_summary": "docs/evidence/product-ui-evidence-summary-2026-08-31.json",
+    "completion_rule": "manual accessibility and representative-user usability evidence are complete only when bounded retained evidence is acceptance-ready and explicitly promoted through repository review"
   }
 }
