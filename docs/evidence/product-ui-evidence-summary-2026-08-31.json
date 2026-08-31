@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "procedure": "product_ui_human_evidence_review_v1",
+  "source_revision": "a29e77c1ce4e65294440cfe4fc47e33c92173096",
+  "manual_accessibility": {
+    "evidence_present": true,
+    "acceptance_ready": true,
+    "blocking_findings": 0
+  },
+  "representative_user_usability": {
+    "evidence_present": true,
+    "acceptance_ready": true,
+    "blocking_findings": 0
+  },
+  "full_product_ui_evidence_ready": true,
+  "errors": [],
+  "baseline_mutated": false,
+  "evidence_files": [
+    "docs/evidence/manual-accessibility-2026-08-31.json",
+    "docs/evidence/representative-usability-2026-08-31.json"
+  ]
+}
