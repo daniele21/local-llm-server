@@ -3,7 +3,7 @@
 Status: active
 Last reviewed: 2026-08-31
 
-Local LLM Server is a local-first multi-backend inference server with Local LLM Studio as its browser control plane. Hosted CI proves deterministic software contracts; hardware- and human-dependent claims require matching real evidence.
+Local LLM Server is a local-first multi-backend **runtime control plane for local AI applications**, with Local LLM Studio as its browser control plane. Hosted CI proves deterministic software contracts; hardware- and human-dependent claims require matching real evidence.
 
 ## Engineering baseline
 
