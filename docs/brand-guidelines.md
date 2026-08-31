@@ -11,7 +11,7 @@ Last reviewed: 2026-08-31
 
 **Korgis** is the user-facing brand for the local-first AI control-plane product implemented in this repository.
 
-The technical repository/package identity remains **Local LLM Server** during the brand rollout. **Local LLM Studio** is the current legacy name of the bundled browser control-plane UI and should be retired only when the corresponding implemented surface is migrated in the same change.
+The bundled browser control plane now ships under the **Korgis** identity. The technical repository/package identity remains **Local LLM Server**. **Local LLM Studio** is a historical legacy UI name and must not be presented as the current product surface.
 
 Korgis should feel:
 
@@ -67,10 +67,10 @@ The claim communicates the product outcome: locally controlled AI made available
 
 Use consistently:
 
-- **Korgis** — user-facing product brand;
+- **Korgis** — user-facing product brand and bundled browser control-plane name;
 - **Your AI. Local. Ready to use.** — approved claim;
 - **Local LLM Server** — repository, package and technical implementation identity until an explicit technical rename is approved;
-- **Local LLM Studio** — legacy browser UI name only while that implemented surface still ships under this name;
+- **Local LLM Studio** — historical legacy browser UI name only; do not use it for the current surface;
 - **model artifact** — file/snapshot identity on storage;
 - **runtime** — loaded execution owner/backend instance;
 - **resident** — model resources actively loaded/owned;
@@ -83,7 +83,7 @@ Use consistently:
 - **estimated footprint** — planning value, explicitly not measured;
 - **runtime fingerprint** — reproducibility identity for artifact/backend/config/hardware.
 
-Do not mechanically replace technical identifiers, package names, CLI commands, environment variables or API contracts with `Korgis`. A brand rollout and a technical rename are separate changes.
+Do not mechanically replace technical identifiers, package names, CLI commands, environment variables or API contracts with `Korgis`. A product-brand rollout and a technical rename are separate changes.
 
 Avoid using these as synonyms:
 
@@ -221,7 +221,7 @@ All approved brand sources live under `design/brand/logo/`:
 | Reversed dark-background lockup | `korgis-reversed-dark.png` |
 | App icon / favicon source | `korgis-app-icon.png` |
 
-`design/brand-kit.json` is the machine-readable owner for these roles.
+`design/brand-kit.json` is the machine-readable owner for these roles. Runtime copies under `src/local_llm_server/static/` must retain byte identity with their corresponding canonical source asset unless a documented derived export is intentionally produced.
 
 ### Variant usage
 
@@ -229,8 +229,8 @@ All approved brand sources live under `design/brand/logo/`:
 - Use **`korgis-horizontal-light.png`** on controlled light-neutral surfaces when a baked light background is acceptable.
 - Use **`korgis-reversed-dark.png`** on dark presentation/marketing surfaces.
 - Use **`korgis-monochrome-dark.png`** when brand color cannot be reproduced or color is intentionally suppressed.
-- Use **`korgis-mark.png`** for compact navigation, avatars and mark-only placements.
-- Use **`korgis-app-icon.png`** as the source for future favicon/app-icon exports; create actual 16/32/other required sizes in the implementation change rather than treating the source raster as all sizes.
+- Use **`korgis-mark.png`** for compact navigation, avatars and mark-only placements. The current browser sidebar uses this compact role.
+- Use **`korgis-app-icon.png`** as the app-icon/favicon source. A future packaging/performance slice may add derived 16/32/other exports; derived assets must remain traceable to this source rather than being redrawn independently.
 - Use the claim lockup only where the logo has enough size to keep the claim legible. Do not put the claim into favicons, tiny navigation marks or dense controls.
 
 Keep clear space around a lockup at least comparable to one visible layer thickness. Never stretch, rotate, add glow, recolor individual layers outside the approved variants, or put the colored mark on a background that destroys contrast.
@@ -361,25 +361,28 @@ A screenshot used in README/portfolio must:
 - avoid exposing private local paths, tokens, prompts or sensitive media;
 - prefer one clear product question per screenshot.
 
-Generated concept mockups are design references only until implemented. The approved logo assets are brand sources, but a mockup that shows the Korgis name inside an application is not evidence that the application has already been migrated.
+Generated concept mockups are design references only until implemented. Brand rollout claims must refer to the checked-in runtime surface and its validated exact head, not merely to canonical source assets.
 
 ## 14. Rollout boundary
 
-The canonical Korgis asset set is approved now. The checked-in runtime currently still references `src/local_llm_server/static/logo.svg` and the legacy `Local LLM Studio` surface name. Those runtime references must be changed together in a dedicated implementation slice with relevant product-UI validation.
+The **Korgis browser rollout is implemented**. The app bootstrap in `src/local_llm_server/static/config.js` applies the canonical Korgis mark, app icon/favicon, product name, descriptor and metadata before the application, i18n and control-plane boot sequence. `src/local_llm_server/static/brand.css` maps the legacy shell variables onto the shared design-system tokens and removes the old decorative glow treatment. Routed titles and both language resources preserve Korgis.
 
-Until that rollout lands:
+The static Korgis assets used by the runtime live under `src/local_llm_server/static/` and are byte-identical copies of the approved sources where no derived export is declared.
 
-- README and brand documentation may introduce **Korgis** as the product brand;
-- package names, CLI commands, API identifiers and repository identity remain **Local LLM Server**;
-- screenshots of the existing UI remain labelled with the name actually shown by that implementation;
-- do not claim that the browser UI/favicon has adopted Korgis merely because the canonical source assets exist.
+The product/technical boundary remains explicit:
+
+- **Korgis** is the current browser control-plane/product identity;
+- package names, CLI commands, API identifiers, environment variables and repository identity remain **Local LLM Server**;
+- **Local LLM Studio** is historical terminology and must not be presented as the current browser product;
+- `index.html` currently retains pre-rollout literals only as non-canonical parser/bootstrap fallback markup. `config.js` replaces those literals synchronously before application boot; this retained fallback is explicitly documented in `design/brand-kit.json` and is not a second supported brand identity;
+- future work may remove that fallback when the legacy HTML shell is retired, but it must not change the user-visible identity back to Local LLM Studio.
 
 ## 15. Brand acceptance criteria
 
 Brand implementation is acceptable when:
 
-- Korgis, the claim and the technical `Local LLM Server` identity are used according to the migration boundary above;
-- README, web UI and docs use the same category/descriptor vocabulary once each surface is migrated;
+- Korgis, the claim and the technical `Local LLM Server` identity are used according to the boundary above;
+- README, web UI and docs use the same category/descriptor vocabulary for migrated surfaces;
 - navigation and component tokens derive from one design system;
 - status semantics are consistent across screens;
 - logo/assets are reproducible, role-specific and vendor-independent;
@@ -387,4 +390,4 @@ Brand implementation is acceptable when:
 - model/resource claims use truthful terminology;
 - current capability and roadmap language are not conflated;
 - real product screenshots replace concept mockups before release positioning is promoted;
-- the runtime rollout is not considered complete until legacy logo/name consumers are removed or explicitly retained by contract.
+- legacy bootstrap literals are either removed or explicitly retained as non-canonical fallback by contract and cannot override the Korgis runtime identity.
