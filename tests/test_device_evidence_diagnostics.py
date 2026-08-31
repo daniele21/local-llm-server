@@ -96,6 +96,62 @@ def test_diagnostics_report_incomplete_evaluation(tmp_path: Path) -> None:
     assert "EV-3: both runs must be complete" in messages
 
 
+def test_diagnostics_explain_rrg5_cycle_and_shutdown_subfailures(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "campaign-summary.json",
+        {"phases": {"multimodel_rrg_5": {"status": "FAIL"}}},
+    )
+    _write(
+        tmp_path / "multimodel-review.json",
+        {
+            "state": "insufficient",
+            "reasons": ["one_or_more_reports_incomplete"],
+        },
+    )
+    _write(
+        tmp_path / "multimodel-a.json",
+        {
+            "status": "incomplete",
+            "complete": False,
+            "cycles": [
+                {
+                    "complete": False,
+                    "runtime_identities_verified": True,
+                    "concurrent_transient_overlap_observed": False,
+                    "responses": [{"http_status": 200}, {"http_status": 503}],
+                    "configured_accounting_after_unload": {"reservation_count": 1},
+                }
+            ],
+            "shutdown_under_load": {
+                "complete": False,
+                "first_shutdown_reported_incomplete": True,
+                "active_owner_retained_after_timeout": False,
+                "configured_accounting_after_retry": {"reservation_count": 2},
+            },
+        },
+    )
+    _write(
+        tmp_path / "multimodel-b.json",
+        {
+            "status": "incomplete",
+            "complete": False,
+            "cycles": [{"complete": False, "failed_phase": "concurrent_inference", "error_type": "TimeoutError"}],
+            "shutdown_under_load": {"complete": False, "failed_phase": "retry_shutdown", "error_type": "RuntimeError"},
+        },
+    )
+
+    messages = campaign_diagnostics(tmp_path)
+
+    assert "RRG-5 report A: status=incomplete" in messages
+    assert "RRG-5 report A cycle 1: concurrent transient accounting overlap was not observed" in messages
+    assert "RRG-5 report A cycle 1: inference HTTP statuses=[200, 503]" in messages
+    assert "RRG-5 report A cycle 1: accounting was not clean after unload" in messages
+    assert "RRG-5 report A shutdown-under-load: active runtime ownership was not retained after timeout" in messages
+    assert "RRG-5 report A shutdown-under-load: accounting was not clean after retry" in messages
+    assert "RRG-5 report B cycle 1 failed_phase=concurrent_inference error_type=TimeoutError" in messages
+    assert "RRG-5 report B shutdown-under-load failed_phase=retry_shutdown error_type=RuntimeError" in messages
+
+
 def test_diagnostics_use_rrg5_safety_fallback_without_review(tmp_path: Path) -> None:
     _write(
         tmp_path / "campaign-summary.json",

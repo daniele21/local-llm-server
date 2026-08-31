@@ -65,6 +65,10 @@ def campaign_diagnostics(output_dir: Path) -> tuple[str, ...]:
                     messages.append("RRG-5: host-memory safety gate refused execution")
                 elif checks.get("precondition_refused") is True:
                     messages.append("RRG-5: one or more attributable execution preconditions were unavailable")
+        for suffix in ("a", "b"):
+            report = _load_object(root / f"multimodel-{suffix}.json")
+            if report is not None and report.get("complete") is not True:
+                messages.extend(_rrg5_report_diagnostics(report, suffix.upper()))
 
     return tuple(dict.fromkeys(messages))
 
@@ -99,6 +103,64 @@ def _evaluation_diagnostics(root: Path) -> list[str]:
             messages.append("EV-3: comparison is not evidence-grade")
         elif not comparison.attribution_safe:
             messages.append("EV-3: comparison is not attribution-safe")
+    return messages
+
+
+def _rrg5_report_diagnostics(report: Mapping[str, Any], label: str) -> list[str]:
+    messages: list[str] = []
+    status = report.get("status")
+    if isinstance(status, str):
+        messages.append(f"RRG-5 report {label}: status={status}")
+
+    cycles = report.get("cycles")
+    if isinstance(cycles, list):
+        for index, cycle in enumerate(cycles, start=1):
+            if not isinstance(cycle, Mapping) or cycle.get("complete") is True:
+                continue
+            prefix = f"RRG-5 report {label} cycle {index}"
+            failed_phase = cycle.get("failed_phase")
+            error_type = cycle.get("error_type")
+            if isinstance(failed_phase, str):
+                detail = f" failed_phase={failed_phase}"
+                if isinstance(error_type, str):
+                    detail += f" error_type={error_type}"
+                messages.append(prefix + detail)
+                continue
+            if cycle.get("runtime_identities_verified") is False:
+                messages.append(prefix + ": runtime identities were not verified")
+            if cycle.get("concurrent_transient_overlap_observed") is False:
+                messages.append(prefix + ": concurrent transient accounting overlap was not observed")
+            responses = cycle.get("responses")
+            if isinstance(responses, list):
+                statuses = [
+                    item.get("http_status")
+                    for item in responses
+                    if isinstance(item, Mapping) and isinstance(item.get("http_status"), int)
+                ]
+                if statuses and any(value != 200 for value in statuses):
+                    messages.append(prefix + f": inference HTTP statuses={statuses}")
+            accounting = cycle.get("configured_accounting_after_unload")
+            if isinstance(accounting, Mapping) and accounting.get("reservation_count") != 0:
+                messages.append(prefix + ": accounting was not clean after unload")
+
+    shutdown = report.get("shutdown_under_load")
+    if isinstance(shutdown, Mapping) and shutdown.get("complete") is not True:
+        prefix = f"RRG-5 report {label} shutdown-under-load"
+        failed_phase = shutdown.get("failed_phase")
+        error_type = shutdown.get("error_type")
+        if isinstance(failed_phase, str):
+            detail = f" failed_phase={failed_phase}"
+            if isinstance(error_type, str):
+                detail += f" error_type={error_type}"
+            messages.append(prefix + detail)
+        else:
+            if shutdown.get("first_shutdown_reported_incomplete") is not True:
+                messages.append(prefix + ": first bounded shutdown did not report incomplete")
+            if shutdown.get("active_owner_retained_after_timeout") is not True:
+                messages.append(prefix + ": active runtime ownership was not retained after timeout")
+            final_accounting = shutdown.get("configured_accounting_after_retry")
+            if isinstance(final_accounting, Mapping) and final_accounting.get("reservation_count") != 0:
+                messages.append(prefix + ": accounting was not clean after retry")
     return messages
 
 
