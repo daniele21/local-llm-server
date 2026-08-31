@@ -172,6 +172,82 @@ def test_private_ports_are_unique(monkeypatch):
     assert captured["llama_server_port"] == 8092
 
 
+def test_private_ports_skip_external_loopback_listener(monkeypatch):
+    manager = ModelRuntimeManager()
+    captured = {}
+
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda **_kwargs: _cfg("one", backend="llama_server", port=8091),
+    )
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda port: port != 8091,
+    )
+    monkeypatch.setattr(
+        "local_llm_server.engine.load_llm",
+        lambda cfg: captured.update(cfg) or _Engine("llama_server"),
+    )
+
+    runtime, loaded = manager.load("one")
+
+    assert loaded is True
+    assert runtime.cfg["llama_server_port"] == 8092
+    assert captured["llama_server_port"] == 8092
+
+
+def test_private_port_zero_uses_real_backend_default(monkeypatch):
+    manager = ModelRuntimeManager()
+    captured = {}
+
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda **_kwargs: {
+            "model": "one",
+            "model_id": "one",
+            "backend": "llama_server",
+            "llama_server_port": 0,
+        },
+    )
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda _port: True,
+    )
+    monkeypatch.setattr(
+        "local_llm_server.engine.load_llm",
+        lambda cfg: captured.update(cfg) or _Engine("llama_server"),
+    )
+
+    runtime, loaded = manager.load("one")
+
+    assert loaded is True
+    assert runtime.cfg["llama_server_port"] == 8091
+    assert captured["llama_server_port"] == 8091
+
+
+def test_private_port_allocation_fails_closed_when_range_exhausted(monkeypatch):
+    manager = ModelRuntimeManager()
+    backend_loads = []
+
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda **_kwargs: _cfg("one", backend="llama_server", port=65535),
+    )
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda _port: False,
+    )
+    monkeypatch.setattr(
+        "local_llm_server.engine.load_llm",
+        lambda cfg: backend_loads.append(cfg) or _Engine("llama_server"),
+    )
+
+    with pytest.raises(RuntimeError, match="No available private loopback port"):
+        manager.load("one")
+
+    assert backend_loads == []
+
+
 def test_reload_replaces_only_target_runtime(monkeypatch):
     manager = ModelRuntimeManager(default_model="one")
     old_engine = _Engine()
