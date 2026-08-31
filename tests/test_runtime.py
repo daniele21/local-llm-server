@@ -252,6 +252,62 @@ def test_private_port_allocation_fails_closed_when_range_exhausted(monkeypatch):
     assert backend_loads == []
 
 
+def test_reload_reserves_replacement_port_while_backend_starts(monkeypatch):
+    manager = ModelRuntimeManager(default_model="one")
+    manager.add(
+        _cfg("one", backend="llama_server", port=8091),
+        _Engine("llama_server"),
+    )
+    reload_started = threading.Event()
+    release_reload = threading.Event()
+    errors = []
+    observed_ports = {}
+
+    monkeypatch.setattr(
+        "local_llm_server.runtime._loopback_port_is_available",
+        lambda _port: True,
+    )
+    monkeypatch.setattr(
+        "local_llm_server.config.build_config",
+        lambda model=None, **_kwargs: _cfg(
+            str(model), backend="llama_server", port=8091
+        ),
+    )
+
+    def load_engine(cfg):
+        if cfg["model"] == "one":
+            observed_ports["reload"] = cfg["llama_server_port"]
+            reload_started.set()
+            release_reload.wait(timeout=2)
+        else:
+            observed_ports["load"] = cfg["llama_server_port"]
+        return _Engine("llama_server")
+
+    monkeypatch.setattr("local_llm_server.engine.load_llm", load_engine)
+
+    def reload_one():
+        try:
+            manager.reload("one")
+        except Exception as exc:
+            errors.append(exc)
+
+    thread = threading.Thread(target=reload_one)
+    thread.start()
+    assert reload_started.wait(timeout=2)
+
+    runtime, loaded = manager.load("two")
+
+    release_reload.set()
+    thread.join(timeout=2)
+
+    assert loaded is True
+    assert not thread.is_alive()
+    assert errors == []
+    assert observed_ports == {"reload": 8092, "load": 8093}
+    assert runtime.cfg["llama_server_port"] == 8093
+    assert manager.resolve("one").cfg["llama_server_port"] == 8092
+
+
 def test_reload_replaces_only_target_runtime(monkeypatch):
     manager = ModelRuntimeManager(default_model="one")
     old_engine = _Engine()
