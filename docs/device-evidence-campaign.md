@@ -3,7 +3,7 @@
 Status: active procedure helper
 Owner: `docs/device-evidence-runbook.md`
 Read when: you want to execute the representative Apple Silicon evidence without manually sequencing TH-E1, EV-3, HE-2, RES-2 and RRG-5
-Last reviewed: 2026-08-30
+Last reviewed: 2026-08-31
 
 The canonical evidence contracts remain the individual procedures documented in `docs/device-evidence-runbook.md`. `scripts/run_device_evidence_campaign.py` is a thin orchestrator: it reuses those owners, applies their existing thresholds, owns the temporary HTTP server it starts, and writes a bounded `campaign-summary.json` after every phase.
 
@@ -52,6 +52,8 @@ The default scope is `full` and executes, in order:
 10. RRG-5 twice: two resident models, concurrent HTTP inference, transient-overlap accounting, unload cleanup and shutdown-under-load retry;
 11. conservative RRG-5 review.
 
+After the normal summary, the script also prints a bounded diagnostic explanation for any non-PASS EV-3, minimum-L2 or RRG-5 result. Those messages are recomputed from the already-written evaluation reports and conservative reviewer output. They explain causes such as missing/changed runtime identity, incomplete evaluation runs, bundle validation errors, missing transient overlap or incomplete shutdown-under-load evidence without changing the original verdict.
+
 ## Minimum L2 only
 
 To execute TH-E1 + EV-3 + HE-2 + RES-2 without RRG-5:
@@ -95,6 +97,8 @@ Process exit codes:
 - `130` — interrupted by the operator.
 
 A memory-safety refusal is therefore **not** mislabeled as a product regression.
+
+The diagnostic explanation is descriptive only. It never upgrades or downgrades the persisted phase status and never changes evidence thresholds.
 
 ## Evidence directory
 
