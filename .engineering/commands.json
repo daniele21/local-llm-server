@@ -80,7 +80,7 @@
   },
   "remote_preflight": {
     "status": "recommended",
-    "trigger": "Open or update a same-repository pull request targeting dev; GitHub pull_request workflows run deterministic validation on the exact PR head, and failed jobs may be rerun through GitHub Actions.",
+    "trigger": "Open or update a same-repository pull request targeting dev for ordinary changes or main/master for promotion; GitHub pull_request workflows run deterministic validation on the exact PR head, promotion targets force the FULL profile, and failed jobs may be rerun through GitHub Actions.",
     "default_profile": "auto",
     "stronger_profile_override_allowed": true,
     "weaker_profile_override_requires_explicit_justification": true,
