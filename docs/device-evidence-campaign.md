@@ -21,6 +21,19 @@ For the full campaign choose:
 
 Do not tune `REQUEST_ESTIMATE_MIB` or the model choice downward merely to make the campaign fit in memory.
 
+### `llama_server` dependency for full RRG-5
+
+When the full campaign explicitly selects `--multi-model-backend llama_server`, install an attributable llama.cpp server that satisfies the repository runtime floor before starting the heavy evidence run. On the representative Mac, Homebrew is the simplest setup:
+
+```bash
+brew install llama.cpp
+command -v llama-server
+llama-server --version
+export LOCAL_LLM_SERVER_BIN="$(command -v llama-server)"
+```
+
+The campaign runner preflights this dependency before artifact verification or model loading. An absent, unparseable or too-old binary is recorded as `INCONCLUSIVE` rather than surfacing later as a generic model-load failure. The persisted check includes only bounded compatibility identity (`backend_version` and compatibility profile), never the executable path.
+
 ## Full campaign
 
 Example for a GGUF deployment where the minimum bundle is exercised through `llama_cpp` and the two-model governor path through `llama_server`:
@@ -76,6 +89,7 @@ The campaign refuses to make a representative-device conclusion unless:
 - the selected port is free before the runner starts its owned server;
 - the evidence directory is outside the repository checkout;
 - full scope has two distinct model keys and a positive request estimate;
+- explicit full-scope `llama_server` execution has an attributable binary satisfying the validated runtime floor;
 - the individual RES-2/RRG-5 safety gates have enough measured available memory for their configured margins.
 
 The last item is intentionally checked again by the owning evidence procedures immediately before heavy backend construction.
