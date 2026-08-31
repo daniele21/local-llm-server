@@ -14,5 +14,4 @@ Do not create separate plan/progress/status files for the same workstream. Git h
 
 ## Active
 
-- [`l2-reference-grade.md`](l2-reference-grade.md) — repository-side and representative-hardware L2 evidence accepted; full L2 remains gated by the two real-human `product-ui` evidence tasks and final cumulative review.
-- [`v040-product-ui-l2.md`](v040-product-ui-l2.md) — `product-ui` L2 guardrails, design-system drift control and manual product-experience evidence boundary.
+No active workstreams. Full L2 repository, representative-hardware and bounded human product-experience evidence are accepted for the current candidate; future workstreams should be opened only for new bounded capability or evidence objectives.
