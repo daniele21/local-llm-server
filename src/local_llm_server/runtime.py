@@ -1,6 +1,7 @@
 """Lifecycle, routing, and concurrency ownership for resident model engines."""
 from __future__ import annotations
 
+import socket
 import threading
 import time
 from collections.abc import Iterator
@@ -17,6 +18,18 @@ def _close_engine(engine: Any) -> None:
     close = getattr(engine, "close", None) or getattr(engine, "shutdown", None)
     if close is not None:
         close()
+
+
+def _loopback_port_is_available(port: int) -> bool:
+    """Return whether one concrete loopback TCP port can currently be bound."""
+    if port < 1 or port > 65535:
+        return False
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError:
+            return False
+    return True
 
 
 _BACKEND_CONFIG_CAPABILITIES: dict[str, tuple[str, ...]] = {
@@ -178,6 +191,10 @@ class ModelRuntimeManager:
     _PORT_FIELDS = {
         "llama_server": "llama_server_port",
         "mlx_vlm_server": "mlx_vlm_server_port",
+    }
+    _DEFAULT_PRIVATE_PORTS = {
+        "llama_server": 8091,
+        "mlx_vlm_server": 8092,
     }
 
     def __init__(
@@ -613,7 +630,8 @@ class ModelRuntimeManager:
             return f"runtime:{runtime_key}:{self._reservation_counter}"
 
     def _assign_private_port(self, cfg: dict[str, Any]) -> None:
-        field_name = self._PORT_FIELDS.get(str(cfg.get("backend")))
+        backend = str(cfg.get("backend"))
+        field_name = self._PORT_FIELDS.get(backend)
         if not field_name:
             return
         used = set(self._reserved_ports)
@@ -621,7 +639,15 @@ class ModelRuntimeManager:
             for private_port_field in self._PORT_FIELDS.values():
                 if runtime.cfg.get(private_port_field) is not None:
                     used.add(int(runtime.cfg[private_port_field]))
-        port = int(cfg.get(field_name) or 0)
-        while port in used:
+        default_port = self._DEFAULT_PRIVATE_PORTS[backend]
+        port = int(cfg.get(field_name) or default_port)
+        if port < 1 or port > 65535:
+            raise ValueError(f"{field_name} must be between 1 and 65535")
+        while port <= 65535:
+            if port not in used and _loopback_port_is_available(port):
+                cfg[field_name] = port
+                return
             port += 1
-        cfg[field_name] = port
+        raise RuntimeError(
+            f"No available private loopback port remains for backend '{backend}'."
+        )
