@@ -57,11 +57,13 @@ The next product layer is a declarative **application/workload profile**: an app
 
 ### 1. Prepare the checkout
 
+Use `main` for the official supported repository state. The `dev` branch is the integration branch for ongoing development.
+
 From the repository:
 
 ```bash
-git switch dev
-git pull
+git switch main
+git pull --ff-only
 
 python3 -m pip install 'uv==0.8.13'
 uv sync --frozen --extra dev
