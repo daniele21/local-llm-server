@@ -25,7 +25,7 @@
   · <a href="docs/README.md">Architecture & docs</a>
 </p>
 
-**Korgis** is the product brand. **Local LLM Server** remains the repository/package and technical implementation identity during the brand rollout. **Local LLM Studio** is the current bundled browser control-plane name until that implemented surface is migrated to Korgis.
+**Korgis** is the product and bundled browser control-plane identity. **Local LLM Server** remains the repository/package and technical implementation identity; CLI commands, environment variables and HTTP/API contracts are intentionally unchanged.
 
 The project orchestrates specialist inference engines; it does not replace them. `llama.cpp`, `llama-cpp-python`, MLX and task-specific runtimes execute models. Local LLM Server owns the control-plane concerns around them.
 
@@ -69,7 +69,7 @@ Useful local surfaces:
 
 | Surface | URL | What it is for |
 | --- | --- | --- |
-| Local LLM Studio | `http://127.0.0.1:1235/` | Use and inspect the product |
+| Korgis | `http://127.0.0.1:1235/` | Use and inspect the local AI control plane |
 | Integration examples | `http://127.0.0.1:1235/example` | Copy-ready API examples |
 | Swagger | `http://127.0.0.1:1235/docs` | Explore the HTTP contract |
 | Health | `http://127.0.0.1:1235/health` | Basic readiness |
@@ -78,7 +78,7 @@ Useful local surfaces:
 
 ### 3. Try the main product loop
 
-Inside Studio:
+Inside Korgis:
 
 1. **Overview** — confirm the server is healthy and see current capacity/residency.
 2. **Models & Runtimes** — inspect configured vs resident models and lifecycle state.
@@ -231,7 +231,7 @@ There are three different test levels. Do not confuse them.
 
 ### A. Manual product smoke
 
-Start the server with `--enable-admin-api`, open Studio and check:
+Start the server with `--enable-admin-api`, open Korgis and check:
 
 - Overview reports healthy/capacity state;
 - Playground returns a real completion;
@@ -273,7 +273,7 @@ The accepted target-Mac campaign includes repeated load/infer/unload evidence an
 
 ### Control plane
 
-- Local LLM Studio with Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System / Diagnostics and Settings;
+- Korgis with Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System / Diagnostics and Settings;
 - explicit configured/resident/default-route state;
 - runtime pin/unpin and explicit LRU/TTL administrative eviction paths;
 - capability-driven text, image, structured-generation and transcription controls;
@@ -320,11 +320,11 @@ Public surface:
 | `GET` | `/v1/models` | resident models |
 | `POST` | `/v1/chat/completions` | OpenAI-compatible chat/SSE |
 | `POST` | `/v1/audio/transcriptions` | audio → text |
-| `GET` | `/` | Local LLM Studio |
+| `GET` | `/` | Korgis browser control plane |
 | `GET` | `/example` | integration examples |
 | `GET` | `/docs` | Swagger |
 
-With `--enable-admin-api`, Studio additionally uses control-plane routes for registry/runtime lifecycle, resources, evidence, scheduler/policy state, residency and evaluation.
+With `--enable-admin-api`, Korgis additionally uses control-plane routes for registry/runtime lifecycle, resources, evidence, scheduler/policy state, residency and evaluation.
 
 Swagger is the executable schema for the checked-out revision.
 
@@ -345,7 +345,7 @@ Binding outside loopback broadens the trust boundary. The server does not curren
 ## How the pieces fit
 
 ```text
-application / Local LLM Studio / evaluator
+application / Korgis / evaluator
                   |
                   v
        supported product HTTP stack
