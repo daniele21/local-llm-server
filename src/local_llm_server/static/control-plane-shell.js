@@ -58,6 +58,12 @@
         activate(route.panelId);
         restoreRoutedDetail(route);
 
+        window.addEventListener('popstate', () => {
+            const current = resolveLocation(window.location.pathname);
+            activate(current.panelId);
+            restoreRoutedDetail(current);
+        });
+
         window.addEventListener('pageshow', (event) => {
             if (!event.persisted) return;
             const current = resolveLocation(window.location.pathname);
@@ -68,7 +74,7 @@
         window.localLlmControlPlane = {
             navigate(panelId) {
                 const item = NAV.find((entry) => entry.id === panelId);
-                if (item) window.location.assign(item.route);
+                if (item) navigatePrimary(item.route);
             },
             routeForPanel(panelId) {
                 return NAV.find((entry) => entry.id === panelId)?.route || null;
@@ -111,7 +117,40 @@
             link.appendChild(icon);
         }
         link.appendChild(document.createTextNode(item.label));
+        link.addEventListener('click', (event) => {
+            if (!shouldNavigateInPlace(event, link)) return;
+            event.preventDefault();
+            navigatePrimary(item.route);
+        });
         return link;
+    }
+
+    function shouldNavigateInPlace(event, link) {
+        if (event.defaultPrevented || event.button !== 0) return false;
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return false;
+        if (link.target && link.target !== '_self') return false;
+        if (link.hasAttribute('download')) return false;
+        return true;
+    }
+
+    function navigatePrimary(path) {
+        const target = resolveLocation(path);
+        const current = resolveLocation(window.location.pathname);
+
+        // Detail surfaces still own their explicit open/close lifecycle. Keep their
+        // cross-surface transition document-backed until that lifecycle is routed
+        // through the same client-side owner.
+        if (current.detail || target.detail) {
+            window.location.assign(target.path);
+            return;
+        }
+
+        const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
+        if (currentPath !== target.path) {
+            window.history.pushState(null, '', target.path);
+        }
+        activate(target.panelId);
+        restoreRoutedDetail(target);
     }
 
     function activate(panelId) {
