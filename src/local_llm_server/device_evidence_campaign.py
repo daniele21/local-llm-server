@@ -412,9 +412,13 @@ class DeviceEvidenceCampaign:
 
     def _evaluation(self, base_url: str) -> Mapping[str, Any]:
         request = {"model": self.args.model_a, "test_set_id": "general-purpose", "test_set_version": "1.0.0", "sample_count": 10, "seed": 0, "reasoning_policy": "off"}
-        status_a, report_a = _request_json(f"{base_url}/api/v1/evaluation/runs", method="POST", payload=request, timeout=self.args.evaluation_timeout)
+        status_a, envelope_a = _request_json(f"{base_url}/api/v1/evaluation/runs", method="POST", payload=request, timeout=self.args.evaluation_timeout)
+        status_b, envelope_b = _request_json(f"{base_url}/api/v1/evaluation/runs", method="POST", payload=request, timeout=self.args.evaluation_timeout)
+        raw_report_a = envelope_a.get("report")
+        raw_report_b = envelope_b.get("report")
+        report_a = dict(raw_report_a) if isinstance(raw_report_a, Mapping) else dict(envelope_a)
+        report_b = dict(raw_report_b) if isinstance(raw_report_b, Mapping) else dict(envelope_b)
         _atomic_write_json(self.output_dir / "evaluation-off-a.json", report_a)
-        status_b, report_b = _request_json(f"{base_url}/api/v1/evaluation/runs", method="POST", payload=request, timeout=self.args.evaluation_timeout)
         _atomic_write_json(self.output_dir / "evaluation-off-b.json", report_b)
         comparable = attribution = grade = samples = False
         try:
@@ -424,8 +428,10 @@ class DeviceEvidenceCampaign:
             samples = a.sample_count == 10 and b.sample_count == 10
         except ValueError:
             pass
-        ok = status_a == status_b == 200 and report_a.get("complete") is True and report_b.get("complete") is True and comparable and attribution and grade and samples
-        return _phase(_PASS if ok else _FAIL, reason="two comparable verified OFF evaluations completed" if ok else "evaluation repeatability/attribution contract was not satisfied", checks={"run_a_http_status": status_a, "run_b_http_status": status_b, "comparable": comparable, "attribution_safe": attribution, "evidence_grade": grade, "sample_count_10_each": samples}, artifact="evaluation-off-a.json,evaluation-off-b.json")
+        api_grade = envelope_a.get("evidence_grade") is True and envelope_b.get("evidence_grade") is True
+        canonical_reports = isinstance(raw_report_a, Mapping) and isinstance(raw_report_b, Mapping)
+        ok = status_a == status_b == 200 and canonical_reports and api_grade and report_a.get("complete") is True and report_b.get("complete") is True and comparable and attribution and grade and samples
+        return _phase(_PASS if ok else _FAIL, reason="two comparable verified OFF evaluations completed" if ok else "evaluation repeatability/attribution contract was not satisfied", checks={"run_a_http_status": status_a, "run_b_http_status": status_b, "canonical_report_envelope": canonical_reports, "api_evidence_grade": api_grade, "comparable": comparable, "attribution_safe": attribution, "evidence_grade": grade, "sample_count_10_each": samples}, artifact="evaluation-off-a.json,evaluation-off-b.json")
 
     def _reclamation(self) -> Mapping[str, Any]:
         reports = []
