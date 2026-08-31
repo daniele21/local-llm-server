@@ -4,7 +4,7 @@ This file is the repository-wide navigation layer for coding agents. It owns dur
 
 ## Read only what the task requires
 
-Always read this guide. Then read only the closest scoped guidance, the canonical owner document for the task, `.engineering/commands.json` when operations/validation are involved, `.engineering/e2e.json` for complete-workflow or environment-dependent claims, and the owning implementation/direct consumers/tests.
+Always read this guide. Then read only the closest scoped guidance, the canonical owner document for the task, `.engineering/commands.json` when operations/validation are involved, `.engineering/e2e.json` for complete-workflow or environment-dependent claims, `docs/README.md` when documentation ownership or README impact is unclear, and the owning implementation/direct consumers/tests.
 
 Do not load every roadmap, workstream or evidence document for a local change.
 
@@ -25,6 +25,8 @@ Local LLM Server is a local-first AI control plane and evaluation harness. It ex
 - Project-owned processes, listeners, temp files and E2E evidence require explicit ownership and cleanup.
 - Final target-environment validation confirms residual environment-specific claims; it must not be the first complete-system test when the workflow can be automated earlier.
 - Execution capability and environment fidelity are separate: `REMOTE_AUTOMATED` does not upgrade `host_or_fake` evidence into Apple Silicon/target evidence.
+- Code and durable documentation ship together. An affected stale canonical document blocks publication readiness.
+- README identity and README usage are separate owners: preserve still-valid mission/positioning and update setup/run/configuration/public examples whenever the current usage path changes.
 
 ## Ownership and routing
 
@@ -39,7 +41,7 @@ Local LLM Server is a local-first AI control plane and evaluation harness. It ex
 | Product UX/UI | `design/ux-contract.json` | `design/brand-kit.json`, canonical static UI source, `design-product-experience` |
 | Real-device evidence | `docs/device-evidence-runbook.md` | hardware evidence modules and active correctness workstream |
 | Build/release | `deploy.sh`, `release.sh` | release workflow and `.engineering/commands.json` |
-| Durable architecture/docs | `docs/README.md` | `docs/current-state.md`, active workstream, owning feature/API docs |
+| Durable architecture/docs | `docs/README.md` | README identity/usage, `docs/current-state.md`, active workstream, owning feature/API docs |
 
 Add scoped `AGENTS.md` only where a subtree has meaningful local hazards or commands.
 
@@ -60,9 +62,9 @@ Use `scripts/select_validation_profile.py` to resolve `auto -> LEAN | SCOPED | S
 5. Inspect owner, direct consumers, fakes and tests before changing a shared contract.
 6. Implement one coherent vertical slice without speculative layers.
 7. Use `validate-change` to select iterative evidence by blast radius and E2E fidelity.
-8. Update only the canonical durable document whose behavior or decision changed.
+8. Assess documentation impact from observable behavior and update only affected canonical durable owners; README identity/usage are assessed independently.
 9. Finalize completed workstreams by transferring durable truth and deleting the active plan by default.
-10. Before publication use `preflight-change`: refresh target/base, inspect the full diff, select the validation profile, classify `AGENT_LOCAL`/`REMOTE_AUTOMATED`/`REAL_ENVIRONMENT`, and require exact-head evidence.
+10. Before publication use `preflight-change`: refresh target/base, inspect the full diff, require `DOCS_CURRENT_WITH_IMPLEMENTATION: PASS`, select the validation profile, classify `AGENT_LOCAL`/`REMOTE_AUTOMATED`/`REAL_ENVIRONMENT`, and require exact-head evidence.
 11. If deterministic gates are unavailable agent-local, use `remote-preflight` and repository-owned GitHub automation; do not delegate automatable CI work to the user.
 
 ## Validation routing
@@ -83,13 +85,17 @@ For E2E, report the declared environment ID/fidelity class. A missing real-devic
 
 ## Documentation lifecycle
 
+- README identity sections own the stable project purpose, primary audience/outcome and positioning. Change only when those claims materially change.
+- README usage sections own the shortest successful setup/run/configuration/public usage path. Update whenever current instructions/examples become incomplete, wrong or misleading; detailed API/config/runtime semantics remain in their specialized canonical references.
 - `docs/architecture.md` owns current architecture.
-- `docs/features/` owns durable feature behavior that needs a dedicated document.
+- `docs/features/` owns durable non-obvious feature behavior that needs a dedicated document; existing feature owners update in the same change as the behavior they describe.
 - `docs/adr/` owns accepted architectural decisions.
 - `docs/current-state.md` is the single short repository-level operational ledger.
 - `docs/workstreams/` contains only active bounded implementation plans.
 - Completed plans are deleted after durable behavior/decisions are transferred; Git history owns implementation history.
 
+Before publication classify `README_IDENTITY`, `README_USAGE`, `FEATURE_DOCS`, `ARCHITECTURE`, `ADR`, `SECURITY_DATA`, `OPERATIONS`, `PRODUCT_EXPERIENCE` and `CURRENT_STATE` as `UPDATED` or `N/A`.
+
 ## Stop conditions
 
-Surface the conflict instead of improvising when a requested change would weaken a durable runtime/privacy/evidence invariant, expose private state, create a second source of truth, bypass canonical validation/lifecycle behavior, delete state without proven ownership, claim stronger environment evidence than was executed, or ask the user to run an automatable deterministic gate only because the current agent lacks the toolchain.
+Surface the conflict instead of improvising when a requested change would weaken a durable runtime/privacy/evidence invariant, expose private state, create a second source of truth, bypass canonical validation/lifecycle/documentation-freshness behavior, delete state without proven ownership, claim stronger environment evidence than was executed, or ask the user to run an automatable deterministic gate only because the current agent lacks the toolchain.
