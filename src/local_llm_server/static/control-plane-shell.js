@@ -136,7 +136,7 @@
         });
 
         const item = NAV.find((entry) => entry.id === panelId);
-        if (item) document.title = `Local LLM Studio · ${item.label}`;
+        if (item) document.title = `Korgis · ${item.label}`;
     }
 
     function navigationLinks() {
