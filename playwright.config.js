@@ -13,13 +13,13 @@ module.exports = defineConfig({
   outputDir: 'test-results',
   reporter: isCI
     ? [['line'], ['json', { outputFile: 'test-results/playwright-results.json' }]]
-    : [['list']],
+    : [['list'], ['json', { outputFile: 'test-results/playwright-results.json' }]],
   use: {
     baseURL: 'http://127.0.0.1:8765',
     browserName: 'chromium',
-    trace: isCI ? 'off' : 'retain-on-failure',
-    screenshot: isCI ? 'off' : 'only-on-failure',
-    video: 'off',
+    trace: 'on',
+    screenshot: 'on',
+    video: 'on',
   },
   webServer: {
     command: 'exec python tests/e2e/fixture_runner.py',
