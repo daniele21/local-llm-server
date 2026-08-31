@@ -7,9 +7,10 @@ private model paths, or process identifiers.
 """
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from .evaluation_history import compare_run_summaries, summarize_report_payload
 
@@ -104,8 +105,27 @@ def _evaluation_diagnostics(root: Path) -> list[str]:
 def print_campaign_diagnostics(output_dir: Path) -> None:
     messages = campaign_diagnostics(output_dir)
     if not messages:
+        print("No non-PASS campaign diagnostics found.")
         return
     print("\nDiagnostic explanation")
     print("=" * 22)
     for message in messages:
         print(f"- {message}")
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Explain bounded causes from an existing representative-device campaign."
+    )
+    parser.add_argument("directory", help="Existing campaign evidence directory.")
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _build_parser().parse_args(argv)
+    print_campaign_diagnostics(Path(args.directory))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
