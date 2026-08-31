@@ -28,13 +28,14 @@
     "historical_archive": "exception-only"
   },
   "adoption": {
-    "status": "l2-repository-and-representative-hardware-evidence-accepted-human-evidence-pending",
-    "current_slice": "product-ui-human-evidence",
+    "status": "l2-accepted",
+    "current_slice": "promotion-to-main",
     "l0_repository_validation_revision": "d302075fe54aa2e6499bd53d3811823d81db3ba3",
     "l1_acceptance_revision": "d068a76d07bf204ca58ee2dfc29890bf3f1177cb",
     "l2_repository_validation_revision": "d528b6c5b676e705e7ccf24800929da6d5534203",
     "product_ui_repository_validation_revision": "89d360698234016ddfe1f3fff0bacbc4f9bb7852",
     "l2_evidence_bridge_validation_revision": "de899cc945e1d1c735a2ded91c5da717ce0fe2b0",
+    "product_ui_human_evidence_revision": "a29e77c1ce4e65294440cfe4fc47e33c92173096",
     "skill_files": "installed-and-project-customized",
     "repository_side_l0": {
       "canonical_commands": "implemented-and-validated",
@@ -92,8 +93,9 @@
       "significant_ux_change_review": "implemented-and-validated",
       "visual_regression": "deferred-until-stable-high-risk-surface-justifies-pixel-contract",
       "repository_guardrail_acceptance": "passed-on-89d360698234016ddfe1f3fff0bacbc4f9bb7852",
-      "manual_accessibility_evidence": "pending",
-      "representative_user_usability_evidence": "pending"
+      "manual_accessibility_evidence": "accepted-2026-08-31",
+      "representative_user_usability_evidence": "accepted-2026-08-31",
+      "evidence_summary": "docs/evidence/product-ui-evidence-summary-2026-08-31.json"
     },
     "accepted_deviations": {
       "canonical_branch_protection": {
@@ -106,8 +108,8 @@
       "evaluation_repeat_target_mac": "accepted-2026-08-31",
       "apple_silicon_reclamation": "accepted-descriptive-2026-08-31",
       "resource_policy_smoke": "accepted-2026-08-31",
-      "product_ui_manual_accessibility": "pending-real-manual-review",
-      "product_ui_representative_user_usability": "pending-real-representative-session"
+      "product_ui_manual_accessibility": "accepted-2026-08-31",
+      "product_ui_representative_user_usability": "accepted-2026-08-31"
     }
   }
 }
