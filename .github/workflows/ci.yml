@@ -20,13 +20,8 @@ jobs:
       - name: Install pinned uv bootstrap
         run: python -m pip install "uv==${UV_VERSION}"
       - name: Sync locked deterministic development environment
-        # llama-cpp-python is intentionally omitted from hosted deterministic CI:
-        # compiling the native backend is not required to prove backend-neutral
-        # product contracts and would make the normal gate hardware/toolchain-heavy.
         run: uv sync --frozen --extra dev --no-install-package llama-cpp-python
       - name: Run blocking Ruff correctness gate
-        # --no-sync is critical: a second implicit sync would reinstall the
-        # intentionally excluded native llama-cpp-python package.
         run: uv run --no-sync ruff check src/ tests/ --select E9,F63,F7,F82
 
   test:
@@ -70,6 +65,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run browser E2E gate without Python environment resync
         run: uv run --no-sync npm run test:e2e
+      - name: Verify required UI journey screenshots and videos
+        run: node tests/e2e/verify_media_evidence.js test-results/playwright-results.json
       - name: Verify zero E2E residue
         if: always()
         run: uv run --no-sync python tests/e2e/verify_residue.py
@@ -78,11 +75,13 @@ jobs:
         env:
           SOURCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: uv run --no-sync python tests/e2e/prepare_failure_evidence.py
-      - name: Upload bounded identity-bearing Playwright failure evidence
-        if: failure()
+      - name: Upload bounded identity-bearing Playwright E2E evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-e2e-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          name: playwright-e2e-${{ github.run_id }}-${{ github.run_attempt }}
           if-no-files-found: error
           retention-days: 7
-          path: e2e-failure-evidence/manifest.json
+          path: |
+            test-results/**
+            e2e-failure-evidence/**
