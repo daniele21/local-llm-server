@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "contract_version": "0.1.0",
+  "contract_version": "0.1.1",
   "applicability": {
     "status": "required",
     "reason": "The browser control plane and local inference server expose complete user/system and external-application journeys whose assembled HTTP, UI, runtime-state and cleanup behavior cannot be proven by lower-level tests alone."
@@ -11,7 +11,8 @@
     "lowest_sufficient_test_level": true,
     "critical_journeys_only": true,
     "built_artifact_when_material": true,
-    "residual_fidelity_gaps_explicit": true
+    "residual_fidelity_gaps_explicit": true,
+    "ui_journey_screenshot_and_video_artifacts_required": true
   },
   "fidelity_order": [
     "host_or_fake",
@@ -92,18 +93,20 @@
     {
       "id": "control-plane-status-and-navigation",
       "claim": "A user can open the control plane, understand truthful server/runtime status and navigate core surfaces through the assembled browser and HTTP boundary.",
+      "ui_surface": true,
+      "required_media_artifacts": ["screenshots", "video"],
       "target_environment_refs": ["target-apple-silicon-local-ai"],
       "automated_environment_refs": ["ci-studio-deterministic", "ci-installed-wheel"],
       "minimum_automated_fidelity": "host_or_fake",
-      "residual_gaps": [
-        "target macOS process and backend state can still expose platform-specific lifecycle differences"
-      ],
+      "residual_gaps": ["target macOS process and backend state can still expose platform-specific lifecycle differences"],
       "real_environment_confirmation": "conditional",
       "automation_gap_reason": null
     },
     {
       "id": "chat-inference-and-recovery",
       "claim": "A user can configure a text request, submit it, observe truthful progress or failure, receive a result through the public boundary and recover for the next request.",
+      "ui_surface": true,
+      "required_media_artifacts": ["screenshots", "video"],
       "target_environment_refs": ["target-apple-silicon-local-ai"],
       "automated_environment_refs": ["ci-studio-deterministic", "ci-installed-wheel"],
       "minimum_automated_fidelity": "host_or_fake",
@@ -117,6 +120,8 @@
     {
       "id": "application-api-consumer-contract",
       "claim": "An external local application can discover runtime identity and capabilities, use text vision transcription evaluation and policy/admin HTTP contracts, select explicit or default routes, receive fail-closed errors and privacy-safe streams, exercise different resident runtimes concurrently and recover after a backend-originated failure without calling product internals.",
+      "ui_surface": false,
+      "required_media_artifacts": [],
       "target_environment_refs": ["target-apple-silicon-local-ai"],
       "automated_environment_refs": ["ci-studio-deterministic"],
       "minimum_automated_fidelity": "host_or_fake",
@@ -130,6 +135,8 @@
     {
       "id": "model-runtime-management",
       "claim": "Model availability residency pinning unload and resource-state actions remain coherent across the public control plane and runtime owner without unsafe eviction or leaked ownership.",
+      "ui_surface": true,
+      "required_media_artifacts": ["screenshots", "video"],
       "target_environment_refs": ["target-apple-silicon-local-ai"],
       "automated_environment_refs": ["ci-studio-deterministic"],
       "minimum_automated_fidelity": "host_or_fake",
@@ -143,24 +150,24 @@
     {
       "id": "evaluation-review-and-repeatability",
       "claim": "A user can run or review evaluation state and comparable history with durable execution identity without confusing unavailable measurements with zero.",
+      "ui_surface": true,
+      "required_media_artifacts": ["screenshots", "video"],
       "target_environment_refs": ["target-apple-silicon-local-ai"],
       "automated_environment_refs": ["ci-studio-deterministic", "ci-installed-wheel"],
       "minimum_automated_fidelity": "host_or_fake",
-      "residual_gaps": [
-        "representative-model repeatability and hardware-sensitive metrics require real-device runs with retained model configuration and build identity"
-      ],
+      "residual_gaps": ["representative-model repeatability and hardware-sensitive metrics require real-device runs with retained model configuration and build identity"],
       "real_environment_confirmation": "conditional",
       "automation_gap_reason": null
     },
     {
       "id": "owned-lifecycle-cleanup",
       "claim": "A complete automated product run releases its owned server process listener browser session temporary evaluation state and bounded diagnostic evidence on success and failure paths.",
+      "ui_surface": false,
+      "required_media_artifacts": [],
       "target_environment_refs": ["target-apple-silicon-local-ai"],
       "automated_environment_refs": ["ci-studio-deterministic"],
       "minimum_automated_fidelity": "host_or_fake",
-      "residual_gaps": [
-        "real backend sessions and accelerator resources require representative-device shutdown and reclamation confirmation"
-      ],
+      "residual_gaps": ["real backend sessions and accelerator resources require representative-device shutdown and reclamation confirmation"],
       "real_environment_confirmation": "conditional",
       "automation_gap_reason": null
     }
