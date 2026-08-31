@@ -3,7 +3,7 @@
 Status: active
 Owner: runtime-and-platform
 Read when: coordinating lifecycle ownership, llama.cpp modernization, memory envelopes, multi-model admission or eviction evidence
-Last reviewed: 2026-08-30
+Last reviewed: 2026-08-31
 
 ## Goal
 
@@ -18,6 +18,7 @@ The control plane remains the canonical owner of residency, admission, lifecycle
 - Active runtime leases are never evicted as an admission side effect.
 - Configured, resident, default, pinned and failed states remain distinct.
 - Multi-model concurrency is bounded by both per-runtime and global resource policy.
+- Managed subprocess runtimes receive a concrete positive loopback port that is distinct from known runtime reservations and available on the host at allocation time; a configured port is the allocation base, not proof that the listener is owned.
 - Estimated, configured and observed memory remain distinct; unavailable is never reported as zero.
 - llama.cpp/backend versions used for evidence are attributable to an exact executable/package identity.
 - Hosted CI does not prove Apple unified-memory reclamation, thermal safety or real-model performance.
@@ -74,6 +75,8 @@ Fairness is runtime round-robin with FIFO order inside each runtime's global wai
 ## RRG-5 — real environment evidence
 
 The deterministic tooling now includes `scripts/run_device_evidence_campaign.py`, which orchestrates the already-owned TH-E1, EV-3, HE-2 and RES-2 procedures plus repeated RRG-5 in one representative-device command. The orchestrator owns only sequencing, the temporary loopback server lifecycle, per-phase classification and the bounded campaign summary; individual evidence modules and their reviewers remain authoritative for thresholds and semantics. `docs/device-evidence-campaign.md` documents the one-command path, while `docs/device-evidence-runbook.md` remains the manual diagnostic source of truth.
+
+The first full representative campaign on 2026-08-31 reached RRG-5 but both reports failed during the first external `llama_server` load, before concurrency or shutdown-under-load semantics were exercised. That observation exposed a deterministic ownership gap: private subprocess port selection considered other managed runtimes but not an already-bound host listener, and a zero-valued port could diverge from the engine's real fallback listener. The runtime owner now allocates a positive available loopback port from the configured base before backend construction. This remediation is deterministic only; the representative campaign must be rerun to distinguish any remaining external-binary compatibility/startup issue and to produce valid RRG-5 evidence.
 
 The target procedure must cover:
 
