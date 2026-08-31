@@ -27,6 +27,5 @@ def test_upstream_product_experience_contract_passes_for_adopted_profile():
 def test_local_product_ui_l2_fitness_contract_passes_current_repository():
     result = _run("scripts/verify_product_ui_l2.py")
     assert result.returncode == 0, result.stdout + result.stderr
-    assert "RESULT: PASS" in result.stdout
-    assert "manual_accessibility_status remains pending" in result.stdout
-    assert "representative_user_usability_status remains pending" in result.stdout
+    assert "RESULT: PASS (0 warning(s))" in result.stdout
+    assert "remains pending" not in result.stdout
