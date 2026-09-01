@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="design/brand/logo/korgis-horizontal.png" alt="Korgis logo" width="420">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="design/brand/logo/korgis-reversed-dark.png">
+    <img src="design/brand/logo/korgis-horizontal.png" alt="Korgis logo" width="420">
+  </picture>
 </p>
 
 <h1 align="center">Korgis</h1>
