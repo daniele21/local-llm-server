@@ -19,8 +19,19 @@ module.exports = defineConfig({
     browserName: 'chromium',
     trace: 'on',
     screenshot: 'on',
-    video: 'on',
+    video: 'off',
   },
+  projects: [
+    {
+      name: 'assertions-and-screenshots',
+      grepInvert: /@full-media/i,
+    },
+    {
+      name: 'full-media',
+      grep: /@full-media/i,
+      use: { video: 'on' },
+    },
+  ],
   webServer: {
     command: 'exec python tests/e2e/fixture_runner.py',
     url: 'http://127.0.0.1:8765/health',
