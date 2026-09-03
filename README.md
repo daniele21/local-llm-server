@@ -8,75 +8,62 @@
 <h1 align="center">Korgis</h1>
 
 <p align="center">
-  <strong>Your AI. Local. Ready to use.</strong>
+  <strong>Your AI. Local. Ready to use.</strong><br>
+  Run and manage local AI models behind one stable application-facing API.
 </p>
 
 <p align="center">
-  Runtime control plane for reliable multi-model local AI applications.
+  <a href="https://daniele21.github.io/">Mission</a> ·
+  <a href="#why-korgis-exists">Why</a> ·
+  <a href="#what-you-can-do-today">Today</a> ·
+  <a href="#how-to-use-it">How to use it</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#current-status-and-limits">Status</a> ·
+  <a href="docs/README.md">Docs</a>
 </p>
 
-<p align="center">
-  One device. Many specialist models. Predictable resources. The Local LLM Server implementation gives applications one stable local execution boundary while it owns runtime lifecycle, multi-model residency, resource admission, scheduling, privacy, observability and reproducible execution identity.
-</p>
+**Korgis** is the product and browser control-plane identity. **Local LLM Server** remains the repository, package and CLI identity.
 
-<p align="center">
-  <a href="#why-this-project">Why this project</a>
-  · <a href="#try-it-in-3-minutes">Quick start</a>
-  · <a href="#use-your-own-local-gguf">Use your own model</a>
-  · <a href="#run-multiple-models-at-once">Multi-model</a>
-  · <a href="#test-the-product">Test the product</a>
-  · <a href="docs/getting-started.md">Detailed guide</a>
-  · <a href="docs/README.md">Architecture & docs</a>
-</p>
+## Why Korgis exists
 
-**Korgis** is the product and bundled browser control-plane identity. **Local LLM Server** remains the repository/package and technical implementation identity; CLI commands, environment variables and HTTP/API contracts are intentionally unchanged.
+I'm exploring [how much AI can move from the cloud to infrastructure and devices we control](https://daniele21.github.io/), and where Local, Hybrid or Cloud actually makes sense.
 
-## Why this project
+Korgis tackles the runtime side of that question:
 
-Korgis / Local LLM Server is for developers building **local-first AI products**, not just for running a single model manually. A real application may need a text model, a vision-language model and a transcription runtime at the same time, all competing for the same device resources and all with different lifecycle and latency requirements.
+> **Can local models become reliable infrastructure for real applications?**
 
-The project focuses on the control-plane problems that appear once local inference becomes application infrastructure:
+Running one model is easy. Real applications are harder. They may need several specialist models, predictable memory use, safe lifecycle handling, scheduling, observability and reproducible execution.
 
-| Application problem | Local LLM Server responsibility |
-| --- | --- |
-| Several specialist models share one device | explicit multi-runtime residency and one application-facing boundary |
-| Models and requests compete for limited memory | configured resource budgets, admission and resident/transient accounting |
-| In-flight work must survive lifecycle changes safely | leases, bounded scheduling and fail-conservative unload/shutdown |
-| Backends expose different tasks and features | explicit capability/task contracts that fail closed before backend work |
-| Bugs and benchmarks must be reproducible | path-free model/runtime/config/hardware execution identity and evidence |
-| Sensitive workloads should stay local by default | loopback defaults, explicit remote trust and no silent cloud fallback |
+Korgis puts those concerns behind one local control plane.
 
-Local LLM Server is therefore **application-first rather than model-runner-first**. It does not try to replace specialist inference engines. `llama.cpp`, `llama-cpp-python`, MLX and task-specific runtimes execute models; Local LLM Server owns the policy, lifecycle, resource and evidence boundary around them.
+## What you can do today
 
-**Apple Silicon is the first reference environment for resource and lifecycle evidence**, because unified memory makes multi-model local applications especially dependent on predictable resource ownership. The architecture remains backend- and platform-oriented rather than macOS-only; support claims are made only for environments that have the required evidence.
+You can:
 
-The next product layer is a declarative **application/workload profile**: an application should be able to describe roles such as transcription, reasoning and vision together with their exact model, residency intent, priority and resource envelope, then let the control plane plan and enforce that configuration without silent model substitution. This is the target direction, not a claim that the full profile contract is already implemented. See [`docs/implementation-plan.md`](docs/implementation-plan.md) and [`docs/roadmap.md`](docs/roadmap.md).
+- run GGUF and MLX models through supported local backends;
+- keep multiple runtimes resident behind one HTTP server;
+- use text, vision-language and transcription capabilities when the selected runtime supports them;
+- load, inspect, pin and unload runtimes from the browser control plane;
+- enforce explicit resource budgets and bounded request admission;
+- inspect runtime identity, resource state, scheduler state and diagnostics;
+- run reproducible evaluations and compare compatible evidence;
+- call text generation through an OpenAI-compatible API.
 
-**Korgis** is the bundled browser control plane for loading and inspecting runtimes, trying supported tasks, reviewing resource state and running reproducible evaluations.
+Korgis does not replace inference engines such as `llama.cpp` or MLX. It manages the lifecycle, policy, resources and evidence around them.
 
-> **Current evidence boundary:** the representative Apple Silicon campaign has accepted the target-Mac TH-E1, EV-3, HE-2 and RES-2 minimum-L2 hardware bundle plus repeated RRG-5 multi-model residency/concurrency/lifecycle evidence. Bounded manual accessibility and representative-user usability evidence is also accepted for the tested product revision. These observations remain claim-scoped to the exercised revisions, hardware, models and procedures. They do **not** authorize automatic pressure eviction or a general cross-device reclamation/thermal/production-safety claim; automatic pressure-triggered eviction remains disabled.
+## How to use it
 
-## Try it in 3 minutes
-
-### 1. Prepare the checkout
-
-Use `main` for the official supported repository state. The `dev` branch is the integration branch for ongoing development.
-
-From the repository:
+### 1. Install the project
 
 ```bash
-git switch main
-git pull --ff-only
+git clone https://github.com/daniele21/local-llm-server.git
+cd local-llm-server
 
 python3 -m pip install 'uv==0.8.13'
 uv sync --frozen --extra dev
 ```
 
-If `uv` is already installed at the repository-pinned version, only the last command is needed.
-
-### 2. Start a model
-
-The built-in registry includes a small GGUF option:
+### 2. Download and start a model
 
 ```bash
 uv run --frozen local-llm models
@@ -88,138 +75,36 @@ uv run --frozen local-llm serve \
   --no-download
 ```
 
-The server binds to loopback by default. When startup completes, open:
+The server binds to `127.0.0.1` by default.
 
-**http://127.0.0.1:1235/**
+Open:
+
+```text
+http://127.0.0.1:1235/
+```
 
 Useful local surfaces:
 
-| Surface | URL | What it is for |
-| --- | --- | --- |
-| Korgis | `http://127.0.0.1:1235/` | Use and inspect the local AI control plane |
-| Integration examples | `http://127.0.0.1:1235/example` | Copy-ready API examples |
-| Swagger | `http://127.0.0.1:1235/docs` | Explore the HTTP contract |
-| Health | `http://127.0.0.1:1235/health` | Basic readiness |
-| Runtime identity | `http://127.0.0.1:1235/v1/runtime/identity` | Stable path-free execution identity |
-| Runtime status | `http://127.0.0.1:1235/status` | Live mutable runtime state |
+| Surface | URL |
+| --- | --- |
+| Korgis | `http://127.0.0.1:1235/` |
+| API examples | `http://127.0.0.1:1235/example` |
+| Swagger | `http://127.0.0.1:1235/docs` |
+| Health | `http://127.0.0.1:1235/health` |
+| Runtime identity | `http://127.0.0.1:1235/v1/runtime/identity` |
+| Runtime status | `http://127.0.0.1:1235/status` |
 
-### 3. Try the main product loop
+### 3. Use the product
 
-Inside Korgis:
+A simple first loop is:
 
-1. **Overview** — confirm the server is healthy and see current capacity/residency.
-2. **Models & Runtimes** — inspect configured vs resident models and lifecycle state.
-3. **Playground** — send a real prompt to the resident model.
-4. **Benchmark & Evaluation** — run a built-in evaluation and inspect evidence/results.
-5. **System / Diagnostics** — inspect resource, scheduler, runtime identity and policy evidence.
-6. **Settings** — inspect the effective local policy/configuration.
+1. open **Overview** and check that the server is healthy;
+2. inspect the model under **Models & Runtimes**;
+3. send a prompt from **Playground**;
+4. inspect runtime/resource evidence under **System / Diagnostics**;
+5. run an evaluation if you want comparable evidence.
 
-That is the shortest end-to-end product smoke test.
-
-### 4. Verify the API directly
-
-```bash
-curl -s http://127.0.0.1:1235/health
-
-curl -s http://127.0.0.1:1235/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "model": "nemotron-nano-4b",
-    "messages": [{"role": "user", "content": "Reply with the single word OK."}],
-    "temperature": 0
-  }'
-```
-
-The public text API is OpenAI-compatible.
-
-## Use your own local GGUF
-
-You do not need to add a model to the registry just to try one local GGUF file.
-
-```bash
-MODEL_PATH="/absolute/path/to/model.gguf"
-
-uv run --frozen local-llm serve \
-  --model my-local-model \
-  --model-path "$MODEL_PATH" \
-  --backend llama_cpp \
-  --enable-admin-api \
-  --no-download
-```
-
-For the managed external `llama_server` backend on macOS, use an attributable llama.cpp executable at or above the repository feature floor (`v0.3.0` / build `10621`):
-
-```bash
-brew install llama.cpp
-export LOCAL_LLM_SERVER_BIN="$(command -v llama-server)"
-
-uv run --frozen local-llm serve \
-  --model my-local-model \
-  --model-path "$MODEL_PATH" \
-  --backend llama_server \
-  --llama-server-bin "$LOCAL_LLM_SERVER_BIN" \
-  --enable-admin-api \
-  --no-download
-```
-
-Local LLM Server verifies the selected managed executable rather than silently replacing it. A validated build/commit identity is reused only while that executable remains unchanged.
-
-## Run multiple models at once
-
-Multiple long-lived models should be configured through the model registry so each runtime owns its own source/configuration.
-
-User overrides live at:
-
-```text
-~/.local-llm/models.yaml
-```
-
-Example with two local GGUF files:
-
-```yaml
-models:
-  local-small:
-    model_id: local/small
-    path: /absolute/path/to/small.gguf
-    backend: llama_server
-    quantization: Q4
-    modalities: [text]
-    multimodal: false
-
-  local-medium:
-    model_id: local/medium
-    path: /absolute/path/to/medium.gguf
-    backend: llama_server
-    quantization: Q4
-    modalities: [text]
-    multimodal: false
-```
-
-Then start both:
-
-```bash
-export LOCAL_LLM_SERVER_BIN="$(command -v llama-server)"
-
-uv run --frozen local-llm serve \
-  --models local-small local-medium \
-  --default-model local-small \
-  --backend llama_server \
-  --llama-server-bin "$LOCAL_LLM_SERVER_BIN" \
-  --enable-admin-api \
-  --no-download
-```
-
-Local LLM Server keeps these concepts separate:
-
-```text
-artifact != configured model != resident runtime != default route
-```
-
-Each managed subprocess receives a concrete positive loopback port that is checked for host availability. Cross-runtime execution and configured resident/transient accounting remain control-plane owned; backend-native batching/KV stays backend owned.
-
-## Use it from an application
-
-### OpenAI Python SDK
+### 4. Call it from an application
 
 ```python
 from openai import OpenAI
@@ -231,181 +116,97 @@ client = OpenAI(
 
 response = client.chat.completions.create(
     model="nemotron-nano-4b",
-    messages=[{"role": "user", "content": "Extract decisions and action items."}],
+    messages=[{"role": "user", "content": "Extract the action items."}],
     temperature=0,
 )
 
 print(response.choices[0].message.content)
 ```
 
-`api_key="local"` only satisfies SDK construction; the normal loopback API does not currently require authentication.
+`api_key="local"` only satisfies SDK construction. The normal loopback API does not currently require authentication.
 
-### Transcription
+To use your own GGUF, multiple models or other backends, see [`docs/getting-started.md`](docs/getting-started.md) and [`docs/configuration-reference.md`](docs/configuration-reference.md).
 
-When an explicitly transcription-capable runtime is resident:
+## How it works
 
-```bash
-curl http://127.0.0.1:1235/v1/audio/transcriptions \
-  -F "model=my-asr-runtime" \
-  -F "file=@meeting.wav"
+```text
+Application / Korgis
+        |
+        v
+Local HTTP API
+        |
+        v
+Capability + policy boundary
+        |
+        v
+Scheduler + runtime manager
+        |
+        v
+Resident model + resource lease
+        |
+        v
+llama.cpp / MLX / specialist backend
+        |
+        v
+Normalized output + evidence
 ```
 
-Unsupported task/modality combinations fail before backend execution on supported product entrypoints.
+A few concepts stay deliberately separate:
 
-## Test the product
-
-There are three different test levels. Do not confuse them.
-
-### A. Manual product smoke
-
-Start the server with `--enable-admin-api`, open Korgis and check:
-
-- Overview reports healthy/capacity state;
-- Playground returns a real completion;
-- Models & Runtimes can show/load/unload supported runtimes;
-- a built-in evaluation completes and is inspectable;
-- System / Diagnostics reports source-backed runtime/resource evidence;
-- after stopping the server, no project-owned listener should remain.
-
-For multi-model testing, use the registry example above and verify both models are simultaneously resident and individually routable.
-
-### B. Deterministic repository tests
-
-Canonical contributor checks:
-
-```bash
-uv run --frozen ruff check src/ tests/ --select E9,F63,F7,F82
-uv run --frozen pytest tests/ -v --tb=short
+```text
+artifact != configured model != resident runtime != default route
 ```
 
-Browser/product E2E:
+That makes lifecycle and resource ownership explicit instead of hiding them behind a single “model loaded” state.
 
-```bash
-npm ci --ignore-scripts --no-audit --no-fund
-npm run test:e2e
-python tests/e2e/verify_residue.py
-```
-
-These deterministic tests validate contracts and assembled product workflows. They are not a substitute for target-device hardware evidence.
-
-### C. Representative-device evidence
-
-Hardware-dependent lifecycle/resource claims use the bounded procedures in:
-
-[`docs/device-evidence-runbook.md`](docs/device-evidence-runbook.md)
-
-The accepted target-Mac campaign includes repeated load/infer/unload evidence and multi-model RRG-5 observations, while preserving memory deltas as observations rather than automatic safety claims.
-
-## What is integrated
-
-### Control plane
-
-- Korgis with Overview, Models & Runtimes, Endpoints, Playground, Benchmark & Evaluation, System / Diagnostics and Settings;
-- explicit configured/resident/default-route state;
-- runtime pin/unpin and explicit LRU/TTL administrative eviction paths;
-- capability-driven text, image, structured-generation and transcription controls;
-- source-backed resource, scheduler, identity and policy evidence.
-
-### Runtime and resource policy
-
-- multiple resident runtimes behind one public HTTP server;
-- active leases that protect in-flight work from unload;
-- resident + transient configured memory reservation/accounting;
-- bounded request admission and optional global cross-runtime execution governor;
-- fail-conservative lifecycle and cleanup behavior;
-- automatic pressure-triggered eviction deliberately disabled.
-
-### Evaluation and identity
-
-- public path-free `local-llm-identity-v1` execution identity;
-- deterministic built-in and validated custom evaluation sets;
-- persisted local run history;
-- compatibility-aware baseline/candidate comparison;
-- no automatic “better model” verdict across incompatible evidence.
-
-## Backend matrix
-
-| Backend | Model format | Execution | Intended workload |
-| --- | --- | --- | --- |
-| `llama_cpp` | GGUF | in-process `llama-cpp-python` | text / structured reasoning |
-| `mlx` | MLX | in-process MLX | Apple Silicon text |
-| `llama_server` | GGUF + optional `mmproj` | managed `llama-server` subprocess | GGUF text/multimodal |
-| `mlx_vlm_server` | MLX VLM package | managed subprocess | Apple Silicon vision-language |
-| explicit ASR runtime | backend-specific | resident adapter | audio → text |
-
-Capabilities are explicit runtime metadata. A backend entry does not imply that every model supports every task.
-
-## HTTP API
-
-Public surface:
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | readiness |
-| `GET` | `/status` | mutable runtime/inference status |
-| `GET` | `/v1/runtime/identity` | stable path-free execution identity |
-| `GET` | `/v1/models` | resident models |
-| `POST` | `/v1/chat/completions` | OpenAI-compatible chat/SSE |
-| `POST` | `/v1/audio/transcriptions` | audio → text |
-| `GET` | `/` | Korgis browser control plane |
-| `GET` | `/example` | integration examples |
-| `GET` | `/docs` | Swagger |
-
-With `--enable-admin-api`, Korgis additionally uses control-plane routes for registry/runtime lifecycle, resources, evidence, scheduler/policy state, residency and evaluation.
-
-Swagger is the executable schema for the checked-out revision.
+Korgis also keeps evidence honest: measured, estimated, configured and unavailable values are not collapsed into the same claim.
 
 ## Security defaults
 
-The supported product defaults are local and fail-conservative:
+The default boundary is local and conservative:
 
-- loopback `127.0.0.1` bind;
-- CORS disabled unless explicitly configured;
+- loopback bind on `127.0.0.1`;
+- CORS disabled unless configured;
 - admin APIs disabled unless explicitly enabled;
-- remote HTTP(S) media disabled by default;
-- remote model/tokenizer code requires explicit trust;
-- no silent cloud-inference fallback;
-- shareable evidence and public identity omit private paths and prompt/output content.
+- no silent cloud fallback;
+- remote media and remote model/tokenizer code require explicit trust;
+- public execution identity does not expose private paths, prompts or outputs.
 
-Binding outside loopback broadens the trust boundary. The server does not currently provide authentication, so do not expose administrative routes to an untrusted network.
+The server does not currently provide authentication. Do not expose administrative routes to an untrusted network.
 
-## How the pieces fit
+## Current status and limits
 
-```text
-application / Korgis / evaluator
-                  |
-                  v
-       supported product HTTP stack
-                  |
-     canonical request + policy boundary
-                  |
-       scheduler / runtime resolution
-                  |
-     resident runtime lease + resources
-                  |
-        specialist backend engine
-                  |
-      normalized output + evidence
-```
+Korgis is an active local AI runtime control plane with accepted deterministic software validation and representative Apple Silicon evidence for the tested scope.
 
-Local LLM Server owns policy and lifecycle around specialist inference engines rather than reimplementing inference.
+Current limits still matter:
+
+- support claims are tied to tested models, backends, hardware and procedures;
+- automatic pressure-triggered eviction remains disabled;
+- post-stop memory deltas are observations, not a general reclamation or production-safety guarantee;
+- new hardware, performance, cancellation, thermal or cross-device claims need matching representative evidence.
+
+See [`docs/current-state.md`](docs/current-state.md) for the exact current state.
 
 ## Documentation
 
-Start here when you need more detail:
+| Need | Start here |
+| --- | --- |
+| First run | [`docs/getting-started.md`](docs/getting-started.md) |
+| Configuration | [`docs/configuration-reference.md`](docs/configuration-reference.md) |
+| HTTP API | [`docs/http-api-reference.md`](docs/http-api-reference.md) |
+| Runtime status | [`docs/runtime-status-reference.md`](docs/runtime-status-reference.md) |
+| Runtime identity | [`docs/runtime-identity-api.md`](docs/runtime-identity-api.md) |
+| Architecture | [`docs/architecture.md`](docs/architecture.md) |
+| Current state | [`docs/current-state.md`](docs/current-state.md) |
+| Hardware evidence | [`docs/device-evidence-runbook.md`](docs/device-evidence-runbook.md) |
+| Documentation index | [`docs/README.md`](docs/README.md) |
 
-- [`docs/getting-started.md`](docs/getting-started.md) — detailed install/start/verification path;
-- [`docs/configuration-reference.md`](docs/configuration-reference.md) — CLI/env/registry precedence and configuration;
-- [`docs/http-api-reference.md`](docs/http-api-reference.md) — HTTP semantics;
-- [`docs/runtime-status-reference.md`](docs/runtime-status-reference.md) — mutable runtime telemetry;
-- [`docs/runtime-identity-api.md`](docs/runtime-identity-api.md) — `local-llm-identity-v1`;
-- [`docs/implementation-plan.md`](docs/implementation-plan.md) — product positioning and target application-runtime contract;
-- [`docs/architecture.md`](docs/architecture.md) — current architecture and ownership;
-- [`docs/current-state.md`](docs/current-state.md) — current integrated/evidence state;
-- [`docs/roadmap.md`](docs/roadmap.md) — remaining milestones;
-- [`docs/device-evidence-runbook.md`](docs/device-evidence-runbook.md) — representative hardware procedures;
-- [`docs/README.md`](docs/README.md) — documentation map.
+## Develop and validate
+
+Contributors work from `dev` and follow [`AGENTS.md`](AGENTS.md). Canonical setup, test, E2E, build and cleanup commands live in [`.engineering/commands.json`](.engineering/commands.json).
 
 ## License
 
-Released under the MIT License as declared in `pyproject.toml`.
+See [`LICENSE`](LICENSE).
+
+Built by [Daniele Moltisanti](https://daniele21.github.io/) as the reusable execution layer of a broader Local AI effort: control the runtime, measure the result, then decide Local, Hybrid or Cloud.
