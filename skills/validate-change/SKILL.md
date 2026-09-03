@@ -1,15 +1,21 @@
-# validate-change
+---
+name: validate-change
+description: Select the cheapest sufficient Local LLM Server validation by delivery stage and risk, escalating only when changed invariants require stronger browser/package/security/L2 or real-hardware evidence.
+---
 
-Choose validation by claim, blast radius and environment fidelity rather than running every expensive gate by default.
+# Validate Change
 
-1. Read `.engineering/commands.json`; when a complete workflow or environment-dependent claim is affected also read `.engineering/e2e.json`.
-2. Start with the cheapest deterministic falsifier available to the current agent: syntax/static checks and focused owner tests.
-3. Add direct-consumer/contract/persistence tests when a shared boundary changes; add canonical `check`/`test` and repository health when scope crosses owners or governance.
-4. When `product-ui` behavior changes, read `design/ux-contract.json`/`brand-kit.json`, confirm proportional `design-product-experience` reasoning, and validate the experience property actually changed: task/hierarchy/disclosure, states/recovery, accessibility, adaptive layout, semantic component/token reuse, purposeful motion and critical journeys.
-5. Run E2E only when the claim crosses the assembled product boundary. Use the smallest affected journey and cheapest declared automated environment in `.engineering/e2e.json`; require built-wheel execution when package/install behavior is material.
-6. Keep execution capability separate from fidelity: GitHub CI can be `REMOTE_AUTOMATED` while `ci-studio-deterministic` remains only `host_or_fake`. Do not infer Apple Silicon/model/memory/performance evidence from it.
-7. Run `build` for distributable/build changes and `smoke` for minimum real-runtime viability when applicable. Representative-device procedures remain the owner for model/backend/memory/latency/throughput/thermal claims.
-8. Verify project-owned process/listener/temp/evidence cleanup whenever lifecycle/E2E behavior changes.
-9. On a red gate, classify root cause before editing: current regression, baseline failure, environment/toolchain, flaky behavior, base drift or wrong assumption. Fix the owning invariant rather than suppressing the gate.
-10. If the current agent cannot run a deterministic gate, mark it `REMOTE_AUTOMATED` for `preflight-change`; do not ask the user to become the CI runner.
-11. Report exact PASS/FAIL/PENDING/N/A evidence plus E2E environment/fidelity and residual gaps. Before publication hand this evidence to `preflight-change` for exact-head readiness.
+Optimize for sufficient confidence per feedback time. `.engineering/commands.json` owns stage/gate routing; `.engineering/e2e.json` owns journey, fidelity and evidence mode.
+
+## ITERATION
+Run focused owner-local checks. A contained Python change normally needs lint + fast Python evidence, not a 3-version matrix, Playwright, package smoke, security audit or L1/L2 fitness. No exact-head/documentation/preflight ceremony merely because those gates exist.
+
+## INTEGRATION
+For a coherent observable outcome, use the selector's `risk dimensions -> required gates -> profile` mapping. Runtime/UI/E2E boundaries may add Playwright; packaging/dependency changes may add wheel smoke/security; FULL adds L1/L2 specialist fitness.
+
+## RELEASE
+Use FULL plus release-critical package/E2E/security/L1-L2 and residual target-environment evidence.
+
+UI evidence modes are `ASSERTIONS`, `SCREENSHOTS`, `FULL_MEDIA`. Status/navigation and stable evaluation review use screenshots; chat failure/recovery and model-runtime lifecycle visibility use full media; external application API and cleanup contracts use assertions. Real model/backend/memory/thermal claims remain representative/target Apple Silicon evidence.
+
+Classify every red gate before editing as change regression, baseline, environment, flaky, base drift or assumption. Fix the owning invariant; never suppress a legitimate gate. Hand exact-head integration/release readiness to `preflight-change`.
