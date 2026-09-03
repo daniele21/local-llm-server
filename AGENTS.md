@@ -1,101 +1,78 @@
 # Local LLM Server — Coding Agent Guide
 
-This file is the repository-wide navigation layer for coding agents. It owns durable invariants, routing and validation selection. It is not a project-status ledger.
+Repository-wide routing and durable invariants. Detailed architecture/feature truth lives in canonical docs and owning code; this file is not a status diary.
 
 ## Read only what the task requires
 
-Always read this guide. Then read only the closest scoped guidance, the canonical owner document for the task, `.engineering/commands.json` when operations/validation are involved, `.engineering/e2e.json` for complete-workflow or environment-dependent claims, `docs/README.md` when documentation ownership or README impact is unclear, and the owning implementation/direct consumers/tests.
+Always read this guide, then the closest scoped `AGENTS.md`, owning implementation/direct consumers/tests, `.engineering/commands.json` for operations/validation, `.engineering/e2e.json` for complete workflow or environment claims, and `design/*` only for meaningful product UI work. Do not load every roadmap/evidence document for a local edit.
 
-Do not load every roadmap, workstream or evidence document for a local change.
+## Repository purpose and invariants
 
-## Repository purpose
+Local LLM Server is a local-first AI control plane/evaluation harness exposing stable text, vision and transcription boundaries while specialist engines own inference. The server owns runtime lifecycle, resource admission/scheduling, privacy policy, execution identity, observability and reproducible evaluation.
 
-Local LLM Server is a local-first AI control plane and evaluation harness. It exposes stable application-facing text, vision and transcription boundaries while specialist inference engines own model execution. The server owns runtime lifecycle, resource admission, scheduling, privacy policy, execution identity, observability and reproducible evaluation. Hardware-dependent claims require retained representative-device evidence.
+Preserve these invariants:
+- artifact, configured model, resident runtime and default route are distinct states;
+- unsupported task/modality combinations and remote media fail closed unless explicitly enabled;
+- public runtime identity is path-free and excludes secrets/prompts/outputs/private paths;
+- measured/estimated/configured/unavailable evidence remain distinct;
+- hardware, performance and reclamation claims require representative Apple Silicon evidence;
+- pressure eviction stays disabled until its evidence gate is satisfied;
+- streaming/cancellation claims require real incremental/cancellable protocol support;
+- build version, source revision and unique build identity remain distinct;
+- project-owned processes/listeners/temp state/evidence have explicit bounded lifecycle and cleanup;
+- deterministic CI does not become target-hardware evidence.
 
-## Non-negotiable invariants
-
-- Artifact, configured model, resident runtime and default route are distinct states.
-- Supported product entrypoints fail closed on unsupported task/modality combinations and remote media unless explicitly enabled.
-- Public runtime identity is path-free and must not expose secrets, prompts, outputs or private filesystem locations.
-- Measured, estimated, configured and unavailable evidence are never collapsed into one claim.
-- Hardware/performance/memory-reclamation claims require representative hardware evidence; deterministic CI is not a substitute.
-- Automatic pressure eviction remains disabled until its evidence gate is satisfied.
-- Worker streaming/cancellation must not be claimed unless a real incremental/cancellable protocol exists.
-- Build version, source identity and unique build identity remain distinct.
-- Project-owned processes, listeners, temp files and E2E evidence require explicit ownership and cleanup.
-- Final target-environment validation confirms residual environment-specific claims; it must not be the first complete-system test when the workflow can be automated earlier.
-- Execution capability and environment fidelity are separate: `REMOTE_AUTOMATED` does not upgrade `host_or_fake` evidence into Apple Silicon/target evidence.
-- Code and durable documentation ship together. An affected stale canonical document blocks publication readiness.
-- README identity and README usage are separate owners: preserve still-valid mission/positioning and update setup/run/configuration/public examples whenever the current usage path changes.
-
-## Ownership and routing
+## Ownership routing
 
 | Change | Start here | Inspect next |
 | --- | --- | --- |
-| Public request/task/capability contract | `src/local_llm_server/core/` | product composition, adapters, contract tests |
-| Runtime/residency/lifecycle | `src/local_llm_server/runtime.py`, `product_runtime_manager.py` | resource/scheduler/eviction code and tests |
-| Product HTTP policy | `src/local_llm_server/product_composition.py` | API modules, middleware and product tests |
-| Runtime identity/evidence | `src/local_llm_server/runtime_identity*.py` | identity API, verification/evidence tests |
-| Evaluation | `src/local_llm_server/evaluation*.py` | control-plane API, Studio UI, evaluation tests |
-| Browser product acceptance | `tests/e2e/` | `.engineering/e2e.json`, `playwright.config.js`, Studio source |
-| Product UX/UI | `design/ux-contract.json` | `design/brand-kit.json`, canonical static UI source, `design-product-experience` |
-| Real-device evidence | `docs/device-evidence-runbook.md` | hardware evidence modules and active correctness workstream |
-| Build/release | `deploy.sh`, `release.sh` | release workflow and `.engineering/commands.json` |
-| Durable architecture/docs | `docs/README.md` | README identity/usage, `docs/current-state.md`, active workstream, owning feature/API docs |
+| Public task/capability contract | `src/local_llm_server/core/` | composition, adapters, contract tests |
+| Runtime/residency/lifecycle | runtime/product runtime owners | resource/scheduler/eviction tests |
+| Product HTTP policy | `src/local_llm_server/product_composition.py` | API/middleware/product tests |
+| Runtime identity/evidence | `runtime_identity*` | identity API/evidence tests |
+| Evaluation | `evaluation*` | API, Studio, evaluation tests |
+| Browser acceptance | `tests/e2e/` | `.engineering/e2e.json`, Studio source |
+| UX/UI | `design/ux-contract.json` | brand kit/static UI/design skill |
+| Real-device evidence | `docs/device-evidence-runbook.md` | hardware evidence owners |
+| Build/release | `deploy.sh`, `release.sh` | commands/workflows |
+| Durable docs | `docs/README.md` | owning architecture/feature/current-state doc |
 
-Add scoped `AGENTS.md` only where a subtree has meaningful local hazards or commands.
+## Delivery and validation model
 
-## Project operating and validation contracts
+Delivery stage and validation depth are independent:
 
-`.engineering/commands.json` is the canonical repository-level routing for `setup`, `doctor`, `dev`, `check`, `test`, `e2e`, `build`, `smoke`, `package`, `stop` and `clean`, plus publication-preflight, execution-capability and blast-radius profile semantics.
+- `ITERATION`: default while implementation is changing. Use focused owner-local checks. No exact-head/full-diff/doc-freshness ceremony, package smoke, broad Playwright, L1/L2 fitness or remote preflight merely because those gates exist.
+- `INTEGRATION`: coherent observable outcome ready to converge. Refresh base/head/diff/docs and run the selector's required risk gates.
+- `RELEASE`: promotion/release checkpoint. FULL plus release-critical package/E2E/security/L1-L2 and residual real-environment evidence.
 
-`.engineering/e2e.json` owns target environments, automated execution environments, environment fidelity, critical journeys and residual real-environment gaps. `test`, `e2e`, built-surface evidence, `smoke` and representative-device evidence prove different things and must remain distinct.
+`scripts/select_validation_profile.py` reports `risk_dimensions -> required_gates -> LEAN|SCOPED|STRONG|FULL`. Profiles are shorthand; concrete gates are authoritative. Selector/global workflow/dependency machinery changes fail safe FULL.
 
-Use `scripts/select_validation_profile.py` to resolve `auto -> LEAN | SCOPED | STRONG | FULL`. Changes to CI, the selector, global build/dependency/toolchain surfaces or unknown executable paths fail safe to `FULL`.
+Automatic PR execution is owned by `.github/workflows/ci.yml`. Repository Health is a cheap structural guard. Package smoke and security have dedicated manual/scheduled workflows but are automatic PR gates only through `ci.yml`, avoiding duplicate pipelines.
 
-## Core change workflow
+Successful integration evidence is reusable when head/source tree, target/base, gates/profile and relevant E2E claim are equivalent. A squash/rebase merge into `dev` may reuse evidence only when repository automation proves identical source tree and the same validated target/base. Direct pushes without equivalent evidence validate normally.
 
-1. Confirm the owning boundary and smallest coherent scope.
-2. Use `plan-workstream` only when dependency/state coordination adds value.
-3. Use `structured-change` for meaningful changes to shared behavior.
-4. For meaningful UX/UI semantics use `design-product-experience` before implementation; structure/hierarchy/recovery precede motion/polish.
-5. Inspect owner, direct consumers, fakes and tests before changing a shared contract.
-6. Implement one coherent vertical slice without speculative layers.
-7. Use `validate-change` to select iterative evidence by blast radius and E2E fidelity.
-8. Assess documentation impact from observable behavior and update only affected canonical durable owners; README identity/usage are assessed independently.
-9. Finalize completed workstreams by transferring durable truth and deleting the active plan by default.
-10. Before publication use `preflight-change`: refresh target/base, inspect the full diff, require `DOCS_CURRENT_WITH_IMPLEMENTATION: PASS`, select the validation profile, classify `AGENT_LOCAL`/`REMOTE_AUTOMATED`/`REAL_ENVIRONMENT`, and require exact-head evidence.
-11. If deterministic gates are unavailable agent-local, use `remote-preflight` and repository-owned GitHub automation; do not delegate automatable CI work to the user.
+## E2E and UI evidence
 
-## Validation routing
+`.engineering/e2e.json` separates executor capability from environment fidelity and uses `ASSERTIONS`, `SCREENSHOTS`, `FULL_MEDIA` by risk. UI existence alone does not force video.
 
-Repository-health checks:
+- status/navigation and stable evaluation review: screenshots;
+- chat progress/failure/recovery and runtime residency/lifecycle visibility: full media;
+- external application API and cleanup contracts: assertions;
+- real model/backend/memory/thermal behavior remains representative/target Apple Silicon evidence.
 
-```bash
-python3 scripts/verify_repository.py
-python3 scripts/verify_operations.py
-python3 scripts/verify_e2e.py
-python3 scripts/verify_docs.py
-python3 scripts/verify_agent_context.py
-```
+Never upgrade hosted deterministic evidence into real-device claims.
 
-Use `.engineering/commands.json` for project-specific `check`, `test`, `e2e`, `build` and lifecycle commands.
+## Change workflow
 
-For E2E, report the declared environment ID/fidelity class. A missing real-device/hardware run is `PENDING`, not a failed deterministic CI gate and not an implicit pass. E2E traces/screenshots/logs are bounded diagnostic evidence, not durable documentation.
-
-## Documentation lifecycle
-
-- README identity sections own the stable project purpose, primary audience/outcome and positioning. Change only when those claims materially change.
-- README usage sections own the shortest successful setup/run/configuration/public usage path. Update whenever current instructions/examples become incomplete, wrong or misleading; detailed API/config/runtime semantics remain in their specialized canonical references.
-- `docs/architecture.md` owns current architecture.
-- `docs/features/` owns durable non-obvious feature behavior that needs a dedicated document; existing feature owners update in the same change as the behavior they describe.
-- `docs/adr/` owns accepted architectural decisions.
-- `docs/current-state.md` is the single short repository-level operational ledger.
-- `docs/workstreams/` contains only active bounded implementation plans.
-- Completed plans are deleted after durable behavior/decisions are transferred; Git history owns implementation history.
-
-Before publication classify `README_IDENTITY`, `README_USAGE`, `FEATURE_DOCS`, `ARCHITECTURE`, `ADR`, `SECURITY_DATA`, `OPERATIONS`, `PRODUCT_EXPERIENCE` and `CURRENT_STATE` as `UPDATED` or `N/A`.
+1. Find one canonical owner; inspect consumers/fakes/tests before shared-contract edits.
+2. Prefer one observable vertical outcome; technical layers are subtasks unless independently valuable.
+3. Parallelize non-conflicting subtasks, then converge early. Stacked publication is exceptional; sync-only PRs are a smell.
+4. During iteration use `validate-change` and the cheapest falsifying checks.
+5. When the outcome is integration-ready, make affected durable docs current and use `preflight-change`.
+6. Reuse equivalent evidence before triggering remote work; `remote-preflight` runs only missing/stale/insufficient deterministic gates.
+7. Diagnose failures by owner/root cause; never weaken a legitimate gate for green CI.
+8. Update `docs/current-state.md` only for integrated/blocked/next truth; delete completed workstreams after durable truth moves to canonical owners.
 
 ## Stop conditions
 
-Surface the conflict instead of improvising when a requested change would weaken a durable runtime/privacy/evidence invariant, expose private state, create a second source of truth, bypass canonical validation/lifecycle/documentation-freshness behavior, delete state without proven ownership, claim stronger environment evidence than was executed, or ask the user to run an automatable deterministic gate only because the current agent lacks the toolchain.
+Surface conflicts instead of improvising if a request would weaken runtime/privacy/evidence invariants, expose private state, create duplicate ownership, bypass cleanup/migration/validation/doc freshness, overclaim environment evidence, mutate successful artifacts, or delegate an automatable deterministic gate to the user only because the current agent lacks tooling.
