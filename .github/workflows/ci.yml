@@ -70,8 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            STAGE="${{ inputs.delivery_stage }}"
-            PROFILE="${{ inputs.validation_profile }}"
+            STAGE="${{ inputs.delivery_stage }}"; PROFILE="${{ inputs.validation_profile }}"
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             if [[ "${{ github.base_ref }}" == "main" || "${{ github.base_ref }}" == "master" ]]; then STAGE=release
             elif [[ "${{ github.event.pull_request.draft }}" == "true" ]]; then STAGE=iteration
@@ -94,9 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.scope.outputs.head_sha }}
-          fetch-depth: 0
+        with: {ref: "${{ needs.scope.outputs.head_sha }}", fetch-depth: 0}
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
       - run: |
@@ -136,9 +133,7 @@ jobs:
           reused=false; source_run=""
           for name in "${names[@]}"; do
             row="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts?name=${name}&per_page=5" --jq '.artifacts[] | select(.expired == false) | [.name, (.workflow_run.id|tostring)] | @tsv' | head -n1 || true)"
-            if [[ -n "$row" ]]; then
-              reused=true; source_run="${row#*$'\t'}"; break
-            fi
+            if [[ -n "$row" ]]; then reused=true; source_run="${row#*$'\t'}"; break; fi
           done
           echo "reused=$reused" >> "$GITHUB_OUTPUT"
           echo "source_run=$source_run" >> "$GITHUB_OUTPUT"
@@ -205,16 +200,26 @@ jobs:
       - run: |
           npm ci --ignore-scripts --no-audit --no-fund
           npx playwright install --with-deps chromium
-      - run: uv run --no-sync npm run test:e2e
+      - name: Run deterministic browser journeys
+        run: uv run --no-sync npm run test:e2e
+      - name: Verify risk-based UI evidence
+        run: node tests/e2e/verify_media_evidence.js test-results/playwright-results.json .engineering/e2e.json
       - name: Verify zero E2E residue
         if: always()
         run: uv run --no-sync python tests/e2e/verify_residue.py
+      - name: Prepare privacy-safe failure evidence
+        if: failure()
+        env:
+          SOURCE_HEAD_SHA: ${{ needs.scope.outputs.head_sha }}
+        run: uv run --no-sync python tests/e2e/prepare_failure_evidence.py
       - name: Upload bounded E2E evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-e2e-${{ github.run_id }}-${{ github.run_attempt }}
-          path: test-results/**
+          path: |
+            test-results/**
+            e2e-failure-evidence/**
           if-no-files-found: ignore
           retention-days: 7
 
@@ -275,6 +280,8 @@ jobs:
       - run: uv sync --frozen --extra dev --no-install-package llama-cpp-python
       - name: Run all L1/L2 repository fitness functions
         run: uv run --no-sync python scripts/verify_repository.py
+      - name: Exercise artifact identity, promotion and bounded retention
+        run: uv run --no-sync python scripts/verify_artifact_lifecycle.py
       - name: Run hosted performance regression
         run: |
           mkdir -p .artifacts/l2-performance
@@ -342,6 +349,12 @@ jobs:
           echo "EXACT=validation-evidence-${HEAD_SHA}-${BASE_SHA}-${PROFILE}-${GATE_KEY}" >> "$GITHUB_ENV"
           echo "TREE=validation-tree-evidence-${SOURCE_TREE}-${BASE_SHA}-${PROFILE}-${GATE_KEY}" >> "$GITHUB_ENV"
       - uses: actions/upload-artifact@v4
-        with: {name: "${{ env.EXACT }}", path: evidence.json, retention-days: 7}
+        with:
+          name: ${{ env.EXACT }}
+          path: evidence.json
+          retention-days: 7
       - uses: actions/upload-artifact@v4
-        with: {name: "${{ env.TREE }}", path: evidence.json, retention-days: 7}
+        with:
+          name: ${{ env.TREE }}
+          path: evidence.json
+          retention-days: 7
