@@ -25,6 +25,7 @@ FULL_PATHS = {
     "scripts/verify_operations.py",
     "scripts/verify_repository.py",
     "scripts/verify_e2e.py",
+    "scripts/verify_artifact_lifecycle.py",
     "pyproject.toml",
     "uv.lock",
     "package.json",
@@ -127,7 +128,7 @@ def risks_for(paths: Iterable[str]) -> list[str]:
             risks.add("runtime_contract")
         if path.startswith("tests/e2e/") or path == ".engineering/e2e.json":
             risks.add("e2e")
-        if path in {"deploy.sh", "release.sh", "pyproject.toml", "uv.lock", "package.json", "package-lock.json"}:
+        if path in {"deploy.sh", "release.sh", "pyproject.toml", "uv.lock", "package.json", "package-lock.json", "scripts/verify_artifact_lifecycle.py"}:
             risks.add("packaging_or_dependencies")
         if path in {"SECURITY.md", "scripts/verify_security_exceptions.py"} or path.endswith("security.yml"):
             risks.add("security")
@@ -139,13 +140,11 @@ def risks_for(paths: Iterable[str]) -> list[str]:
 def gates_for(profile: str, stage: str, risks: Iterable[str]) -> list[str]:
     risk_set = set(risks)
     gates = {"repository-guards"}
-
     executable = bool(risk_set & {"python", "runtime_contract", "e2e", "ui", "packaging_or_dependencies", "validation_infra", "unknown_executable"})
     if stage == "iteration":
         if executable and profile != "lean":
             gates.update({"lint", "python-fast"})
         return sorted(gates)
-
     if executable and profile != "lean":
         gates.update({"lint", "python-matrix"})
     if profile in {"strong", "full"} and risk_set & {"ui", "e2e", "runtime_contract", "validation_infra"}:
@@ -179,8 +178,7 @@ def resolve_stage(requested: str) -> str:
 
 
 def gate_key(gates: Iterable[str]) -> str:
-    normalized = ",".join(sorted(gates))
-    return hashlib.sha256(normalized.encode()).hexdigest()[:16]
+    return hashlib.sha256(",".join(sorted(gates)).encode()).hexdigest()[:16]
 
 
 def select(paths: list[str], *, stage: str, requested_profile: str = "auto") -> dict[str, object]:
@@ -196,16 +194,7 @@ def select(paths: list[str], *, stage: str, requested_profile: str = "auto") -> 
         if selected != automatic:
             reason = f"explicit stronger override from auto={automatic}: {reason}"
     gates = gates_for(selected, stage, risks)
-    return {
-        "stage": stage,
-        "profile": selected,
-        "auto_profile": automatic,
-        "reason": reason,
-        "risk_dimensions": risks,
-        "required_gates": gates,
-        "gate_key": gate_key(gates),
-        "changed_paths": sorted(set(paths)),
-    }
+    return {"stage": stage, "profile": selected, "auto_profile": automatic, "reason": reason, "risk_dimensions": risks, "required_gates": gates, "gate_key": gate_key(gates), "changed_paths": sorted(set(paths))}
 
 
 def write_github_output(path: str, result: dict[str, object]) -> None:
@@ -230,6 +219,8 @@ def self_test() -> None:
     assert integration["profile"] == "strong" and "python-matrix" in integration["required_gates"] and "browser-e2e" in integration["required_gates"]
     full = select(["scripts/select_validation_profile.py"], stage="integration")
     assert full["profile"] == "full" and {"package-smoke", "security-audit", "l2-specialists"} <= set(full["required_gates"])
+    artifact = select(["scripts/verify_artifact_lifecycle.py"], stage="integration")
+    assert artifact["profile"] == "full" and "l2-specialists" in artifact["required_gates"]
     release = select(["README.md"], stage="release")
     assert release["profile"] == "full" and "l2-specialists" in release["required_gates"]
     print("validation selector self-test: PASS")
