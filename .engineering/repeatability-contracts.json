@@ -43,7 +43,7 @@
       "id": "worker-runtime-multi-cycle",
       "lifecycle": "runtime",
       "claim": "worker reclamation experiment repeats ready-exercise-stop windows in one owned run",
-      "evidence": {"kind": "pytest", "nodeid": "tests/test_worker_reclamation.py::test_worker_reclamation_runs_repeated_ready_exercise-stop-windows"}
+      "evidence": {"kind": "pytest", "nodeid": "tests/test_worker_reclamation.py::test_worker_reclamation_runs_repeated_ready_exercise_stop_windows"}
     }
   ],
   "non_claims": [
