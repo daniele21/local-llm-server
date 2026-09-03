@@ -39,10 +39,12 @@ def test_list_models_exposes_conservative_capability_metadata(monkeypatch, tmp_p
     assert text["capability_source"] == "legacy_conservative"
     assert "chat" in text["capabilities"]["tasks"]
     assert text["capabilities"]["input_modalities"] == ["text"]
+    assert text["generation_parameter_domains"] == []
 
     vision = models["vision-model"]
     assert "vision_language" in vision["capabilities"]["tasks"]
     assert "image" in vision["capabilities"]["input_modalities"]
+    assert vision["generation_parameter_domains"] == []
 
 
 def test_list_models_preserves_explicit_capability_provenance(monkeypatch, tmp_path: Path):
@@ -56,6 +58,14 @@ def test_list_models_preserves_explicit_capability_provenance(monkeypatch, tmp_p
                 "input_modalities": ["text"],
                 "output_modalities": ["text"],
                 "features": ["structured_output"],
+                "generation_parameter_domains": {
+                    "top_p": {
+                        "kind": "float",
+                        "minimum": 0.7,
+                        "maximum": 0.95,
+                        "step": 0.05,
+                    }
+                },
             }
         },
     }
@@ -75,3 +85,13 @@ def test_list_models_preserves_explicit_capability_provenance(monkeypatch, tmp_p
     assert model["capabilities"]["tasks"] == ["chat", "structured_generation"]
     assert model["capabilities"]["output_modalities"] == ["text"]
     assert model["capabilities"]["features"] == ["structured_output"]
+    assert model["generation_parameter_domains"] == [
+        {
+            "name": "top_p",
+            "kind": "float",
+            "provenance": "registry_declared",
+            "minimum": 0.7,
+            "maximum": 0.95,
+            "step": 0.05,
+        }
+    ]

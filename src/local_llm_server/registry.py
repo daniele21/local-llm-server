@@ -28,6 +28,8 @@ from typing import Any
 
 import yaml
 
+from .capability_catalog import validate_registry_capability_entry
+
 _BUILTIN_REGISTRY = Path(__file__).parent / "models_registry.yaml"
 _SUPPORTED_BACKENDS = {"llama_cpp", "gguf", "mlx", "llama_server", "mlx_vlm_server"}
 _VALID_MODALITIES = {"text", "image", "audio"}
@@ -200,6 +202,11 @@ def validate_registry(registry: dict[str, Any]) -> None:
             errors.append(f"{label}.multimodal must be a boolean")
         elif multimodal != (isinstance(modalities, list) and any(mode != "text" for mode in modalities)):
             errors.append(f"{label}.multimodal must match its declared modalities")
+
+        try:
+            validate_registry_capability_entry(entry)
+        except ValueError as exc:
+            errors.append(f"{label}: {exc}")
 
         has_model_source = bool(entry.get("path") or entry.get("filename") or entry.get("model_id"))
         if backend in {"llama_cpp", "gguf", "llama_server", "mlx", "mlx_vlm_server"} and not has_model_source:

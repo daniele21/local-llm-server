@@ -73,3 +73,43 @@ def test_registry_validation_rejects_unknown_thinking_mode():
 
     with pytest.raises(ValueError, match="thinking_mode"):
         validate_registry(registry)
+
+
+def test_registry_validation_accepts_explicit_bounded_generation_domain():
+    validate_registry(
+        _registry(
+            {
+                "one": {
+                    "filename": "one.gguf",
+                    "generation_parameter_domains": {
+                        "temperature": {
+                            "kind": "float",
+                            "minimum": 0.0,
+                            "maximum": 0.8,
+                            "step": 0.1,
+                        }
+                    },
+                }
+            }
+        )
+    )
+
+
+def test_registry_validation_rejects_runtime_load_field_as_request_domain():
+    registry = _registry(
+        {
+            "one": {
+                "filename": "one.gguf",
+                "generation_parameter_domains": {
+                    "n_ubatch": {
+                        "kind": "integer",
+                        "minimum": 64,
+                        "maximum": 512,
+                    }
+                },
+            }
+        }
+    )
+
+    with pytest.raises(ValueError, match="n_ubatch"):
+        validate_registry(registry)

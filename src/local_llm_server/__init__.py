@@ -177,6 +177,7 @@ def list_models() -> list[dict]:
                 "modalities": entry.get("modalities", []),
                 "capabilities": capability["capabilities"],
                 "capability_source": capability["capability_source"],
+                "generation_parameter_domains": capability["generation_parameter_domains"],
                 "downloaded": resolved.downloaded,
                 "path": resolved.model_path,
                 "source": resolved.source_type,
