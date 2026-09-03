@@ -329,10 +329,11 @@ jobs:
   evidence:
     name: Publish reusable validation evidence
     needs: [scope, reuse, validation]
-    if: needs.validation.result == 'success' && needs.scope.outputs.stage != 'iteration' && needs.reuse.outputs.reused != 'true'
+    if: always() && needs.validation.result == 'success' && needs.scope.outputs.stage != 'iteration' && needs.reuse.outputs.reused != 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Create evidence identity
+        id: identity
         env:
           HEAD_SHA: ${{ needs.scope.outputs.head_sha }}
           BASE_SHA: ${{ needs.scope.outputs.base_sha }}
@@ -342,19 +343,21 @@ jobs:
           RISKS: ${{ needs.scope.outputs.risks }}
           GATES: ${{ needs.scope.outputs.required_gates }}
           GATE_KEY: ${{ needs.scope.outputs.gate_key }}
+        shell: bash
         run: |
+          set -euo pipefail
           cat > evidence.json <<EOF
           {"head":"$HEAD_SHA","source_tree":"$SOURCE_TREE","target_base":"$BASE_SHA","stage":"$STAGE","profile":"$PROFILE","risk_dimensions":"$RISKS","required_gates":"$GATES","e2e_environment":"as-selected","run_id":"${GITHUB_RUN_ID}"}
           EOF
-          echo "EXACT=validation-evidence-${HEAD_SHA}-${BASE_SHA}-${PROFILE}-${GATE_KEY}" >> "$GITHUB_ENV"
-          echo "TREE=validation-tree-evidence-${SOURCE_TREE}-${BASE_SHA}-${PROFILE}-${GATE_KEY}" >> "$GITHUB_ENV"
+          echo "exact=validation-evidence-${HEAD_SHA}-${BASE_SHA}-${PROFILE}-${GATE_KEY}" >> "$GITHUB_OUTPUT"
+          echo "tree=validation-tree-evidence-${SOURCE_TREE}-${BASE_SHA}-${PROFILE}-${GATE_KEY}" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.EXACT }}
+          name: ${{ steps.identity.outputs.exact }}
           path: evidence.json
           retention-days: 7
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.TREE }}
+          name: ${{ steps.identity.outputs.tree }}
           path: evidence.json
           retention-days: 7
