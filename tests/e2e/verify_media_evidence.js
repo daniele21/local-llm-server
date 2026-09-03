@@ -9,15 +9,9 @@ const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 const contract = JSON.parse(fs.readFileSync(contractPath, 'utf8'));
 
 const journeyTests = {
-  'control-plane-status-and-navigation': [
-    /control-plane routes stay in-document and survive refresh and browser history/i,
-  ],
-  'chat-inference-and-recovery': [
-    /a failed inference does not poison the next request/i,
-  ],
-  'model-runtime-management': [
-    /models and runtimes owns the lifecycle, resource recovery and deep-linked detail surface/i,
-  ],
+  'control-plane-status-and-navigation': [/control-plane routes stay in-document and survive refresh and browser history/i],
+  'chat-inference-and-recovery': [/a failed inference does not poison the next request/i],
+  'model-runtime-management': [/models and runtimes owns the lifecycle, resource recovery and deep-linked detail surface/i],
   'evaluation-review-and-repeatability': [
     /evaluation result uses semantic evidence values and progressively disclosed run identity/i,
     /general-purpose evaluation sends and records reasoning OFF/i,
@@ -27,7 +21,7 @@ const journeyTests = {
 const modes = new Map(
   (contract.critical_journeys || []).map((journey) => [
     journey.id,
-    journey.minimum_ui_evidence_mode || (journey.ui_surface ? 'assertions' : 'assertions'),
+    journey.minimum_ui_evidence_mode || 'assertions',
   ]),
 );
 
@@ -45,10 +39,26 @@ function walkSuites(suites, parents = [], specs = []) {
 function existingAttachment(attachment) {
   if (!attachment?.path) return false;
   if (path.isAbsolute(attachment.path)) return fs.existsSync(attachment.path);
-  return [
-    path.resolve(attachment.path),
-    path.resolve(path.dirname(reportPath), attachment.path),
-  ].some((candidate) => fs.existsSync(candidate));
+  return [path.resolve(attachment.path), path.resolve(path.dirname(reportPath), attachment.path)].some(
+    (candidate) => fs.existsSync(candidate),
+  );
+}
+
+function pruneToRetainableEvidence(root) {
+  if (!fs.existsSync(root)) return;
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const target = path.join(root, entry.name);
+    if (entry.isDirectory()) {
+      pruneToRetainableEvidence(target);
+      if (fs.readdirSync(target).length === 0) fs.rmdirSync(target);
+      continue;
+    }
+    const retain =
+      entry.name === 'ui-e2e-media-manifest.json' ||
+      entry.name.endsWith('.png') ||
+      entry.name.endsWith('.webm');
+    if (!retain) fs.unlinkSync(target);
+  }
 }
 
 const specs = walkSuites(report.suites || []);
@@ -56,7 +66,7 @@ const errors = [];
 const manifest = {
   schema_version: 2,
   evidence_kind: 'local_llm_server_ui_e2e_risk_evidence_v2',
-  report: reportPath,
+  report: 'playwright-results.json',
   contract: contractPath,
   journeys: {},
 };
@@ -110,6 +120,11 @@ for (const [journey, patterns] of Object.entries(journeyTests)) {
 
 fs.mkdirSync('test-results', { recursive: true });
 fs.writeFileSync('test-results/ui-e2e-media-manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
+
+// Only synthetic UI media selected by the contract and the sanitized manifest
+// may survive into the workflow artifact. Raw JSON reports and trace ZIPs are
+// useful transient execution data but cross the repository privacy boundary.
+pruneToRetainableEvidence('test-results');
 
 if (errors.length) {
   console.error('UI E2E risk-based evidence: FAIL');
