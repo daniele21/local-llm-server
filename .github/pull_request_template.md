@@ -5,6 +5,11 @@
 ## Scope / risk
 
 <!-- Canonical owners touched; privacy/data/runtime/resource/compatibility implications. -->
+<!-- complexity-review:problem -->
+<!-- complexity-review:boundary -->
+<!-- complexity-review:surface -->
+<!-- complexity-review:simpler -->
+<!-- complexity-review:sunset -->
 
 ## What changed
 
@@ -28,6 +33,15 @@
 - UI evidence mode: `ASSERTIONS|SCREENSHOTS|FULL_MEDIA|N/A`
 - Residual `REAL_ENVIRONMENT` gaps:
 - Cleanup / bounded evidence:
+
+<!-- product-experience:task-model -->
+<!-- product-experience:hierarchy -->
+<!-- product-experience:cognitive-load -->
+<!-- product-experience:recovery -->
+<!-- product-experience:accessibility -->
+<!-- product-experience:adaptive -->
+<!-- product-experience:design-system -->
+<!-- product-experience:evidence -->
 
 ## Documentation impact
 
