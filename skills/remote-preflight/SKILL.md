@@ -1,16 +1,18 @@
-# remote-preflight
+---
+name: remote-preflight
+description: Satisfy Local LLM Server integration/release deterministic gates through repository-owned automation, reusing equivalent successful evidence before executing only missing work.
+---
 
-Use when `preflight-change` classifies one or more required deterministic gates as `REMOTE_AUTOMATED`.
+# Remote Preflight
 
-For this repository the safe remote path is the same-repository pull request against `dev`: GitHub `pull_request` workflows execute deterministic CI/Repository Health on the exact PR head with read-only contents permission, and status checks report results on the PR.
+Use only after `preflight-change` reaches `INTEGRATION` or `RELEASE` and required deterministic gates need `REMOTE_AUTOMATED` execution.
 
-1. Record PR target and exact head SHA before relying on any run. Never reuse evidence from an older head/base relationship.
-2. Run/read `scripts/select_validation_profile.py` and record `LEAN`, `SCOPED`, `STRONG` or `FULL` plus reason. Existing PR workflows may execute a deliberately stronger deterministic set; never weaken below `auto` just to save time.
-3. Inspect CI and Repository Health results and logs, not only the headline. Record each required gate as PASS/FAIL/PENDING/N/A.
-4. On failure classify root cause: current change, baseline failure, environment/toolchain, flaky, base drift or wrong assumption. Fix the owning source/configuration and retrigger on the new exact head.
-5. Never ask the user to run pytest/Ruff/Playwright/build/repository validators solely because the current agent cannot run them. Use repository automation.
-6. Keep remote execution capability separate from E2E fidelity. A GitHub-hosted Playwright run is `REMOTE_AUTOMATED` but `ci-studio-deterministic` remains `host_or_fake`; it cannot satisfy Apple Silicon/model/backend/memory/performance evidence.
-7. Preserve least privilege: same-repository heads, trusted requester, exact-head correlation, no production/signing secrets in change-code execution, bounded artifact retention.
-8. If no usable automation exists for a deterministic required gate, report `AUTOMATION_CAPABILITY_GAP`; if blast radius cannot be selected safely, report `VALIDATION_SCOPE_GAP` and fail safe stronger.
+Read `.engineering/commands.json` and record exact head/source tree, target/base, stage, risks, required gates, profile and applicable E2E identity. Search successful evidence before triggering new CI.
 
-`AUTOMATED_PREFLIGHT_CONFIRMED` means all deterministic gates selected for the exact head/base passed. It does not imply representative-hardware, target-environment, manual accessibility or representative-user evidence.
+Reuse exact-head evidence when candidate head/base/gates/profile/E2E claim remain sufficient. On `dev`, repository automation may also reuse a prior integration proof after a content-preserving squash/rebase merge only when the post-merge Git tree equals the validated source tree and the merge parent equals the validated target/base. A direct push, moved base, changed tree, broadened gates or expired evidence requires normal validation.
+
+If evidence is sufficient, confirm without rerunning expensive gates. Otherwise execute only missing/stale/insufficient gates through `.github/workflows/ci.yml`; do not request FULL merely because it is simpler operationally.
+
+On failure inspect the owning job/log, classify `CHANGE_REGRESSION|BASELINE_FAILURE|ENVIRONMENT|FLAKY|BASE_DRIFT|ASSUMPTION`, repair the owner, reselect risks/gates and rerun only invalidated evidence. Keep change-branch execution read-only, same-repository by default, without production secrets and with bounded retention.
+
+Executor class never upgrades fidelity: GitHub Playwright remains deterministic host evidence, while production model/backend/memory/performance claims remain representative/target Apple Silicon evidence.
