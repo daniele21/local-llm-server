@@ -39,11 +39,11 @@ Preserve these invariants:
 
 ## Delivery and validation model
 
-Delivery stage and validation depth are independent:
+Korgis follows repo-template-sw **0.9.2**. Delivery stage and validation depth are independent:
 
 - `ITERATION`: default while implementation is changing. Use focused owner-local checks. No exact-head/full-diff/doc-freshness ceremony, package smoke, broad Playwright, L1/L2 fitness or remote preflight merely because those gates exist.
-- `INTEGRATION`: coherent observable outcome ready to converge. Refresh base/head/diff/docs and run the selector's required risk gates.
-- `RELEASE`: promotion/release checkpoint. FULL plus release-critical package/E2E/security/L1-L2 and residual real-environment evidence.
+- `INTEGRATION` (`PR -> dev`): coherent observable outcome ready to converge. Refresh base/head/diff/docs and run required automated risk gates, including affected deterministic Studio/API E2E. Required Apple Silicon evidence is explicit but non-blocking and deferred to release.
+- `RELEASE` (`dev -> main`): FULL plus release-critical package/E2E/security/L1-L2 and every applicable required residual real-environment confirmation.
 
 `scripts/select_validation_profile.py` reports `risk_dimensions -> required_gates -> LEAN|SCOPED|STRONG|FULL`. Profiles are shorthand; concrete gates are authoritative. Selector/global workflow/dependency machinery changes fail safe FULL.
 
@@ -53,14 +53,14 @@ Successful integration evidence is reusable when head/source tree, target/base, 
 
 ## E2E and UI evidence
 
-`.engineering/e2e.json` separates executor capability from environment fidelity and uses `ASSERTIONS`, `SCREENSHOTS`, `FULL_MEDIA` by risk. UI existence alone does not force video.
+`.engineering/e2e.json` separates executor capability from environment fidelity and uses `ASSERTIONS`, `SCREENSHOTS`, `FULL_MEDIA` by risk. UI existence alone does not force video; a material UI/UX integration journey does.
 
 - status/navigation and stable evaluation review: screenshots;
 - chat progress/failure/recovery and runtime residency/lifecycle visibility: full media;
 - external application API and cleanup contracts: assertions;
-- real model/backend/memory/thermal behavior remains representative/target Apple Silicon evidence.
+- real model/backend/memory/thermal behavior remains representative/target Apple Silicon evidence and gates release, not entry into `dev`.
 
-Never upgrade hosted deterministic evidence into real-device claims.
+Never upgrade hosted deterministic evidence into real-device claims. A real runtime smoke may be used early for diagnosis, but it is not the standard integration gate.
 
 ## Change workflow
 
