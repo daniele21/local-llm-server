@@ -31,9 +31,11 @@ jobs:
           python3 scripts/verify_repository.py --skip-specialists
           python3 scripts/verify_operations.py
           python3 scripts/verify_e2e.py
+          python3 scripts/verify_stage_environment_policy.py
           python3 scripts/verify_docs.py
           python3 scripts/verify_agent_context.py
           python3 scripts/select_validation_profile.py --self-test
 
 # Expensive L1/L2 specialist fitness, artifact-lifecycle stress and hosted
 # performance regression are owned by the stage/risk-aware FULL gate in ci.yml.
+# Representative/target Apple Silicon evidence is a RELEASE gate, not a PR-to-dev gate.
