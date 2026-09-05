@@ -2,8 +2,8 @@
   "schema_version": 1,
   "standard": {
     "source": "daniele21/repo-template-sw",
-    "version": "0.9.1",
-    "revision": "3c6f7aaf48c47595596d1aa4854af8727e9273a7"
+    "version": "0.9.2",
+    "revision": "8aa95d10254846e7d63f4bd5c60d61b18d21060c"
   },
   "target_level": "L2",
   "profiles": ["python", "local-ai", "typescript", "macos", "product-ui"],
@@ -83,6 +83,13 @@
       "repository_health": "structural-fast-path",
       "l1_l2_specialists": "full-gate",
       "template_revision": "3c6f7aaf48c47595596d1aa4854af8727e9273a7"
+    },
+    "development_velocity_0_9_2": {
+      "automated_integration_before_dev": "adopted",
+      "real_environment_integration_blocking": false,
+      "apple_silicon_release_gate": "adopted",
+      "material_ui_integration_full_media": "adopted",
+      "template_revision": "8aa95d10254846e7d63f4bd5c60d61b18d21060c"
     },
     "product_ui_l2": {
       "contract_and_design_source": "implemented-and-validated",
